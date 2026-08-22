@@ -119,10 +119,11 @@ func (f *FilterTable) Len() int { return len(f.origIdx) }
 
 // Selected returns the original row index under the cursor.
 func (f *FilterTable) Selected() (int, bool) {
-	if len(f.origIdx) == 0 || f.t.Cursor() >= len(f.origIdx) {
+	cur := f.t.Cursor()
+	if cur < 0 || cur >= len(f.origIdx) {
 		return 0, false
 	}
-	return f.origIdx[f.t.Cursor()], true
+	return f.origIdx[cur], true
 }
 
 // Cursor returns the visible cursor position.
@@ -149,6 +150,15 @@ func (f *FilterTable) CancelFilter() {
 	}
 }
 
+// ClearFilter drops the active filter and restores all rows.
+func (f *FilterTable) ClearFilter() {
+	f.filtering = false
+	f.input.Blur()
+	f.input.SetValue("")
+	f.filterStr = ""
+	f.applyFilter()
+}
+
 // AcceptFilter commits the current input as the active filter.
 func (f *FilterTable) AcceptFilter() {
 	f.filtering = false
@@ -173,8 +183,19 @@ func (f *FilterTable) applyFilter() {
 		vis[vi] = f.rows[oi]
 	}
 	f.t.SetRows(vis)
-	if len(vis) > 0 && f.t.Cursor() >= len(vis) {
-		f.t.GotoBottom()
+	// bubbles clamps the cursor to len(rows)-1 on SetRows, which is -1
+	// for an empty result. A negative cursor corrupts the viewport and
+	// later panics index lookups, so normalize it whenever it is out
+	// of range in either direction.
+	if cur := f.t.Cursor(); cur < 0 || cur >= len(vis) {
+		switch {
+		case len(vis) == 0:
+			// nothing to select; SetCursor would clamp to -1 again
+		case cur >= len(vis):
+			f.t.GotoBottom()
+		default:
+			f.t.SetCursor(0)
+		}
 	}
 }
 
@@ -212,6 +233,13 @@ func (f FilterTable) Update(msg tea.Msg) (FilterTable, tea.Cmd) {
 		case "esc":
 			if f.filtering {
 				f.CancelFilter()
+				return f, nil
+			}
+			if f.filterStr != "" {
+				// A committed filter that yields nothing must be
+				// clearable with esc, or the list looks permanently
+				// broken ("retyping never matches again").
+				f.ClearFilter()
 				return f, nil
 			}
 		case "g":

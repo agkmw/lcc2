@@ -190,6 +190,16 @@ func (r Root) View() string {
 		body = r.viewTabStrip() + "\n" + r.viewContent(cur)
 	}
 
+	// The body must occupy exactly the space between header and
+	// footer: short content is padded, tall content is clipped.
+	// Otherwise the footer floats up on sparse screens and slips off
+	// the bottom on crowded ones.
+	bodyH := r.height - 2 // header + footer
+	if bodyH < 1 {
+		bodyH = 1
+	}
+	body = lipgloss.NewStyle().Height(bodyH).MaxHeight(bodyH).Render(body)
+
 	frame := r.viewHeader(cur) + "\n" + body + "\n" + r.viewFooter(cur)
 	out := ui.Base().Render(frame)
 	if r.helpOpen {
