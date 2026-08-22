@@ -1,0 +1,4 @@
+# Runtime artifacts of the multi-agent demo
+.agents/worktrees/
+.agents/*.log
+.agent/
