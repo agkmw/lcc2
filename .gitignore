@@ -1,4 +1,12 @@
 # Runtime artifacts of the multi-agent demo
 .agents/worktrees/
+.agents/logs/
+.agents/results/
+.agents/status/
+.agents/roles/
+.agents/workers/
 .agents/*.log
 .agent/
+
+scripts/__pycache__/
+__pycache__/
