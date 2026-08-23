@@ -122,22 +122,26 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		u.users = m.users
 		u.groups = m.groups
 		urows := make([]table.Row, len(m.users))
+		ukeys := make([]string, len(m.users))
 		for i, usr := range m.users {
 			urows[i] = table.Row{
 				usr.Name, itoa(usr.UID), itoa(usr.GID),
 				ui.Truncate(usr.Home, 24), usr.Shell,
 			}
+			ukeys[i] = usr.Name
 		}
-		u.uTbl.SetRows(urows)
+		u.uTbl.SetRowsTracked(urows, ukeys)
 		grows := make([]table.Row, len(m.groups))
+		gkeys := make([]string, len(m.groups))
 		for i, g := range m.groups {
 			members := strings.Join(g.Members, ", ")
 			if members == "" {
 				members = "-"
 			}
 			grows[i] = table.Row{g.Name, itoa(g.GID), ui.Truncate(members, 52)}
+			gkeys[i] = g.Name
 		}
-		u.gTbl.SetRows(grows)
+		u.gTbl.SetRowsTracked(grows, gkeys)
 
 	case tea.KeyMsg:
 		return u.handleKey(m)

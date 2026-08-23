@@ -114,14 +114,16 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		s.loadErr = ""
 		s.units = m.units
 		rows := make([]table.Row, len(m.units))
+		keys := make([]string, len(m.units))
 		for i, u := range m.units {
 			rows[i] = table.Row{
 				u.Name, stateStyled(u.Active), u.Sub,
 				orDash(u.Enabled),
 				ui.Truncate(u.Description, 40),
 			}
+			keys[i] = u.Name
 		}
-		s.tbl.SetRows(rows)
+		s.tbl.SetRowsTracked(rows, keys)
 
 	case spinner.TickMsg:
 		if s.loaded {

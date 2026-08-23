@@ -4,18 +4,17 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-N1 done: nvim-notify-style floating windows, non-destructive compositing
-(ADR-0006). Gate green. All C/H closed; M2 M3 M7 and L-tier open.
+N1 (floating notifications) and T1 (identity cursor tracking) done.
+Gate green. Open: S1, M2 M3 M7, L-tier.
 
 ## In progress
 
-Nothing — next up is T1 (cursor tracking).
+Nothing — next up is S1.
 
 ## Next action
 
-[T1] identity-based cursor tracking:
-1. `internal/ui/table.go`: `keys []string` parallel to rows; `SetRowsTracked(rows, keys)`; `applyFilter` restores cursor by key (nearest-index fallback)
-2. Wire keys in all five screens: files=path, processes=PID (drop syncTable PID hack), services=name, users=name, disks=mountpoint/path
-3. Tests in `internal/ui/table_test.go`: delete-shift keeps selection; filter narrow/widen keeps it
-4. Gate → ritual → commit `feat(ui): identity-based cursor tracking (T1)`
-Then [S1] content-sized detail panes.
+[S1] content-sized detail panes:
+1. `internal/screens/styles.go`: `paneHeight(contentLines, avail int) int` = clamp(lines,4,avail-2)+2 (border)
+2. Apply: processes detail (`dvp.Height = paneHeight(detailLines, th)` in layout/setDetailContent), files metaPane (drop fixed 14), services + users detail panes (drop full-height clampInt(h,8,h))
+3. Tests: helper unit test; lifecycle test asserting proc detail view height ≤ h with small content
+4. Gate → ritual → commit `feat(screens): content-sized detail panes (S1)`

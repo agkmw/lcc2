@@ -118,6 +118,17 @@ File ops have no byte progress or cancel (coarse busy guard only, see H4).
 Ptrs: `internal/screens/files.go`, pattern `internal/disk/scan.go`.
 
 ### N1 · closed (feat(ui) notify commit)
+
+### T1 · closed (feat(ui) tracking commit)
+Cursor did not follow the selected item across refreshes/filters —
+selection "jumped to top" after any rebuild.
+Fix: `FilterTable.SetRowsTracked(rows, keys)` + key-based cursor restore
+in every `applyFilter` path (`internal/ui/table.go`). Keys wired in all
+five screens: files=path, processes=PID (syncTable PID hack deleted),
+services=unit, users=name, disks=mountpoint/path.
+Tests: `internal/ui/table_test.go` (delete-shift, filter narrow/widen),
+`internal/screens/lifecycle_test.go::TestFilesCursorTracksAcrossRefresh`.
+
 Toast redesign to nvim-notify style after user feedback: old overlay washed
 the whole frame and truncated footer hints.
 New: `internal/ui/notify.go` (NotifyStack + CompositeNotes), root wiring in

@@ -101,3 +101,55 @@ func TestSelectedRejectsNegativeCursor(t *testing.T) {
 		t.Fatal("view should still render header")
 	}
 }
+
+// BACKLOG-T1: the cursor must follow the same logical item across
+// row rebuilds (refresh churn, deletions, sort changes) and filters.
+func TestTrackingFollowsItemThroughDelete(t *testing.T) {
+	ft := NewFilterTable([]table.Column{{Title: "name", Width: 20}}, 30, 5)
+	ft.SetRowsTracked(rows5(), []string{"a", "b", "c", "d", "e"})
+	ft.SetCursor(2)
+	if k, _ := ft.SelectedKey(); k != "c" {
+		t.Fatalf("setup wrong: key=%q", k)
+	}
+
+	// delete an item BEFORE the selection: index shifts, identity holds
+	ft.SetRowsTracked([]table.Row{{"alpha"}, {"gamma"}, {"delta"}, {"echo"}},
+		[]string{"a", "c", "d", "e"})
+	if k, ok := ft.SelectedKey(); !ok || k != "c" {
+		t.Fatalf("selection lost after delete-shift: %q %v", k, ok)
+	}
+
+	// delete the tracked item itself: cursor lands on nearest survivor
+	ft.SetRowsTracked([]table.Row{{"alpha"}, {"delta"}, {"echo"}},
+		[]string{"a", "d", "e"})
+	if _, ok := ft.SelectedKey(); !ok {
+		t.Fatal("no selection after tracking target vanished")
+	}
+}
+
+func TestTrackingThroughFilterNarrowAndWiden(t *testing.T) {
+	ft := NewFilterTable([]table.Column{{Title: "name", Width: 20}}, 30, 8)
+	ft.SetRowsTracked(rows5(), []string{"a", "b", "c", "d", "e"})
+	ft.SetCursor(3) // delta
+
+	ft, _ = ft.Update(keyMsg("/"))
+	typeString(&ft, "del")
+	ft, _ = ft.Update(tea.KeyMsg{Type: tea.KeyEnter}) // commit filter
+	if k, _ := ft.SelectedKey(); k != "d" {
+		t.Fatalf("filter lost selection: %q", k)
+	}
+
+	ft.ClearFilter()
+	if ft.Len() != 5 {
+		t.Fatalf("widen failed: %d", ft.Len())
+	}
+	if k, _ := ft.SelectedKey(); k != "d" {
+		t.Fatalf("clear-filter lost selection: %q", k)
+	}
+}
+
+func rows5() []table.Row {
+	return []table.Row{
+		{"alpha"}, {"beta"}, {"gamma"}, {"delta"}, {"echo"},
+	}
+}

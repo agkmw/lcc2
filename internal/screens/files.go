@@ -113,6 +113,7 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		f.cwd = m.dir
 		f.entries = m.list
 		rows := make([]table.Row, len(m.list))
+		keys := make([]string, len(m.list))
 		for i, e := range m.list {
 			name := e.Name
 			if e.IsDir {
@@ -125,8 +126,9 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 				files.UserName(e.UID),
 				e.ModTime.Format("Jan 02 15:04"),
 			}
+			keys[i] = e.Path
 		}
-		f.tbl.SetRows(rows)
+		f.tbl.SetRowsTracked(rows, keys)
 
 	case multiMsg:
 		cmds := []tea.Cmd{}

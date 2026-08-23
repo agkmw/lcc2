@@ -15,7 +15,9 @@ type FilterTable struct {
 	cols      []table.Column
 	baseCols  []table.Column // pristine widths used by fitColumns
 	rows      []table.Row    // all rows
+	keys      []string       // keys[i] identifies rows[i]; empty = untracked
 	origIdx   []int          // origIdx[visible] = index into rows
+	lastKey   string         // selection to restore on rebuild
 	filtering bool
 	filterStr string
 	input     textinput.Model
@@ -108,7 +110,29 @@ func (f *FilterTable) SetColumns(cols []table.Column) {
 // SetRows replaces all rows, preserving the current filter.
 func (f *FilterTable) SetRows(rows []table.Row) {
 	f.rows = rows
+	f.keys = nil
 	f.applyFilter()
+}
+
+// SetRowsTracked replaces all rows with stable identity keys; the
+// cursor follows its row across rebuilds, sorts and filter changes.
+func (f *FilterTable) SetRowsTracked(rows []table.Row, keys []string) {
+	if len(keys) != len(rows) {
+		panic("SetRowsTracked: keys/rows length mismatch")
+	}
+	pre := f.currentKeyOrLast()
+	f.rows = rows
+	f.keys = keys
+	f.applyFilterWith(pre)
+}
+
+// SelectedKey returns the stable key of the cursor's row.
+func (f *FilterTable) SelectedKey() (string, bool) {
+	idx, ok := f.Selected()
+	if !ok || idx >= len(f.keys) {
+		return "", false
+	}
+	return f.keys[idx], true
 }
 
 // Rows returns all rows currently set on the table.
@@ -170,7 +194,18 @@ func (f *FilterTable) AcceptFilter() {
 // FilterString returns the active filter text.
 func (f *FilterTable) FilterString() string { return f.filterStr }
 
-func (f *FilterTable) applyFilter() {
+func (f *FilterTable) applyFilter() { f.applyFilterWith(f.currentKeyOrLast()) }
+
+// currentKeyOrLast resolves the selection to restore: the live cursor's
+// key when state is consistent, else the last tracked key.
+func (f *FilterTable) currentKeyOrLast() string {
+	if k, ok := f.selKey(); ok {
+		return k
+	}
+	return f.lastKey
+}
+
+func (f *FilterTable) applyFilterWith(want string) {
 	q := strings.ToLower(f.filterStr)
 	f.origIdx = f.origIdx[:0]
 	for i, r := range f.rows {
@@ -183,6 +218,19 @@ func (f *FilterTable) applyFilter() {
 		vis[vi] = f.rows[oi]
 	}
 	f.t.SetRows(vis)
+
+	// Restore the cursor onto the same logical item; without this the
+	// cursor stays at an index while items shift (BACKLOG-T1).
+	if want != "" && f.keys != nil {
+		for vi, oi := range f.origIdx {
+			if oi < len(f.keys) && f.keys[oi] == want {
+				f.t.SetCursor(vi)
+				f.lastKey = want
+				return
+			}
+		}
+	}
+	f.lastKey = ""
 	// bubbles clamps the cursor to len(rows)-1 on SetRows, which is -1
 	// for an empty result. A negative cursor corrupts the viewport and
 	// later panics index lookups, so normalize it whenever it is out
@@ -197,6 +245,18 @@ func (f *FilterTable) applyFilter() {
 			f.t.SetCursor(0)
 		}
 	}
+}
+
+func (f *FilterTable) selKey() (string, bool) {
+	cur := f.t.Cursor()
+	if cur < 0 || cur >= len(f.origIdx) {
+		return "", false
+	}
+	oi := f.origIdx[cur]
+	if oi >= len(f.keys) {
+		return "", false
+	}
+	return f.keys[oi], true
 }
 
 func containsFold(r table.Row, q string) bool {

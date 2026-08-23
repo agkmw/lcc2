@@ -38,8 +38,7 @@ type Processes struct {
 	detail     proc.Details
 	dvp        viewport.Model
 
-	selectedPID int32
-	scanning    *atomic.Int32 // guards against overlapping full scans
+	scanning    *atomic.Int32  // guards against overlapping full scans
 	epoch       *atomic.Uint64 // tick-chain generation; stale chains die
 
 	confirm     *ui.ConfirmDialog
@@ -275,12 +274,10 @@ func (p Processes) filterBarHeight() int {
 	return 1
 }
 
-// syncTable rebuilds visible rows, preserving cursor by PID.
+// syncTable rebuilds visible rows; the cursor follows its PID.
 func (p *Processes) syncTable() {
-	if oldIdx, hasOld := p.tbl.Selected(); hasOld && oldIdx < len(p.all) {
-		p.selectedPID = p.all[oldIdx].PID
-	}
 	rows := make([]table.Row, len(p.all))
+	keys := make([]string, len(p.all))
 	for i, pr := range p.all {
 		rows[i] = table.Row{
 			itoa(int(pr.PID)),
@@ -290,16 +287,9 @@ func (p *Processes) syncTable() {
 			pr.State,
 			truncCell(pr.Command, 60),
 		}
+		keys[i] = itoa(int(pr.PID))
 	}
-	p.tbl.SetRows(rows)
-	if p.selectedPID > 0 {
-		for vi, oi := range p.tbl.VisibleOrigins() {
-			if oi < len(p.all) && p.all[oi].PID == p.selectedPID {
-				p.tbl.SetCursor(vi)
-				break
-			}
-		}
-	}
+	p.tbl.SetRowsTracked(rows, keys)
 }
 
 func truncCell(s string, w int) string {

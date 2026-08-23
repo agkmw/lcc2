@@ -116,6 +116,7 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 	case fsListMsg:
 		d.fss = m
 		rows := make([]table.Row, len(m))
+		keys := make([]string, len(m))
 		for i, f := range m {
 			rows[i] = table.Row{
 				f.Mountpoint, f.Device, f.FSType,
@@ -124,8 +125,9 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 				sysinfo.FormatBytes(float64(f.Free)),
 				itoa(int(f.UsedPercent)),
 			}
+			keys[i] = f.Mountpoint
 		}
-		d.fsTbl.SetRows(rows)
+		d.fsTbl.SetRowsTracked(rows, keys)
 
 	case scanDoneMsg:
 		d.busy = false
@@ -259,6 +261,7 @@ func (d *Disks) syncItems() {
 	}
 	total := float64(d.items.TotalSize)
 	rows := make([]table.Row, 0, len(d.items.Items))
+	keys := make([]string, 0, len(d.items.Items))
 	for _, it := range d.items.Items {
 		pct := 0.0
 		if total > 0 {
@@ -274,8 +277,9 @@ func (d *Disks) syncItems() {
 			sysinfo.FormatBytes(float64(it.Size)),
 			bar,
 		})
+		keys = append(keys, it.Path)
 	}
-	d.dirTbl.SetRows(rows)
+	d.dirTbl.SetRowsTracked(rows, keys)
 }
 
 func colorPtr(c lipgloss.Color) *lipgloss.Color { return &c }

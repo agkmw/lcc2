@@ -1,9 +1,15 @@
 package screens
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
+
+	"lcc2/internal/files"
+	"lcc2/internal/ui"
 )
 
 func spinTick() spinner.TickMsg { return spinner.TickMsg{} }
@@ -72,5 +78,33 @@ func TestFilesBusyGuard(t *testing.T) {
 	f = sc.(Files)
 	if !f.showHidden {
 		t.Fatal("guard stuck: toggle refused after drain")
+	}
+}
+
+// T1 end-to-end: after a listing refresh that removes an earlier row,
+// the cursor stays on the same file.
+func TestFilesCursorTracksAcrossRefresh(t *testing.T) {
+	dir := t.TempDir()
+	mk := func(names ...string) tea.Msg {
+		for _, n := range names {
+			os.WriteFile(dir+"/"+n, []byte("x"), 0644)
+		}
+		lst, err := files.List(dir, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return dirListMsg{dir: dir, list: lst}
+	}
+	f := NewFiles()
+	f = feed(f, ui.SizeMsg{Width: 100, Height: 30},
+		mk("a.txt", "b.txt", "c.txt")).(Files)
+	f.tbl.SetCursor(1) // b.txt
+
+	os.Remove(dir + "/a.txt")
+	f = feed(f, mk("b.txt", "c.txt")).(Files)
+
+	k, ok := f.tbl.SelectedKey()
+	if !ok || !strings.HasSuffix(k, "/b.txt") {
+		t.Fatalf("cursor did not track b.txt: %q %v", k, ok)
 	}
 }
