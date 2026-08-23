@@ -6,18 +6,21 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Gauge renders a percentage bar like "█████░░░░░ 52%".
-// color picks the fill color; pass nil for automatic (green→yellow→red).
+// Gauge renders a percentage bar like "█████▌░░░░░ 52%" with a
+// fractional final block for smooth motion. color picks the fill
+// color; pass nil for automatic (green→yellow→red).
 func Gauge(pct float64, width int, color *lipgloss.Color) string {
 	if width < 8 {
 		width = 8
 	}
-	filled := int(pct/100*float64(width-6) + 0.5)
-	if filled > width-6 {
-		filled = width - 6
-	}
-	if filled < 0 {
-		filled = 0
+	slots := width - 5 // bar area; " NN%" label takes the other five
+	exact := clampF(pct/100*float64(slots), 0, float64(slots))
+	full := int(exact)
+	frac := exact - float64(full)
+	bar := strings.Repeat("█", full)
+	if frac >= 0.125 && full < slots {
+		bar += fractionBlock(frac)
+		full++
 	}
 	var c lipgloss.Color
 	switch {
@@ -30,12 +33,33 @@ func Gauge(pct float64, width int, color *lipgloss.Color) string {
 	default:
 		c = Palette.Green
 	}
-	bar := strings.Repeat("█", filled)
-	rest := strings.Repeat("░", width-6-filled)
 	label := padLeft(itoa(int(pct)), 3) + "%"
+	rest := slots - len([]rune(bar))
 	return lipgloss.NewStyle().Foreground(c).Render(bar) +
-		lipgloss.NewStyle().Foreground(Palette.Faint).Render(rest) +
+		lipgloss.NewStyle().Foreground(Palette.Faint).Render(strings.Repeat("░", rest)) +
 		mutedSty.Render(" "+label)
+}
+
+func fractionBlock(f float64) string {
+	ramp := []rune{'▏', '▎', '▌', '▊'}
+	i := int(f * float64(len(ramp)))
+	if i < 0 {
+		i = 0
+	}
+	if i >= len(ramp) {
+		return ""
+	}
+	return string(ramp[i])
+}
+
+func clampF(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 // Spark renders a one-line sparkline from samples using block characters.

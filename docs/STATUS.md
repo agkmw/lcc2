@@ -4,17 +4,18 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-N1 + T1 + S1 done: floating notifications (ADR-0006), identity cursor
-tracking, content-sized detail panes. Gate green.
-Open backlog: M2 M3 M7, L1-L7.
+UI polish pass under way. Commit 1/4 done: design-system foundations —
+`TitledBox`, `KeyBadge`, `SelectedRow` surface highlight, `StateColor`,
+shaded fractional gauges (`internal/ui/theme.go`, `meter.go`).
+Gate green.
 
 ## In progress
 
-Nothing — session wrapped.
+Commit 2/4: chrome restyle.
 
 ## Next action
 
-Nothing pending from the UX batch. If continuing, pick from
-`docs/backlog.md`: [M2] unify detail-pane keys across screens,
-[M3] clip cells to fitted column widths, [M7] filtered/total counts.
-Starter: read AGENTS.md → this file → backlog entries above.
+Finish commit 2 (`feat(app): chrome restyle`): pill header, glyph sidebar,
+badge footer + rule, titled screen frame in `internal/app/root.go`; update
+footer string assertions; gate → ritual → commit. Then commits 3-4 per plan
+in session context: tables/data display, modals polish.

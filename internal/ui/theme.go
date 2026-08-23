@@ -2,7 +2,11 @@
 // reusable components used by every screen of the application.
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Palette is the single source of truth for colors.
 var Palette = struct {
@@ -87,6 +91,50 @@ func Panel() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(Palette.Surface)
+}
+
+// TitledBox renders an accent-bordered rounded panel with the title
+// spliced into its top border: ╭─ title ──────╮.
+func TitledBox(sectionID, title, body string, width int) string {
+	p := Panel().BorderForeground(Accent(sectionID)).Width(width).Render(body)
+	lines := strings.Split(p, "\n")
+	if len(lines) == 0 || !strings.HasPrefix(lines[0], "╭") {
+		return p
+	}
+	w := lipgloss.Width(lines[0])
+	label := lipgloss.NewStyle().Bold(true).Foreground(Accent(sectionID)).
+		Render(" " + title + " ")
+	lw := 1 + lipgloss.Width(label)
+	fill := w - 2 - lw
+	if fill < 0 {
+		fill = 0
+	}
+	lines[0] = "╭─" + label + strings.Repeat("─", fill) + "╮"
+	return strings.Join(lines, "\n")
+}
+
+// KeyBadge renders a footer keycap like "[q]" in the section accent.
+func KeyBadge(sectionID, key string) string {
+	return lipgloss.NewStyle().Bold(true).Foreground(Accent(sectionID)).
+		Render("[" + key + "]")
+}
+
+// SelectedRow is the full-line highlight for the focused list row.
+func SelectedRow() lipgloss.Style {
+	return lipgloss.NewStyle().Bold(true).
+		Background(Palette.Surface).Foreground(Palette.Text)
+}
+
+// StateColor maps a 0-100 percentage onto threshold colors.
+func StateColor(pct float64) lipgloss.Color {
+	switch {
+	case pct >= 90:
+		return Palette.Red
+	case pct >= 70:
+		return Palette.Yellow
+	default:
+		return Palette.Green
+	}
 }
 
 // Danger styles destructive text such as delete prompts.
