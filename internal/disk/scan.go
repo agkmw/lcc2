@@ -113,18 +113,3 @@ func ScanDir(ctx context.Context, root string, progress func(bytes int64)) (*Sca
 	})
 	return res, nil
 }
-
-// LargestFiles returns up to n biggest regular files among items.
-func LargestFiles(items []Item, n int) []Item {
-	out := make([]Item, 0, len(items))
-	for _, it := range items {
-		if !it.IsDir {
-			out = append(out, it)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Size > out[j].Size })
-	if len(out) > n {
-		out = out[:n]
-	}
-	return out
-}

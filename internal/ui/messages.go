@@ -28,9 +28,6 @@ func toast(kind, text string) tea.Cmd {
 	return func() tea.Msg { return ToastMsg{Kind: kind, Text: text} }
 }
 
-// toastTickMsg clears the toast when it fires.
-type toastTickMsg struct{}
-
 // Screen is implemented by every top-level section of the application.
 type Screen interface {
 	Init() tea.Cmd

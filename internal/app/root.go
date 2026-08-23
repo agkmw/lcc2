@@ -102,7 +102,11 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		r.toast = m
 		r.toastSeq++
 		seq := r.toastSeq
-		return r, tea.Tick(3*time.Second, func(time.Time) tea.Msg {
+		d := 3 * time.Second // errors stay twice as long
+		if m.Kind == "err" {
+			d = 6 * time.Second
+		}
+		return r, tea.Tick(d, func(time.Time) tea.Msg {
 			return toastTickMsg{seq: seq}
 		})
 

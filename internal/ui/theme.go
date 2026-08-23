@@ -89,11 +89,6 @@ func Panel() lipgloss.Style {
 		BorderForeground(Palette.Surface)
 }
 
-// SelectedRow is the highlight style for the focused list/table row.
-func SelectedRow() lipgloss.Style {
-	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#11111B"))
-}
-
 // Danger styles destructive text such as delete prompts.
 func Danger() lipgloss.Style {
 	return lipgloss.NewStyle().Bold(true).Foreground(Palette.Red)

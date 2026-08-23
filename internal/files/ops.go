@@ -94,7 +94,7 @@ func List(dir string, showHidden bool) ([]Entry, error) {
 		if out[i].IsDir != out[j].IsDir {
 			return out[i].IsDir
 		}
-		return out[i].Name < out[j].Name
+		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 	})
 	return out, nil
 }
@@ -211,29 +211,6 @@ func copyFile(src, dst string, mode os.FileMode) error {
 // Chmod applies a new permission mode to path.
 func Chmod(path string, mode os.FileMode) error {
 	return os.Chmod(path, mode)
-}
-
-// Chown applies owner and group by name; empty name means unchanged.
-func Chown(path, userName, groupName string) error {
-	var uid, gid int = -1, -1
-	if userName != "" {
-		u, err := user.LookupId(userName)
-		if err != nil {
-			return fmt.Errorf("unknown user %q", userName)
-		}
-		uid, _ = strconv.Atoi(u.Uid)
-	}
-	if groupName != "" {
-		g, err := user.LookupGroup(groupName)
-		if err != nil {
-			return fmt.Errorf("unknown group %q", groupName)
-		}
-		gid, _ = strconv.Atoi(g.Gid)
-	}
-	if uid == -1 && gid == -1 {
-		return nil
-	}
-	return os.Chown(path, uid, gid)
 }
 
 // Stat returns metadata for a single path.

@@ -83,7 +83,6 @@ func (d Disks) Title() string { return "Disks" }
 func (d Disks) Hints() []key.Binding {
 	if d.mode == "fs" {
 		return []key.Binding{
-			ui.Keys.Select,
 			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "analyze")),
 			ui.Keys.Refresh,
 			ui.Keys.Filter,

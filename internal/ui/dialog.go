@@ -3,9 +3,7 @@ package ui
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // ConfirmDialog asks for yes/no before a potentially destructive action.
@@ -63,67 +61,6 @@ func (c ConfirmDialog) View() string {
 	return Panel().
 		BorderForeground(Palette.Red).
 		Width(c.width).
-		Padding(1, 2).
-		Render(b.String())
-}
-
-// ErrorDialog shows an error with an expandable technical detail section.
-type ErrorDialog struct {
-	Title   string
-	Message string
-	Details string
-	ShowDet bool
-	vp      viewport.Model
-	width   int
-	height  int
-}
-
-// NewError builds an error dialog.
-func NewError(title, message, details string) ErrorDialog {
-	return ErrorDialog{
-		Title: title, Message: message, Details: details,
-		vp: viewport.New(56, 6), width: 60, height: 14,
-	}
-}
-
-// Update handles scrolling when details are visible.
-func (e *ErrorDialog) Update(msg tea.Msg) (ErrorDialog, bool) {
-	if key, ok := msg.(tea.KeyMsg); ok {
-		switch key.String() {
-		case "esc", "enter", "q":
-			return *e, true
-		case "d", "D":
-			e.ShowDet = !e.ShowDet
-		case "up", "k":
-			if e.ShowDet {
-				e.vp.LineUp(1)
-			}
-		case "down", "j":
-			if e.ShowDet {
-				e.vp.LineDown(1)
-			}
-		}
-	}
-	return *e, false
-}
-
-// View renders the error dialog.
-func (e ErrorDialog) View() string {
-	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(Palette.Red).Render(e.Title))
-	b.WriteString("\n\n")
-	b.WriteString(Truncate(e.Message, e.width-4))
-	b.WriteString("\n\n")
-	b.WriteString(mutedSty.Render("d") + faintSty.Render(" details   ") + mutedSty.Render("esc") + faintSty.Render(" dismiss"))
-	if e.ShowDet && e.Details != "" {
-		e.vp.Width = e.width - 6
-		e.vp.SetContent(faintSty.Render(e.Details))
-		b.WriteString("\n\n")
-		b.WriteString(e.vp.View())
-	}
-	return Panel().
-		BorderForeground(Palette.Red).
-		Width(e.width).
 		Padding(1, 2).
 		Render(b.String())
 }

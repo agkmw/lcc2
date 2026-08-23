@@ -78,6 +78,7 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "rename")),
 		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
 		key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy")),
+		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "cut")),
 		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "paste")),
 		key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "permissions")),
 	}

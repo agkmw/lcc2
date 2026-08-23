@@ -64,7 +64,7 @@ Test: `ops_test.go::TestCopyIntoOwnSubtreeRefused`.
 
 ## Medium
 
-### M1 · open
+### M1 · closed (polish-batch commit)
 `wordWrap` slices bytes, corrupts UTF-8 cmdlines. Ptr: `internal/screens/processes.go:393-395`.
 
 ### M2 · open
@@ -75,15 +75,15 @@ Detail-pane keys differ per screen: proc `esc/enter/q`; services swallows `q`
 Cells not clipped to fitted column widths → misalignment on narrow terminals.
 Ptrs: `internal/screens/processes.go:280`, `internal/ui/table.go:68-98`.
 
-### M4 · open
+### M4 · closed (polish-batch commit)
 Disks footer shows two conflicting `enter` hints ("select" + "analyze").
 Ptr: `internal/screens/disks.go:84-89`.
 
-### M5 · open
+### M5 · closed (polish-batch commit)
 `x` (cut) missing from Files hints/footer/help — invisible feature.
 Ptr: `internal/screens/files.go:70-81`.
 
-### M6 · open
+### M6 · closed (polish-batch commit)
 Services `SizeMsg` branch reimplements `layout()` with different clamp.
 Ptr: `internal/screens/services.go:100-103` vs `254-257`.
 
@@ -91,15 +91,14 @@ Ptr: `internal/screens/services.go:100-103` vs `254-257`.
 List headers show totals while filter active; no filtered/total count.
 Ptrs: all screens' head renderers (e.g. `services.go:264`).
 
-### M8 · open
+### M8 · closed (polish-batch commit)
 Comment claims case-insensitive sort; code is byte-order.
 Ptr: `internal/files/ops.go:62,92-97`.
 
-### M9 · open
-`Chown` passes username to `LookupId` (wants UID); unused broken API.
-Ptr: `internal/files/ops.go:184-199`.
+### M9 · closed (polish-batch commit)
+Broken unused `Chown` API resolved by removal — see [M12].
 
-### M10 · open
+### M10 · closed (polish-batch commit)
 Error toasts live 3 s like success and lack context ("permission denied" — for what?).
 Ptrs: `internal/app/root.go:101-107`, `files.go:321-323`.
 
@@ -108,10 +107,11 @@ Unreadable scan root yielded silent "0 entries · 0 B" instead of an error.
 Root walk error is now fatal (`internal/disk/scan.go`); UI shows analyze error.
 Test: `internal/disk/scan_test.go::TestScanDirUnreadableRoot`.
 
-### M12 · open
-Dead code: `ui.ErrorDialog/NewError`, `files.Chown`, `disk.LargestFiles`,
-`ui.SelectedRow()`, `proc.Filter`, `ui.toastTickMsg` (shadowed by root's own).
-Ptrs: `internal/ui/dialog.go:70-129`, `theme.go:93-95`, `messages.go:32` vs `app/root.go:370`.
+### M12 · partial
+Dead code removed: `ui.ErrorDialog/NewError`, `files.Chown` (broken API),
+`disk.LargestFiles`, `ui.SelectedRow`, `ui.toastTickMsg`.
+Kept intentionally: `proc.Filter` (tested provider helper).
+Still open: [M9] note folded here — Chown removed rather than fixed.
 
 ## Polish
 

@@ -102,8 +102,7 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 	switch m := msg.(type) {
 	case ui.SizeMsg:
 		s.w, s.h = m.Width, m.Height
-		dh := clampInt(m.Height-4, 5, m.Height-2)
-		s.tbl.SetSize(clampInt(s.w-(detailWidthIf(s.detailOpen))-3, 30, s.w), dh)
+		s.layout()
 
 	case svcListMsg:
 		s.loaded = true

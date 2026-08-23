@@ -402,8 +402,9 @@ func wordWrap(s string, w int) string {
 				line += " " + word
 			}
 			for lipgloss.Width(line) > w { // break very long words
-				out = append(out, line[:w])
-				line = line[w:]
+				r := []rune(line)
+				out = append(out, string(r[:w]))
+				line = string(r[w:])
 			}
 		}
 		out = append(out, line)
