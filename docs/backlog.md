@@ -52,13 +52,15 @@ Fix: `opCount` guard locks Files input while ops run; "working…" indicator
 in head (`internal/screens/files.go`). Coarse (no byte progress, no cancel)
 — progress/cancel tracked as enhancement, see L7.
 
-### H5 · open
-Silent overwrite: `os.Rename` and `copyFile` clobber existing targets.
-Ptrs: `internal/files/ops.go:115-117,167`.
+### H5 · closed (fix(files) commit, 2026-08-23)
+Silent overwrites via Rename/copyFile/Move. All three now refuse with
+"%s already exists" (`internal/files/ops.go`).
+Tests: `ops_test.go::TestOverwritesRefused`.
 
-### H6 · open
-Copying a directory into its own descendant recurses unbounded (no cycle check).
-Ptr: `internal/files/ops.go:141-146`.
+### H6 · closed (fix(files) commit, 2026-08-23)
+Directory copied into its own subtree recursed unbounded.
+Fix: `nestingErr` prefix check in `internal/files/ops.go`.
+Test: `ops_test.go::TestCopyIntoOwnSubtreeRefused`.
 
 ## Medium
 

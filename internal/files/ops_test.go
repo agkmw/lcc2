@@ -2,6 +2,7 @@ package files
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -44,6 +45,7 @@ func TestCopyMoveDelete(t *testing.T) {
 		t.Fatalf("copy content = %q", data)
 	}
 
+	os.Remove(src + "/f.txt") // move back must not overwrite
 	if err := Move(dst+"/f.txt", src); err != nil {
 		t.Fatal(err)
 	}
@@ -71,6 +73,49 @@ func TestCopyOntoItselfRefused(t *testing.T) {
 	if err != nil || string(data) != "precious" {
 		t.Fatalf("source damaged: %q %v", data, err)
 	}
+}
+
+// BACKLOG-H5: overwrites must be refused, not silent.
+func TestOverwritesRefused(t *testing.T) {
+	srcDir, dstDir := t.TempDir(), t.TempDir()
+	os.WriteFile(srcDir+"/f", []byte("new"), 0644)
+	os.WriteFile(dstDir+"/f", []byte("old"), 0644)
+
+	if err := Copy(srcDir+"/f", dstDir); err == nil {
+		t.Fatal("copy overwrite must fail")
+	}
+	if err := Move(srcDir+"/f", dstDir); err == nil {
+		t.Fatal("move overwrite must fail")
+	}
+	if string(mustRead(t, dstDir+"/f")) != "old" {
+		t.Fatal("destination clobbered")
+	}
+	if err := Rename(srcDir+"/f", "f"); err != nil && !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("rename onto itself should be caught: %v", err)
+	}
+}
+
+// BACKLOG-H6: a directory may never be copied into its own subtree.
+func TestCopyIntoOwnSubtreeRefused(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(root+"/sub", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Copy(root, root+"/sub"); err == nil {
+		t.Fatal("dir into own subtree must be refused")
+	}
+	if entries, _ := os.ReadDir(root + "/sub"); len(entries) != 0 {
+		t.Fatal("subtree polluted by refused copy")
+	}
+}
+
+func mustRead(t *testing.T, p string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
 
 func TestChmod(t *testing.T) {

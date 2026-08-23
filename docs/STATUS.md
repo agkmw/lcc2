@@ -4,16 +4,17 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-[C1-C3], [H1]-[H4], [M11] closed. Gate green.
+All Critical + High items closed ([C1-C3], [H1-H6]); [M11] done. Gate green.
 
 ## In progress
 
-Nothing — next up is H5+H6.
+Nothing — next up is the M batch.
 
 ## Next action
 
-Fix [H5]+[H6] safe file ops:
-1. `internal/files/ops.go`: Rename refuses existing target; copyFile refuses existing dst; Move checks before rename/copy
-2. H6: Copy/Move refuse when dstDir lies inside src subtree (`filepath.Rel` prefix check)
-3. Tests in `internal/files/ops_test.go`: overwrite refused ×3; dir-into-own-child refused
-4. Gate → ritual → commit `fix(files): refuse overwrites and self-nesting copies (H5,H6)`
+M-batch (small, one commit): M1 rune-safe wordWrap (`processes.go`);
+M4 drop duplicate enter hint (`disks.go` fs hints); M5 add `x cut` hint
+(`files.go`); M6 SizeMsg calls `layout()` (`services.go`); M8 case-insensitive
+dir listing sort (`files/ops.go`, fix comment OR code — code); M10 error toasts
+live 6 s (`app/root.go` tick duration by kind). Then M12 dead-code sweep in its
+own commit. Gate → ritual → commit `fix(screens): medium-tier polish batch`.

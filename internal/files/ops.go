@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -111,9 +112,13 @@ func Delete(path string) error {
 	return os.RemoveAll(path)
 }
 
-// Rename renames/moves within the same filesystem.
+// Rename renames within the same directory; refuses to clobber.
 func Rename(oldPath, newName string) error {
-	return os.Rename(oldPath, filepath.Join(filepath.Dir(oldPath), filepath.Base(newName)))
+	dst := filepath.Join(filepath.Dir(oldPath), filepath.Base(newName))
+	if _, err := os.Lstat(dst); err == nil {
+		return fmt.Errorf("%s already exists", filepath.Base(dst))
+	}
+	return os.Rename(oldPath, dst)
 }
 
 // Mkdir creates a new directory inside parent.
@@ -121,11 +126,26 @@ func Mkdir(parent, name string) error {
 	return os.Mkdir(filepath.Join(parent, name), 0755)
 }
 
+// nestingErr reports when dstDir lies inside src (or equals it).
+func nestingErr(src, dstDir string) error {
+	cleanSrc := filepath.Clean(src)
+	rel, err := filepath.Rel(cleanSrc, filepath.Clean(dstDir))
+	if err != nil || rel == "." || rel == ".." ||
+		strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return nil // not nested
+	}
+	return fmt.Errorf("cannot copy %s into itself", filepath.Base(cleanSrc))
+}
+
 // Copy recursively copies src into dstDir keeping its base name.
+// Refuses same-path pastes, self-nesting copies and overwrites.
 func Copy(src, dstDir string) error {
 	dst := filepath.Join(dstDir, filepath.Base(src))
 	if filepath.Clean(dst) == filepath.Clean(src) {
 		return fmt.Errorf("cannot copy %s onto itself", filepath.Base(src))
+	}
+	if err := nestingErr(src, dstDir); err != nil {
+		return err
 	}
 	info, err := os.Stat(src)
 	if err != nil {
@@ -133,6 +153,9 @@ func Copy(src, dstDir string) error {
 	}
 	if !info.IsDir() {
 		return copyFile(src, dst, info.Mode())
+	}
+	if _, err := os.Lstat(dst); err == nil {
+		return fmt.Errorf("%s already exists", filepath.Base(dst))
 	}
 	if err := os.MkdirAll(dst, info.Mode().Perm()); err != nil {
 		return err
@@ -149,9 +172,13 @@ func Copy(src, dstDir string) error {
 	return nil
 }
 
-// Move moves src into dstDir (copy + delete across filesystems).
+// Move moves src into dstDir; refuses overwrites. Falls back to
+// copy+delete across filesystems only after all guards pass.
 func Move(src, dstDir string) error {
 	dst := filepath.Join(dstDir, filepath.Base(src))
+	if _, err := os.Lstat(dst); err == nil {
+		return fmt.Errorf("%s already exists", filepath.Base(dst))
+	}
 	if err := os.Rename(src, dst); err == nil {
 		return nil
 	}
@@ -162,6 +189,9 @@ func Move(src, dstDir string) error {
 }
 
 func copyFile(src, dst string, mode os.FileMode) error {
+	if _, err := os.Lstat(dst); err == nil {
+		return fmt.Errorf("%s already exists", filepath.Base(dst))
+	}
 	in, err := os.Open(src)
 	if err != nil {
 		return err
