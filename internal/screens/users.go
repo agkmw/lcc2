@@ -146,6 +146,17 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 }
 
 func (u UsersGroups) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
+	if u.tab == "users" && u.uTbl.Filtering() {
+		var cmd tea.Cmd
+		u.uTbl, cmd = u.uTbl.Update(m)
+		return u, cmd
+	}
+	if u.tab == "groups" && u.gTbl.Filtering() {
+		var cmd tea.Cmd
+		u.gTbl, cmd = u.gTbl.Update(m)
+		return u, cmd
+	}
+
 	switch m.String() {
 	case "tab":
 		u.tab = otherTab(u.tab)

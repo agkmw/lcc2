@@ -1,6 +1,6 @@
 # ADR-0004: FilterTable consumes keys before screen handlers
 
-Date: 2026-08-23 · Status: Proposed
+Date: 2026-08-23 · Status: Accepted (2026-08-23, landed with BACKLOG-C2 fix)
 
 ## Context
 

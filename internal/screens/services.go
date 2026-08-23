@@ -201,6 +201,12 @@ func (s Services) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return s, nil
 	}
 
+	if s.tbl.Filtering() {
+		var cmd tea.Cmd
+		s.tbl, cmd = s.tbl.Update(m)
+		return s, cmd
+	}
+
 	switch m.String() {
 	case "enter":
 		if u, ok := s.selectedUnit(); ok {

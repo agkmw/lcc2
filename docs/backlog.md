@@ -13,12 +13,13 @@ Same-directory paste zeroes the source file: `Copy()` opens dst with
 `O_TRUNC` where dst == src.
 Ptr: `internal/files/ops.go:127-129`; regression `internal/files/ops_test.go` `TestCopyOntoItselfRefused`.
 
-### C2 · open
-Typing in a table filter triggers screen actions (`d` delete, `x/K` kill,
+### C2 · closed (fix(screens) commit, 2026-08-23)
+Typing in a table filter triggered screen actions (`d` delete, `x/K` kill,
 `s/t/r/e/D` service ops, `enter` navigates instead of committing).
-Screen `handleKey` switches run before `FilterTable` sees keys.
-Ptrs: `internal/screens/processes.go:183-210`, `files.go:203-289`,
-`services.go:204-227`, `disks.go:156-186` (partial guards), `users.go:148-190`.
+Fix: every screen's `handleKey` delegates to the active FilterTable while
+`Filtering()` (ADR-0004 Accepted). Guards in `processes.go`, `files.go`,
+`services.go`, `disks.go` (top of handleKey), `users.go`.
+Regression: `internal/screens/filter_guard_test.go`.
 
 ### C3 · open
 Services confirm dialog never clears after "yes": handler doesn't reset

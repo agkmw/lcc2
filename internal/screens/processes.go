@@ -180,6 +180,12 @@ func (p Processes) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return p, cmd
 	}
 
+	if p.tbl.Filtering() {
+		var cmd tea.Cmd
+		p.tbl, cmd = p.tbl.Update(m)
+		return p, cmd
+	}
+
 	switch m.String() {
 	case "s":
 		p.sortKey = proc.NextSortKey(p.sortKey)

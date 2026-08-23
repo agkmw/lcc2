@@ -153,6 +153,17 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 }
 
 func (d Disks) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
+	if d.mode == "fs" && d.fsTbl.Filtering() {
+		var cmd tea.Cmd
+		d.fsTbl, cmd = d.fsTbl.Update(m)
+		return d, cmd
+	}
+	if d.mode == "scan" && d.dirTbl.Filtering() {
+		var cmd tea.Cmd
+		d.dirTbl, cmd = d.dirTbl.Update(m)
+		return d, cmd
+	}
+
 	switch m.String() {
 	case "r":
 		if d.mode == "fs" {
@@ -161,11 +172,11 @@ func (d Disks) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		_, cmd := d.startScan(d.path)
 		return d, cmd
 	case "esc":
-		if d.mode == "scan" && !d.dirTbl.Filtering() {
+		if d.mode == "scan" {
 			return d.backOut()
 		}
 	case "h":
-		if d.mode == "scan" && !d.dirTbl.Filtering() {
+		if d.mode == "scan" {
 			return d.backOut()
 		}
 	case "enter":

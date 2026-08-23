@@ -200,6 +200,12 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return f, cmd
 	}
 
+	if f.tbl.Filtering() {
+		var cmd tea.Cmd
+		f.tbl, cmd = f.tbl.Update(m)
+		return f, cmd
+	}
+
 	switch m.String() {
 	case "enter", "l":
 		if e, ok := f.selected(); ok {

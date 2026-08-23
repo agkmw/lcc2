@@ -4,18 +4,17 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-Audit done; backlog seeded (3C/6H/12M/6L). [C1] fixed and regression-tested
-(`5ba6d67` + test commit): `Copy()` refuses same-path paste. Gate green.
+Backlog burn-down under way. [C1], [C2] closed; ADR-0004 Accepted.
+Gate green.
 
 ## In progress
 
-Nothing.
+Nothing — next up is C3.
 
 ## Next action
 
-Fix [C2] filter-mode key interception (see `docs/decisions/adr-0004-*`, Proposed):
-1. `internal/ui/table.go` — no change needed if screens gate: in each screen's `handleKey`, early-return into `tbl.Update` when `Filtering()`
-2. Touch points: `internal/screens/{processes,files,services,disks,users}.go` handleKey switches
-3. Tests: extend `internal/screens/layout_test.go`-style feeding — type `/dat` on Files, assert no dialog/prompt state
-4. Gate: `scripts/check.sh`
-5. Ritual: update this file → ADR-0004 → Accepted → backlog C2 → `closed (<sha>)` → commit
+Fix [C3] services confirm dialog stuck after "yes":
+1. `internal/screens/services.go` handleKey: set `s.confirm = nil` in the `done && yes` branch
+2. Also clear in the `svcActionDoneMsg` handler (mirror `processes.go:142`)
+3. Test in `internal/screens/filter_guard_test.go` style: 's' → 'y' → svcActionDoneMsg → assert confirm nil (both err and ok paths)
+4. Gate: `scripts/check.sh` → ritual → commit `fix(screens): dismiss services confirm on action start (C3)`
