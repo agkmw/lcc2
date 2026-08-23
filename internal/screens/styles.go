@@ -43,3 +43,14 @@ func maxInt(a, b int) int {
 	}
 	return b
 }
+
+// contextHint is the shared shape of the status-bar right slot.
+func contextSel(name, detail string) string {
+	if name == "" {
+		return ""
+	}
+	if detail != "" {
+		return name + faintSty.Render(" · "+detail)
+	}
+	return name
+}

@@ -5,6 +5,7 @@ package ui
 import (
 	"strings"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -161,7 +162,8 @@ func KeyHint(k string) string {
 	return lipgloss.NewStyle().Bold(true).Foreground(accent("overview")).Render(k)
 }
 
-// Truncate clips s to w cells appending an ellipsis when needed.
+// Truncate clips s to w cells appending an ellipsis when needed,
+// preserving ANSI escape sequences intact.
 func Truncate(s string, w int) string {
 	if w <= 0 {
 		return ""
@@ -169,16 +171,5 @@ func Truncate(s string, w int) string {
 	if lipgloss.Width(s) <= w {
 		return s
 	}
-	runes := []rune(s)
-	out := make([]rune, 0, w)
-	width := 0
-	for _, r := range runes {
-		rw := lipgloss.Width(string(r))
-		if width+rw > w-1 {
-			break
-		}
-		out = append(out, r)
-		width += rw
-	}
-	return string(out) + "…"
+	return ansi.Truncate(s, w, "…")
 }

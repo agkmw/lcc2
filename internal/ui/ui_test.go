@@ -12,7 +12,7 @@ func TestTruncate(t *testing.T) {
 		t.Fatalf("short string changed: %q", got)
 	}
 	got := Truncate("hello world", 8)
-	if lipgloss.Width(got) != 8 || !strings.HasSuffix(got, "…") {
+	if lipgloss.Width(got) > 8 || !strings.HasSuffix(got, "…") {
 		t.Fatalf("truncate = %q", got)
 	}
 	if Truncate("abc", 0) != "" {

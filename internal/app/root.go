@@ -156,17 +156,14 @@ func (r Root) sendSize() tea.Cmd {
 }
 
 // contentArea returns the space available to the active screen after
-// subtracting header, footer, rule, screen frame, sidebar and padding.
+// subtracting the nav/status bars, sidebar rail and page margins.
 func (r Root) contentArea() (int, int) {
 	w := r.width
 	if r.sidebarOn {
-		w -= sidebarWidth + 1
+		w -= sidebarWidth + 1 // rail + its border column
 	}
-	h := r.height - 3 // header + footer + rule
-	w -= 2            // horizontal padding
-	h -= 2            // vertical breathing room
-	w -= 4            // screen frame border + gutter
-	h -= 2            // screen frame border
+	w -= 4             // page margins
+	h := r.height - 5  // nav bar(2) + status bar(2) + one blank row
 	if w < 10 {
 		w = 10
 	}
@@ -176,36 +173,27 @@ func (r Root) contentArea() (int, int) {
 	return w, h
 }
 
-// View renders the full application frame.
+func (r Root) bodyH() int { return maxInt(r.height-4, 1) }
+
+// View renders the full application frame: nav bar, body, status bar.
 func (r Root) View() string {
 	if r.quitting || r.width == 0 {
 		return ""
 	}
 	cur := r.current()
 
-	var body string
+	var mid string
 	if r.sidebarOn {
-		body = lipgloss.JoinHorizontal(lipgloss.Top,
-			r.viewSidebar(), r.viewContent(cur))
+		mid = lipgloss.JoinHorizontal(lipgloss.Top,
+			r.viewSidebar(r.bodyH()), r.viewPage(cur))
 	} else {
-		body = r.viewTabStrip() + "\n" + r.viewContent(cur)
+		mid = r.viewPage(cur)
 	}
 
-	// The body must occupy exactly the space between header and
-	// footer: short content is padded, tall content is clipped.
-	// Otherwise the footer floats up on sparse screens and slips off
-	// the bottom on crowded ones.
-	bodyH := r.height - 3 // header + footer + rule
-	if bodyH < 1 {
-		bodyH = 1
-	}
-	body = lipgloss.NewStyle().Height(bodyH).MaxHeight(bodyH).Render(body)
-
-	rule := lipgloss.NewStyle().Foreground(ui.Palette.Surface).
-		Render(strings.Repeat("─", maxInt(r.width, 1)))
-	frame := r.viewHeader(cur) + "\n" + body + "\n" +
-		rule + "\n" + r.viewFooter(cur)
-	out := ui.Base().Render(frame)
+	frame := r.viewNavBar() + "\n" + mid + "\n" + r.viewStatusBar(cur)
+	// One wide line would make Style.Render pad every line to its
+	// width — clip the whole frame to the terminal first.
+	out := ui.Base().Render(ui.ClipBlock(frame, r.width))
 	if r.helpOpen {
 		out = r.overlay(out, r.helpPanel())
 	}
@@ -217,70 +205,80 @@ var sectionGlyph = map[string]string{
 	"files": "▸", "services": "✦", "users": "◍",
 }
 
-func (r Root) viewHeader(cur ui.Screen) string {
-	logo := lipgloss.NewStyle().Bold(true).
-		Background(ui.Accent(cur.ID())).
-		Foreground(lipgloss.Color("#11111B")).
-		Render(" lcc2 ")
-	pills := make([]string, 0, len(r.order))
+// viewNavBar renders the top bar: plain logo, section links, clock,
+// closed by a full-width square rule.
+func (r Root) viewNavBar() string {
+	logo := lipgloss.NewStyle().Bold(true).Render("lcc2")
+	links := make([]string, 0, len(r.order))
 	for i, id := range r.order {
 		s := lookupSection(id)
-		label := strconv.Itoa(i+1) + " " + s.label
+		label := strconv.Itoa(i+1) + "  " + s.label
 		if i == r.active {
-			pills = append(pills, lipgloss.NewStyle().Bold(true).
-				Background(ui.Accent(id)).
-				Foreground(lipgloss.Color("#11111B")).
-				Render(" "+label+" "))
+			links = append(links, lipgloss.NewStyle().Bold(true).
+				Foreground(ui.Accent(id)).Underline(true).Render(label))
 		} else {
-			pills = append(pills, faintSty.
-				Background(ui.Palette.Surface).
-				Render(" "+label+" "))
+			links = append(links, mutedSty.Render(label))
 		}
 	}
-	bar := logo + " " + strings.Join(pills, faintSty.Render("│"))
+	left := logo + "   " + strings.Join(links, "   ")
 	clock := faintSty.Render(time.Now().Format("15:04"))
-	bar = ui.Truncate(bar, maxInt(r.width-6, 10)) // pills yield before clock
-	gap := r.width - lipgloss.Width(bar+clock)
+	inner := maxInt(r.width-2, 12)
+	left = ui.Truncate(left, maxInt(inner-lipgloss.Width(clock)-1, 8))
+	gap := inner - lipgloss.Width(left) - lipgloss.Width(clock)
 	if gap < 1 {
 		gap = 1
 	}
-	return bar + strings.Repeat(" ", gap) + clock
+	row := " " + left + strings.Repeat(" ", gap) + clock + " "
+	border := lipgloss.NewStyle().Foreground(ui.Palette.Surface).
+		Render(strings.Repeat("─", maxInt(r.width, 1)))
+	return row + "\n" + border
 }
 
-func (r Root) viewSidebar() string {
-	var b strings.Builder
-	b.WriteString("\n")
+// viewSidebar renders the nav rail with a right border column, padded
+// to exactly bodyH lines.
+func (r Root) viewSidebar(bodyH int) string {
+	var lines []string
+	lines = append(lines, "")
 	for i, id := range r.order {
 		s := lookupSection(id)
-		sty := mutedSty
-		marker := "  "
+		glyph := faintSty.Render(sectionGlyph[s.id])
 		if i == r.active {
-			a := ui.Accent(s.id)
-			marker = lipgloss.NewStyle().Foreground(a).Render("▍ ")
-			sty = lipgloss.NewStyle().Bold(true).Foreground(a)
+			mark := lipgloss.NewStyle().Foreground(ui.Accent(id)).Render("▍")
+			lbl := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent(id)).
+				Render(s.label)
+			lines = append(lines, mark+" "+glyph+" "+lbl, "")
+		} else {
+			lines = append(lines, " "+glyph+" "+mutedSty.Render(s.label), "")
 		}
-		glyph := faintSty.Render(sectionGlyph[s.id] + " ")
-		b.WriteString(marker + sty.Render(glyph+s.label) + "\n\n")
 	}
-	return lipgloss.NewStyle().Width(sidebarWidth).Render(b.String())
+	borderCh := lipgloss.NewStyle().Foreground(ui.Palette.Surface).Render("│")
+	out := make([]string, bodyH)
+	for i := 0; i < bodyH; i++ {
+		l := ""
+		if i < len(lines) {
+			l = lines[i]
+		}
+		out[i] = ui.ClipBlock(l, sidebarWidth-1) + borderCh
+	}
+	return strings.Join(out, "\n")
 }
 
-func (r Root) viewTabStrip() string {
-	return r.viewHeader(r.current())
-}
-
-func (r Root) viewContent(cur ui.Screen) string {
+// viewPage renders the active screen inside the page margins.
+func (r Root) viewPage(cur ui.Screen) string {
 	w, _ := r.contentArea()
-	content := cur.View()
-	lines := strings.Split(content, "\n")
-	for i, l := range lines {
-		lines[i] = " " + l
-	}
-	return ui.TitledBox(cur.ID(), cur.Title(), strings.Join(lines, "\n"), w)
+	body := ui.ClipBlock(cur.View(), w)
+	lines := strings.Split("  "+strings.ReplaceAll(body, "\n", "\n  "), "\n")
+	h := r.bodyH()
+	return lipgloss.NewStyle().Height(h).MaxHeight(h).
+		Render(strings.Join(lines, "\n"))
 }
 
-func (r Root) viewFooter(cur ui.Screen) string {
-	hints := " "
+// viewStatusBar renders the bottom bar: square rule, hints left,
+// context slot right.
+func (r Root) viewStatusBar(cur ui.Screen) string {
+	border := lipgloss.NewStyle().Foreground(ui.Palette.Surface).
+		Render(strings.Repeat("─", maxInt(r.width, 1)))
+	hints := ""
 	for _, kb := range cur.Hints() {
 		if !kb.Enabled() {
 			continue
@@ -290,7 +288,21 @@ func (r Root) viewFooter(cur ui.Screen) string {
 	}
 	hints += ui.KeyBadge(cur.ID(), "?") + faintSty.Render(" help  ") +
 		ui.KeyBadge(cur.ID(), "q") + faintSty.Render(" quit")
-	return ui.Truncate(hints, r.width)
+	right := ""
+	if cs, ok := cur.(ui.ContextSource); ok {
+		right = faintSty.Render(cs.ContextHint())
+	}
+	budget := r.width - 2
+	if right != "" {
+		budget -= lipgloss.Width(right) + 3
+	}
+	hints = ui.Truncate(hints, maxInt(budget, 8))
+	gap := budget - lipgloss.Width(hints)
+	if gap < 1 {
+		gap = 1
+	}
+	row := " " + hints + strings.Repeat(" ", gap) + right + " "
+	return border + "\n" + row
 }
 
 func (r Root) helpPanel() string {

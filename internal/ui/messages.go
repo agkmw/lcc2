@@ -40,3 +40,9 @@ type Screen interface {
 	// which suppresses global shortcuts like q and the number keys.
 	CapturingInput() bool
 }
+
+// ContextSource is an optional Screen extension: whatever it returns
+// shows up in the status bar's right-hand slot.
+type ContextSource interface {
+	ContextHint() string
+}
