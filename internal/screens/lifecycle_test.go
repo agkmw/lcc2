@@ -108,3 +108,16 @@ func TestFilesCursorTracksAcrossRefresh(t *testing.T) {
 		t.Fatalf("cursor did not track b.txt: %q %v", k, ok)
 	}
 }
+
+// S1: pane height hugs content and never exceeds the available area.
+func TestPaneHeight(t *testing.T) {
+	if got := paneHeight(10, 20); got != 10 {
+		t.Fatalf("content-sized pane = %d, want 10", got)
+	}
+	if got := paneHeight(50, 20); got != 18 {
+		t.Fatalf("oversized pane = %d, want avail-2 = 18", got)
+	}
+	if got := paneHeight(1, 20); got != 4 {
+		t.Fatalf("tiny pane = %d, want floor 4", got)
+	}
+}

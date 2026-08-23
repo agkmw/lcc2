@@ -119,6 +119,12 @@ Ptrs: `internal/screens/files.go`, pattern `internal/disk/scan.go`.
 
 ### N1 · closed (feat(ui) notify commit)
 
+### S1 · closed (feat(screens) panes commit)
+Detail/meta panes used fixed or full-height boxes regardless of content.
+Fix: `paneHeight(contentLines, avail)` helper (`internal/screens/styles.go`)
+applied to proc detail viewport, files meta pane, services and users
+detail panes; services content now wraps instead of single-line truncation.
+
 ### T1 · closed (feat(ui) tracking commit)
 Cursor did not follow the selected item across refreshes/filters —
 selection "jumped to top" after any rebuild.

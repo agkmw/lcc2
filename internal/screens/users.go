@@ -284,7 +284,7 @@ func (u UsersGroups) View() string {
 	if u.detailOpen {
 		paneW := detailWidthIf(true)
 		pane := ui.Panel().BorderForeground(ui.Accent("users")).
-			Width(paneW).Height(clampInt(u.h, 8, u.h)).
+			Width(paneW).Height(paneHeight(lipgloss.Height(u.detail), u.h)).
 			Padding(0, 1).Render(u.detail)
 		body = joinPanes(body, pane)
 	}

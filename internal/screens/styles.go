@@ -25,3 +25,14 @@ func joinPanes(left, right string) string {
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Join(lines, "\n"))
 }
+
+// paneHeight sizes a bordered pane to hug its content: lipgloss
+// Height() bounds the inner block and the border adds two rows, so the
+// returned value keeps the rendered pane within avail.
+func paneHeight(contentLines, avail int) int {
+	inner := min(contentLines, avail-2)
+	if inner < 4 {
+		inner = 4
+	}
+	return inner
+}

@@ -83,7 +83,7 @@ func TestCompositeNotesNeverCoversFooter(t *testing.T) {
 	for i := 0; i < maxNotes+2; i++ { // more notes than fit above the footer
 		s.Push("info", strings.Repeat("n", 30))
 	}
-	base := "H\n" + strings.Repeat("x", 70)+"\nfooter"
+	base := "H\n" + strings.Repeat("x", 70) + "\nfooter"
 	out := CompositeNotes(base, s)
 	lines := strings.Split(out, "\n")
 	if last := lines[len(lines)-1]; !strings.Contains(last, "footer") {

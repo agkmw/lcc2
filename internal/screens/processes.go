@@ -34,12 +34,13 @@ type Processes struct {
 	tbl     ui.FilterTable
 	sortKey proc.SortKey
 
-	detailOpen bool
-	detail     proc.Details
-	dvp        viewport.Model
+	detailOpen  bool
+	detail      proc.Details
+	detailLines int
+	dvp         viewport.Model
 
-	scanning    *atomic.Int32  // guards against overlapping full scans
-	epoch       *atomic.Uint64 // tick-chain generation; stale chains die
+	scanning *atomic.Int32  // guards against overlapping full scans
+	epoch    *atomic.Uint64 // tick-chain generation; stale chains die
 
 	confirm     *ui.ConfirmDialog
 	pendingSig  syscall.Signal
@@ -264,7 +265,7 @@ func (p *Processes) layout() {
 	th := clampInt(p.h-(p.filterBarHeight()), 5, p.h)
 	p.tbl.SetSize(tw, th)
 	p.dvp.Width = detailW - 4
-	p.dvp.Height = th
+	p.dvp.Height = paneHeight(p.detailLines, th)
 }
 
 func (p Processes) filterBarHeight() int {
@@ -326,7 +327,10 @@ func (p *Processes) setDetailContent() {
 	}
 	b.WriteString("\n" + faintSty.Render("cmdline") + "\n")
 	b.WriteString(wordWrap(d.Command, p.dvp.Width))
-	p.dvp.SetContent(b.String())
+	content := b.String()
+	p.detailLines = lipgloss.Height(content)
+	p.dvp.Height = paneHeight(p.detailLines, clampInt(p.h-(p.filterBarHeight()), 5, p.h))
+	p.dvp.SetContent(content)
 	p.dvp.GotoTop()
 }
 

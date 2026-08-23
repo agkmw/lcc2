@@ -427,7 +427,7 @@ func (f Files) View() string {
 
 	if f.meta != nil {
 		paneW := clampInt(f.w/3, 30, 48)
-		body = joinPanes(body, metaPane(*f.meta, paneW))
+		body = joinPanes(body, metaPane(*f.meta, paneW, f.h))
 	}
 	if f.permEdit != nil {
 		return lipgloss.Place(f.w, f.h, lipgloss.Center, lipgloss.Center,
@@ -451,7 +451,7 @@ func onOff(b bool) string {
 	return "off"
 }
 
-func metaPane(e files.Entry, w int) string {
+func metaPane(e files.Entry, w, avail int) string {
 	var b strings.Builder
 	title := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("files")).
 		Render(ui.Truncate(e.Name, w-4))
@@ -468,8 +468,9 @@ func metaPane(e files.Entry, w int) string {
 	kv("path", e.Path)
 	kv("modified", e.ModTime.Format(time.RFC3339))
 	b.WriteString("\n" + faintSty.Render("esc close · P edit permissions"))
-	return ui.Panel().BorderForeground(ui.Accent("files")).Width(w).
-		Height(clampInt(14, 6, 24)).Padding(0, 1).Render(b.String())
+	return ui.Panel().BorderForeground(ui.Accent("files")).
+		Width(w).
+		Height(paneHeight(lipgloss.Height(b.String()), avail)).Padding(0, 1).Render(b.String())
 }
 
 // permEditorView draws the interactive rwx matrix with a live octal readout.

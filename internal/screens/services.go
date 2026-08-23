@@ -295,10 +295,10 @@ func (s Services) View() string {
 		paneW := detailWidthIf(true)
 		content := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("services")).
 			Render(s.detailUnit) + "\n\n" +
-			strings.TrimSpace(s.detailText)
+			lipgloss.NewStyle().Width(paneW-4).Render(strings.TrimSpace(s.detailText))
 		pane := ui.Panel().BorderForeground(ui.Accent("services")).
-			Width(paneW).Height(clampInt(s.h, 8, s.h)).
-			Padding(0, 1).Render(ui.Truncate(content, paneW-4))
+			Width(paneW).Height(paneHeight(lipgloss.Height(content), s.h)).
+			Padding(0, 1).Render(content)
 		body = joinPanes(body, pane)
 	}
 
