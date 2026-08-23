@@ -46,10 +46,11 @@ Tests: `internal/screens/lifecycle_test.go`.
 Data race: `refreshTotalMem()` wrote `memTotal` unlocked while readers
 held `memOnceMu`. Write side now locks (`internal/proc/procfs.go`).
 
-### H4 · open
-File ops (copy/move/delete) have no busy state, progress or in-flight guard;
-repeated `p` stacks concurrent copies.
-Ptr: `internal/screens/files.go:319-331`; working pattern to reuse: `disks.go:217-234`.
+### H4 · closed (fix(files) commit, 2026-08-23)
+File ops had no busy state or in-flight guard; repeated `p` stacked copies.
+Fix: `opCount` guard locks Files input while ops run; "working…" indicator
+in head (`internal/screens/files.go`). Coarse (no byte progress, no cancel)
+— progress/cancel tracked as enhancement, see L7.
 
 ### H5 · open
 Silent overwrite: `os.Rename` and `copyFile` clobber existing targets.

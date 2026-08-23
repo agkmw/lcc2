@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -40,6 +41,8 @@ type Files struct {
 
 	clipboardPath string
 	clipboardMove bool
+
+	opCount *atomic.Int32 // in-flight fs operations; >0 blocks input
 }
 
 type dirListMsg struct {
@@ -57,7 +60,7 @@ func NewFiles() Files {
 		{Title: "owner", Width: 12},
 		{Title: "modified", Width: 13},
 	}
-	return Files{cwd: files.Home(), tbl: ui.NewFilterTable(cols, 80, 20)}
+	return Files{cwd: files.Home(), tbl: ui.NewFilterTable(cols, 80, 20), opCount: &atomic.Int32{}}
 }
 
 // ID implements ui.Screen.
@@ -200,6 +203,9 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return f, cmd
 	}
 
+	if f.opCount.Load() > 0 { // operation in flight: input stays locked
+		return f, nil
+	}
 	if f.tbl.Filtering() {
 		var cmd tea.Cmd
 		f.tbl, cmd = f.tbl.Update(m)
@@ -242,21 +248,21 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 			dir := f.cwd
 			f.confirmFn = func() tea.Cmd {
 				return doThenRefresh(func() error { return files.Delete(target) },
-					"deleted "+filepathBase(target), dir, f.showHidden)
+					"deleted "+filepathBase(target), dir, f.showHidden, f.opCount)
 			}
 		}
 		return f, nil
 	case "m":
 		return f.startPrompt("new directory: ", func(ff Files, name string) tea.Cmd {
 			return doThenRefresh(func() error { return files.Mkdir(ff.cwd, name) },
-				"created "+name, ff.cwd, ff.showHidden)
+				"created "+name, ff.cwd, ff.showHidden, ff.opCount)
 		})
 	case "R":
 		if e, ok := f.selected(); ok {
 			cur := e.Name
 			return f.startPrompt("rename: ", func(ff Files, name string) tea.Cmd {
 				return doThenRefresh(func() error { return files.Rename(e.Path, name) },
-					"renamed to "+name, ff.cwd, ff.showHidden)
+					"renamed to "+name, ff.cwd, ff.showHidden, ff.opCount)
 			}, cur)
 		}
 	case "y":
@@ -281,7 +287,7 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 					return files.Move(cp, dst)
 				}
 				return files.Copy(cp, dst)
-			}, "pasted "+filepathBase(cp), dst, f.showHidden)
+			}, "pasted "+filepathBase(cp), dst, f.showHidden, f.opCount)
 		}
 		return f, ui.InfoToast("clipboard empty")
 	case "P":
@@ -322,8 +328,10 @@ func filepathBase(p string) string {
 	return p[i+1:]
 }
 
-func doThenRefresh(fn func() error, okMsg, dir string, hidden bool) tea.Cmd {
+func doThenRefresh(fn func() error, okMsg, dir string, hidden bool, cnt *atomic.Int32) tea.Cmd {
 	return func() tea.Msg {
+		cnt.Add(1)
+		defer cnt.Add(-1)
 		if err := fn(); err != nil {
 			return ui.ToastMsg{Kind: "err", Text: err.Error()}
 		}
@@ -366,7 +374,7 @@ func (f Files) handlePermKeys(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		f.permEdit = nil
 		mode, _ := parseOctal(bits.Octal())
 		return f, doThenRefresh(func() error { return files.Chmod(target, mode) },
-			"chmod "+bits.Octal()+" "+filepathBase(target), f.cwd, f.showHidden)
+			"chmod "+bits.Octal()+" "+filepathBase(target), f.cwd, f.showHidden, f.opCount)
 	case "h", "left":
 		f.permCol = (f.permCol + 2) % 3
 	case "l", "right", "tab":
@@ -409,6 +417,9 @@ func (f Files) View() string {
 	head := renderCrumbs(f.cwd, f.w) +
 		faintSty.Render(fmt.Sprintf("%d items · hidden %s",
 			len(f.entries), onOff(f.showHidden)))
+	if f.opCount.Load() > 0 {
+		head += warnSty.Render("  ·  working…")
+	}
 	body := head + "\n" + f.tbl.View()
 
 	if f.meta != nil {

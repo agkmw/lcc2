@@ -47,3 +47,30 @@ func TestDisksSpinnerChainRetiresWhenIdle(t *testing.T) {
 		t.Fatal("busy disks must keep the spinner alive")
 	}
 }
+
+// BACKLOG-H4: while a fs operation is in flight, Files input is locked
+// and the head shows a working indicator; the counter drains after the op.
+func TestFilesBusyGuard(t *testing.T) {
+	f := seededFiles(t)
+
+	if f.opCount.Load() != 0 {
+		t.Fatal("fresh screen must be idle")
+	}
+	f.opCount.Store(1)
+	sc, _ := f.Update(keyRunes("a"))
+	f = sc.(Files)
+	if f.showHidden {
+		t.Fatal("hidden toggle fired while busy")
+	}
+	sc, _ = f.Update(keyRunes("d"))
+	f = sc.(Files)
+	if f.confirm != nil {
+		t.Fatal("delete dialog opened while busy")
+	}
+	f.opCount.Store(0)
+	sc, _ = f.Update(keyRunes("a"))
+	f = sc.(Files)
+	if !f.showHidden {
+		t.Fatal("guard stuck: toggle refused after drain")
+	}
+}
