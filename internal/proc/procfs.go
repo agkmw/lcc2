@@ -158,7 +158,9 @@ func refreshTotalMem() {
 			f := strings.Fields(line)
 			if len(f) >= 2 {
 				if kb, err := strconv.ParseUint(f[1], 10, 64); err == nil {
+					memOnceMu.Lock()
 					memTotal = kb * 1024
+					memOnceMu.Unlock()
 				}
 			}
 			return
