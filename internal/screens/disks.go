@@ -2,6 +2,7 @@ package screens
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"time"
@@ -129,8 +130,9 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 
 	case scanDoneMsg:
 		d.busy = false
-		if d.cancel != nil {
-			d.cancel = nil
+		d.cancel = nil
+		if errors.Is(m.err, context.Canceled) {
+			return d, nil // user cancelled; keep the current view
 		}
 		if m.err != nil {
 			d.err = "cannot analyze " + filepath.Base(m.root)

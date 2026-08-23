@@ -2,6 +2,7 @@ package disk
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -52,12 +53,31 @@ func TestScanDirCancel(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	// Cancellation yields a best-effort partial result, not an error.
+	// Cancellation must surface as an error, never as a partial result
+	// dressed up as complete (BACKLOG-H1).
 	res, err := ScanDir(ctx, dir, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("want context.Canceled, got %v", err)
 	}
-	if res == nil {
-		t.Fatal("expected partial result")
+	if res != nil {
+		t.Fatal("cancelled scan must not return results")
+	}
+}
+
+func TestScanDirUnreadableRoot(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root reads anything")
+	}
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "locked")
+	if err := os.Mkdir(sub, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(sub, 0000); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(sub, 0755)
+	if _, err := ScanDir(context.Background(), sub, nil); err == nil {
+		t.Fatal("unreadable root must error, not return empty success")
 	}
 }

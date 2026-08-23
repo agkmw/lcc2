@@ -28,9 +28,12 @@ Fix: `s.confirm = nil` on the yes branch and in `svcActionDoneMsg`
 
 ## High
 
-### H1 · open
-Cancelled disk scan returns partial result as complete (ctx.Err swallowed).
-Ptr: `internal/disk/scan.go:69-71`.
+### H1 · closed (fix(disk) commit, 2026-08-23)
+Cancelled disk scan returned partial results as complete.
+Contract reversed: `ScanDir` now returns `ctx.Err()` on cancel
+(`internal/disk/scan.go`); Disks ignores `context.Canceled` silently
+(`internal/screens/disks.go`). Old partial-result behavior recorded in
+git history (`internal/disk/scan_test.go` before this commit).
 
 ### H2 · open
 Refresh tick chains multiply or die on section switches: root re-calls
@@ -95,9 +98,10 @@ Ptr: `internal/files/ops.go:184-199`.
 Error toasts live 3 s like success and lack context ("permission denied" — for what?).
 Ptrs: `internal/app/root.go:101-107`, `files.go:321-323`.
 
-### M11 · open
-Unreadable scan root yields "0 entries · 0 B" instead of an error.
-Ptr: `internal/disk/scan.go:46-48`.
+### M11 · closed (fix(disk) commit, 2026-08-23)
+Unreadable scan root yielded silent "0 entries · 0 B" instead of an error.
+Root walk error is now fatal (`internal/disk/scan.go`); UI shows analyze error.
+Test: `internal/disk/scan_test.go::TestScanDirUnreadableRoot`.
 
 ### M12 · open
 Dead code: `ui.ErrorDialog/NewError`, `files.Chown`, `disk.LargestFiles`,

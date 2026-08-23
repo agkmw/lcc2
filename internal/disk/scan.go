@@ -44,6 +44,9 @@ func ScanDir(ctx context.Context, root string, progress func(bytes int64)) (*Sca
 			return ctxErr
 		}
 		if err != nil {
+			if path == clean {
+				return err // root unreadable is fatal, not skippable
+			}
 			return fs.SkipDir // permission denied etc: skip silently
 		}
 		if d.IsDir() {
@@ -66,7 +69,10 @@ func ScanDir(ctx context.Context, root string, progress func(bytes int64)) (*Sca
 		}
 		return nil
 	})
-	if err != nil && ctx.Err() == nil {
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr // never pass off partial data as complete
+		}
 		return nil, err
 	}
 
