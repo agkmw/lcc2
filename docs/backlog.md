@@ -40,9 +40,9 @@ Refresh tick chains multiply or die on section switches: root re-calls
 `Init()` per switch, ticks swallowed by inactive screens.
 Ptrs: `internal/app/root.go:132-139`, `overview.go:83-91`, `processes.go:94-100`.
 
-### H3 · open
-Data race: `refreshTotalMem()` writes `memTotal` unlocked; readers hold mutex.
-Ptr: `internal/proc/procfs.go:149-173`.
+### H3 · closed (5f2e20f)
+Data race: `refreshTotalMem()` wrote `memTotal` unlocked while readers
+held `memOnceMu`. Write side now locks (`internal/proc/procfs.go`).
 
 ### H4 · open
 File ops (copy/move/delete) have no busy state, progress or in-flight guard;
