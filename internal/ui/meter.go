@@ -133,8 +133,11 @@ func EmptyState(icon, title, hint string, width int) string {
 	}
 	body := b.String()
 	w := width
-	if w <= 0 || w > 80 {
+	if w <= 0 {
 		w = 60
+	}
+	if lipgloss.Width(body) > w {
+		return body
 	}
 	return lipgloss.PlaceHorizontal(w, lipgloss.Center, body)
 }

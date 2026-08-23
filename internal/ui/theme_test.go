@@ -35,7 +35,7 @@ func TestGaugeFractionalFill(t *testing.T) {
 func TestTitledBoxEmbedsTitleInBorder(t *testing.T) {
 	box := TitledBox("proc", "cpu", "body", 28) // inner width; border adds 2
 	lines := strings.Split(box, "\n")
-	if !strings.HasPrefix(lines[0], "╭─ cpu ") || !strings.HasSuffix(lines[0], "╮") {
+	if !strings.HasPrefix(lines[0], "┌─ cpu ") || !strings.HasSuffix(lines[0], "┐") {
 		t.Fatalf("title not in border: %q", lines[0])
 	}
 	if lipgloss.Width(lines[0]) != 30 {

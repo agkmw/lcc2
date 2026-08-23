@@ -334,10 +334,10 @@ func (f FilterTable) Update(msg tea.Msg) (FilterTable, tea.Cmd) {
 	return f, cmd
 }
 
-// View renders the position/filter line above the table.
+// View renders the table with one chrome row: the filter prompt above
+// while filtering, otherwise a position strip below the table.
 func (f FilterTable) View() string {
 	out := f.t.View()
-	var top string
 	if f.filtering || f.filterStr != "" {
 		bar := faintSty.Render("filter")
 		val := f.input.View()
@@ -346,14 +346,14 @@ func (f FilterTable) View() string {
 		} else {
 			val = "/" + val
 		}
-		top = uiPanellessRow(f.vw, bar+" "+val)
-	} else if total := len(f.rows); total > 0 {
-		stats := fmt.Sprintf("%d/%d · %d%%", len(f.origIdx), total, f.scrollPct())
-		top = uiPanellessRow(f.vw, faintSty.Render(stats))
-	} else {
-		top = strings.Repeat(" ", clampW(f.vw, 0, f.vw))
+		return uiPanellessRow(f.vw, bar+" "+val) + "\n" + out
 	}
-	return top + "\n" + out
+	if total := len(f.rows); total > 0 {
+		stats := faintSty.Render(fmt.Sprintf("%d/%d · %d%%",
+			len(f.origIdx), total, f.scrollPct()))
+		out += "\n" + uiPanellessRow(f.vw, stats)
+	}
+	return out
 }
 
 func uiPanellessRow(w int, content string) string {

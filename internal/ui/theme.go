@@ -79,26 +79,40 @@ func Muted() lipgloss.Style { return mutedSty }
 // Faint styles hints and decorations.
 func Faint() lipgloss.Style { return faintSty }
 
-// Box returns a rounded border style tinted with the section accent.
+// Box returns a square border style tinted with the section accent.
 func Box(sectionID string) lipgloss.Style {
 	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.NormalBorder()).
 		BorderForeground(accent(sectionID))
 }
 
-// Panel returns a neutral rounded panel.
+// Panel returns a neutral square-bordered panel.
 func Panel() lipgloss.Style {
 	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.NormalBorder()).
 		BorderForeground(Palette.Surface)
 }
 
-// TitledBox renders an accent-bordered rounded panel with the title
-// spliced into its top border: ╭─ title ──────╮.
+// TitledBox renders an accent-bordered square panel with the title
+// spliced into its top border: ┌─ title ──────┐. height > 0 pins the
+// inner block height (border adds two rows on top).
 func TitledBox(sectionID, title, body string, width int) string {
-	p := Panel().BorderForeground(Accent(sectionID)).Width(width).Render(body)
+	return card(sectionID, title, body, width, 0)
+}
+
+// Card is TitledBox with an optional fixed inner height.
+func Card(sectionID, title, body string, width, height int) string {
+	return card(sectionID, title, body, width, height)
+}
+
+func card(sectionID, title, body string, width, height int) string {
+	sty := Panel().BorderForeground(Accent(sectionID)).Width(width)
+	if height > 0 {
+		sty = sty.Height(height)
+	}
+	p := sty.Render(body)
 	lines := strings.Split(p, "\n")
-	if len(lines) == 0 || !strings.HasPrefix(lines[0], "╭") {
+	if len(lines) == 0 || !strings.HasPrefix(lines[0], "┌") {
 		return p
 	}
 	w := lipgloss.Width(lines[0])
@@ -109,7 +123,7 @@ func TitledBox(sectionID, title, body string, width int) string {
 	if fill < 0 {
 		fill = 0
 	}
-	lines[0] = "╭─" + label + strings.Repeat("─", fill) + "╮"
+	lines[0] = "┌─" + label + strings.Repeat("─", fill) + "┐"
 	return strings.Join(lines, "\n")
 }
 
