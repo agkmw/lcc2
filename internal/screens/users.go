@@ -206,9 +206,12 @@ func (u UsersGroups) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 
 func (u *UsersGroups) layout() {
 	th := clampInt(u.h-5, 4, u.h)
-	w := clampInt(u.w-detailWidthIf(u.detailOpen)-3, 30, u.w)
-	u.uTbl.SetSize(w, th)
-	u.gTbl.SetSize(w, th)
+	w := u.w - 2
+	if u.detailOpen && u.w >= 100 {
+		w = u.w - clampInt(u.w*2/5, 32, 52) - 3
+	}
+	u.uTbl.SetSize(clampInt(w, 30, u.w), th)
+	u.gTbl.SetSize(clampInt(w, 30, u.w), th)
 }
 
 func (u UsersGroups) renderUser(usr accounts.User) string {
@@ -282,11 +285,26 @@ func (u UsersGroups) View() string {
 	body := head + "\n\n" + tblView
 
 	if u.detailOpen {
-		paneW := detailWidthIf(true)
-		pane := ui.Panel().BorderForeground(ui.Accent("users")).
-			Width(paneW).Height(paneHeight(lipgloss.Height(u.detail), u.h)).
-			Padding(0, 1).Render(u.detail)
-		body = joinPanes(body, pane)
+		wide := u.w >= 100
+		inner := clampInt(u.w*2/5, 32, 52)
+		if !wide {
+			inner = u.w - 2
+		}
+		tbl := u.uTbl.Width()
+		if u.tab == "groups" {
+			tbl = u.gTbl.Width()
+		}
+		title := u.detailName
+		if title == "" {
+			title = u.tab
+		}
+		pane := ui.TitledBox("users", truncCell(title, maxInt(inner-6, 8)),
+			ui.ClipBlock(u.detail, maxInt(inner-4, 10)), inner)
+		if wide {
+			body = ui.Split(body, pane, tbl, u.w)
+		} else {
+			body += "\n" + pane
+		}
 	}
 	return body
 }

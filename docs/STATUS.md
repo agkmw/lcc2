@@ -4,11 +4,9 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-UI polish pass complete (4/4 commits, ADR-0007): pill header, glyph
-sidebar, badge footer, titled frames, full-line selection, position
-lines, state tinting, danger-band dialogs, chip help, captioned
-notification windows. Gate green.
-Open backlog: M2 M3, L1-L7.
+UI bug batch fixed (U1/U2): detail panes rebuilt on exact-width
+`ui.Split` (side-by-side ≥100 cols, stacked below), frame bleed-through
+eliminated, chrome well-formedness pinned by tests. Gate green.
 
 ## In progress
 
@@ -16,6 +14,7 @@ Nothing — session wrapped.
 
 ## Next action
 
-Nothing pending. If continuing: [M2] unify detail-pane keys, [M3] clip
-cells to fitted widths, [L4] NO_COLOR support (explicitly deferred in
-ADR-0007). Starter: AGENTS.md → this file → `docs/backlog.md`.
+Live pass recommended: `go run ./cmd/lcc2` on a real terminal, check
+detail panes at ~80 and ~120 cols and section switching for ghosting.
+If anything remains, log to `docs/backlog.md` with a pointer. Open
+items: M2 M3, L1-L7.

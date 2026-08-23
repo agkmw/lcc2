@@ -125,6 +125,22 @@ Fix: `paneHeight(contentLines, avail)` helper (`internal/screens/styles.go`)
 applied to proc detail viewport, files meta pane, services and users
 detail panes; services content now wraps instead of single-line truncation.
 
+### U1 · closed (fix(screens) split commit, 2026-08-24)
+Detail panes overflowed their width budget at common sizes and bled
+through the app frame — read as "screens rendered over each other"
+(svc-detail@76: 81>76; users-detail@84: 89>84; files-meta similar).
+Root causes: fixed 48-col pane + clamped table floors exceeding w.
+Fix: `ui.Split` exact-width columns with ANSI-safe clipping
+(`internal/ui/split.go`); all four detail modes rebuilt on per-screen
+`detailGeom()` (side-by-side ≥100 cols, stacked below); `joinPanes`
+deleted. Files meta double-box removed.
+Regression: `internal/screens/detail_fit_test.go` (5 sizes × 4 screens).
+
+### U2 · closed (fix(screens) split commit, 2026-08-24)
+Ghosting guard: chrome well-formedness pinned — every section view must
+be exactly h lines and ≤ w cells at 4 window sizes, plus modal states.
+Test: `internal/app/chrome_wellformed_test.go`.
+
 ### T1 · closed (feat(ui) tracking commit)
 Cursor did not follow the selected item across refreshes/filters —
 selection "jumped to top" after any rebuild.

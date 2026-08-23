@@ -150,11 +150,16 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 	return s, nil
 }
 
-func detailWidthIf(open bool) int {
-	if open {
-		return clampInt(48, 34, 52)
+// detailGeom resolves detail-pane geometry (shared pattern with the
+// other screens): side-by-side on wide terminals, stacked below 100.
+func (s Services) detailGeom() (wide bool, inner int) {
+	if !s.detailOpen {
+		return false, 0
 	}
-	return 0
+	if s.w < 100 {
+		return false, s.w - 2
+	}
+	return true, clampInt(s.w*2/5, 32, 52)
 }
 
 func orDash(v string) string {
@@ -292,7 +297,11 @@ func (s Services) askAction(action string) (ui.Screen, tea.Cmd) {
 
 func (s *Services) layout() {
 	dh := clampInt(s.h-4, 5, s.h)
-	s.tbl.SetSize(clampInt(s.w-detailWidthIf(s.detailOpen)-3, 30, s.w), dh)
+	tw := s.w - 2
+	if wide, inner := s.detailGeom(); wide {
+		tw = s.w - inner - 3
+	}
+	s.tbl.SetSize(clampInt(tw, 30, s.w), dh)
 }
 
 // View renders the list, empty state or details pane.
@@ -316,14 +325,15 @@ func (s Services) View() string {
 	}
 
 	if s.detailOpen {
-		paneW := detailWidthIf(true)
-		content := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("services")).
-			Render(s.detailUnit) + "\n\n" +
-			lipgloss.NewStyle().Width(paneW-4).Render(strings.TrimSpace(s.detailText))
-		pane := ui.Panel().BorderForeground(ui.Accent("services")).
-			Width(paneW).Height(paneHeight(lipgloss.Height(content), s.h)).
-			Padding(0, 1).Render(content)
-		body = joinPanes(body, pane)
+		wide, inner := s.detailGeom()
+		content := lipgloss.NewStyle().Width(maxInt(inner-4, 10)).
+			Render(strings.TrimSpace(s.detailText))
+		pane := ui.TitledBox("services", truncCell(s.detailUnit, maxInt(inner-6, 8)), content, inner)
+		if wide {
+			body = ui.Split(body, pane, s.tbl.Width(), s.w)
+		} else {
+			body += "\n" + pane
+		}
 	}
 
 	if s.confirm != nil {

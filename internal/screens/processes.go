@@ -256,15 +256,27 @@ func signalCmd(pid int32, sig syscall.Signal) tea.Cmd {
 	}
 }
 
-func (p *Processes) layout() {
-	detailW := 0
-	if p.detailOpen {
-		detailW = clampInt(p.w/3, 34, 52)
+// detailGeom resolves the detail pane geometry: wide screens split
+// side-by-side, narrow ones stack the pane below the list.
+func (p Processes) detailGeom() (wide bool, inner int) {
+	if !p.detailOpen {
+		return false, 0
 	}
-	tw := clampInt(p.w-detailW-3, 30, p.w)
+	if p.w < 100 {
+		return false, p.w - 2
+	}
+	return true, clampInt(p.w*2/5, 32, 56)
+}
+
+func (p *Processes) layout() {
+	_, inner := p.detailGeom()
+	tw := p.w - 2
+	if inner > 0 && p.w >= 100 {
+		tw = p.w - inner - 3
+	}
 	th := clampInt(p.h-1, 5, p.h) // head line + table block
 	p.tbl.SetSize(tw, th)
-	p.dvp.Width = detailW - 4
+	p.dvp.Width = maxInt(inner-4, 10)
 	p.dvp.Height = paneHeight(p.detailLines, th)
 }
 
@@ -358,12 +370,14 @@ func (p Processes) View() string {
 	body := head + "\n" + p.tbl.View()
 
 	if p.detailOpen {
-		detailW := clampInt(p.w/3, 34, 52)
-		pane := ui.Panel().BorderForeground(ui.Accent("proc")).
-			Width(detailW).
-			Padding(0, 1).
-			Render(p.dvp.View())
-		body = joinPanes(body, pane)
+		wide, inner := p.detailGeom()
+		title := truncCell(p.detail.Name, maxInt(inner-6, 8))
+		pane := ui.TitledBox("proc", title, p.dvp.View(), inner)
+		if wide {
+			body = ui.Split(body, pane, p.tbl.Width(), p.w)
+		} else {
+			body += "\n" + pane
+		}
 	}
 	if p.confirm != nil {
 		return lipgloss.Place(p.w, p.h, lipgloss.Center, lipgloss.Center, p.confirm.View())

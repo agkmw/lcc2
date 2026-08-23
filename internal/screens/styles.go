@@ -36,3 +36,10 @@ func paneHeight(contentLines, avail int) int {
 	}
 	return inner
 }
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
