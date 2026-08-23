@@ -156,15 +156,17 @@ func (r Root) sendSize() tea.Cmd {
 }
 
 // contentArea returns the space available to the active screen after
-// subtracting header, footer, sidebar and padding.
+// subtracting header, footer, rule, screen frame, sidebar and padding.
 func (r Root) contentArea() (int, int) {
 	w := r.width
 	if r.sidebarOn {
 		w -= sidebarWidth + 1
 	}
-	h := r.height - 2 // header + footer
+	h := r.height - 3 // header + footer + rule
 	w -= 2            // horizontal padding
 	h -= 2            // vertical breathing room
+	w -= 4            // screen frame border + gutter
+	h -= 2            // screen frame border
 	if w < 10 {
 		w = 10
 	}
@@ -193,13 +195,16 @@ func (r Root) View() string {
 	// footer: short content is padded, tall content is clipped.
 	// Otherwise the footer floats up on sparse screens and slips off
 	// the bottom on crowded ones.
-	bodyH := r.height - 2 // header + footer
+	bodyH := r.height - 3 // header + footer + rule
 	if bodyH < 1 {
 		bodyH = 1
 	}
 	body = lipgloss.NewStyle().Height(bodyH).MaxHeight(bodyH).Render(body)
 
-	frame := r.viewHeader(cur) + "\n" + body + "\n" + r.viewFooter(cur)
+	rule := lipgloss.NewStyle().Foreground(ui.Palette.Surface).
+		Render(strings.Repeat("─", maxInt(r.width, 1)))
+	frame := r.viewHeader(cur) + "\n" + body + "\n" +
+		rule + "\n" + r.viewFooter(cur)
 	out := ui.Base().Render(frame)
 	if r.helpOpen {
 		out = r.overlay(out, r.helpPanel())
@@ -207,17 +212,39 @@ func (r Root) View() string {
 	return ui.CompositeNotes(out, r.notes)
 }
 
+var sectionGlyph = map[string]string{
+	"overview": "◈", "proc": "⚙", "disk": "▤",
+	"files": "▸", "services": "✦", "users": "◍",
+}
+
 func (r Root) viewHeader(cur ui.Screen) string {
-	a := ui.Accent(cur.ID())
-	left := lipgloss.NewStyle().Bold(true).Foreground(a).Render("lcc2")
-	title := lipgloss.NewStyle().Bold(true).
-		Render(" / " + cur.Title())
-	right := faintSty.Render(time.Now().Format("15:04"))
-	gap := r.width - lipgloss.Width(left+title+right)
+	logo := lipgloss.NewStyle().Bold(true).
+		Background(ui.Accent(cur.ID())).
+		Foreground(lipgloss.Color("#11111B")).
+		Render(" lcc2 ")
+	pills := make([]string, 0, len(r.order))
+	for i, id := range r.order {
+		s := lookupSection(id)
+		label := strconv.Itoa(i+1) + " " + s.label
+		if i == r.active {
+			pills = append(pills, lipgloss.NewStyle().Bold(true).
+				Background(ui.Accent(id)).
+				Foreground(lipgloss.Color("#11111B")).
+				Render(" "+label+" "))
+		} else {
+			pills = append(pills, faintSty.
+				Background(ui.Palette.Surface).
+				Render(" "+label+" "))
+		}
+	}
+	bar := logo + " " + strings.Join(pills, faintSty.Render("│"))
+	clock := faintSty.Render(time.Now().Format("15:04"))
+	bar = ui.Truncate(bar, maxInt(r.width-6, 10)) // pills yield before clock
+	gap := r.width - lipgloss.Width(bar+clock)
 	if gap < 1 {
 		gap = 1
 	}
-	return left + title + strings.Repeat(" ", gap) + right
+	return bar + strings.Repeat(" ", gap) + clock
 }
 
 func (r Root) viewSidebar() string {
@@ -229,29 +256,17 @@ func (r Root) viewSidebar() string {
 		marker := "  "
 		if i == r.active {
 			a := ui.Accent(s.id)
-			marker = lipgloss.NewStyle().Foreground(a).Bold(true).Render("> ")
+			marker = lipgloss.NewStyle().Foreground(a).Render("▍ ")
 			sty = lipgloss.NewStyle().Bold(true).Foreground(a)
 		}
-		b.WriteString(marker + sty.Render(s.label) + "\n\n")
+		glyph := faintSty.Render(sectionGlyph[s.id] + " ")
+		b.WriteString(marker + sty.Render(glyph+s.label) + "\n\n")
 	}
 	return lipgloss.NewStyle().Width(sidebarWidth).Render(b.String())
 }
 
 func (r Root) viewTabStrip() string {
-	parts := make([]string, 0, len(r.order))
-	for i, id := range r.order {
-		s := lookupSection(id)
-		label := strconv.Itoa(i+1) + " " + s.label
-		if i == r.active {
-			a := ui.Accent(s.id)
-			parts = append(parts, lipgloss.NewStyle().Bold(true).
-				Foreground(a).Underline(true).
-				Render(" "+label+" "))
-		} else {
-			parts = append(parts, faintSty.Render(" "+label+" "))
-		}
-	}
-	return strings.Join(parts, "")
+	return r.viewHeader(r.current())
 }
 
 func (r Root) viewContent(cur ui.Screen) string {
@@ -261,9 +276,7 @@ func (r Root) viewContent(cur ui.Screen) string {
 	for i, l := range lines {
 		lines[i] = " " + l
 	}
-	padded := strings.Join(lines, "\n")
-	return lipgloss.NewStyle().Width(w + 1).MaxHeight(r.height - 2).
-		Render(padded)
+	return ui.TitledBox(cur.ID(), cur.Title(), strings.Join(lines, "\n"), w)
 }
 
 func (r Root) viewFooter(cur ui.Screen) string {
@@ -272,11 +285,11 @@ func (r Root) viewFooter(cur ui.Screen) string {
 		if !kb.Enabled() {
 			continue
 		}
-		hints += lipgloss.NewStyle().Bold(true).Foreground(ui.Accent(cur.ID())).
-			Render(kb.Help().Key) +
-			faintSty.Render(" "+kb.Help().Desc+"   ")
+		hints += ui.KeyBadge(cur.ID(), kb.Help().Key) +
+			faintSty.Render(" "+kb.Help().Desc+"  ")
 	}
-	hints += faintSty.Render("? help   q quit")
+	hints += ui.KeyBadge(cur.ID(), "?") + faintSty.Render(" help  ") +
+		ui.KeyBadge(cur.ID(), "q") + faintSty.Render(" quit")
 	return ui.Truncate(hints, r.width)
 }
 
@@ -319,6 +332,13 @@ func pad(s string, w int) string {
 		s += " "
 	}
 	return s
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func lookupSection(id string) section {

@@ -34,7 +34,7 @@ func TestFooterPinnedToLastLine(t *testing.T) {
 		if !strings.Contains(lines[0], "lcc2") {
 			t.Errorf("w=%d h=%d: header not on line 0: %q", tc.w, tc.h, lines[0])
 		}
-		if !strings.Contains(lines[tc.h-1], "q quit") {
+		if !strings.Contains(lines[tc.h-1], "quit") {
 			t.Errorf("w=%d h=%d: footer not on last line: %q",
 				tc.w, tc.h, lines[tc.h-1])
 		}
@@ -61,7 +61,7 @@ func TestRootViewWithNotificationsKeepsFrame(t *testing.T) {
 	if noteLines[0] != cleanLines[0] {
 		t.Fatal("header shifted by notification")
 	}
-	if !strings.Contains(noteLines[len(noteLines)-1], "q quit") {
+	if !strings.Contains(noteLines[len(noteLines)-1], "quit") {
 		t.Fatal("footer lost")
 	}
 	found := false
