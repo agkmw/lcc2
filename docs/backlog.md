@@ -113,6 +113,16 @@ Dead code removed: `ui.ErrorDialog/NewError`, `files.Chown` (broken API),
 Kept intentionally: `proc.Filter` (tested provider helper).
 Still open: [M9] note folded here — Chown removed rather than fixed.
 
+### L7 · open
+File ops have no byte progress or cancel (coarse busy guard only, see H4).
+Ptrs: `internal/screens/files.go`, pattern `internal/disk/scan.go`.
+
+### N1 · closed (feat(ui) notify commit)
+Toast redesign to nvim-notify style after user feedback: old overlay washed
+the whole frame and truncated footer hints.
+New: `internal/ui/notify.go` (NotifyStack + CompositeNotes), root wiring in
+`internal/app/root.go`; ADR-0006.
+
 ## Polish
 
 ### L1 · open

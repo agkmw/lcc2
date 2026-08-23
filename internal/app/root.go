@@ -41,8 +41,7 @@ type Root struct {
 	active    int
 	width     int
 	height    int
-	toast     ui.ToastMsg
-	toastSeq  uint64
+	notes     ui.NotifyStack
 	helpOpen  bool
 	quitting  bool
 	sidebarOn bool
@@ -92,22 +91,18 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		r.screens[r.order[r.active]] = sc
 		return r, cmd
 
-	case toastTickMsg:
-		if m.seq == r.toastSeq { // only the newest toast owns its timer
-			r.toast = ui.ToastMsg{}
-		}
+	case noteExpiryMsg:
+		r.notes.Dismiss(m.id)
 		return r, nil
 
 	case ui.ToastMsg:
-		r.toast = m
-		r.toastSeq++
-		seq := r.toastSeq
+		n := r.notes.Push(m.Kind, m.Text)
 		d := 3 * time.Second // errors stay twice as long
 		if m.Kind == "err" {
 			d = 6 * time.Second
 		}
 		return r, tea.Tick(d, func(time.Time) tea.Msg {
-			return toastTickMsg{seq: seq}
+			return noteExpiryMsg{id: n.ID}
 		})
 
 	case tea.KeyMsg:
@@ -209,10 +204,7 @@ func (r Root) View() string {
 	if r.helpOpen {
 		out = r.overlay(out, r.helpPanel())
 	}
-	if r.toast.Text != "" {
-		out = r.overlay(out, r.toastPanel())
-	}
-	return out
+	return ui.CompositeNotes(out, r.notes)
 }
 
 func (r Root) viewHeader(cur ui.Screen) string {
@@ -285,40 +277,7 @@ func (r Root) viewFooter(cur ui.Screen) string {
 			faintSty.Render(" "+kb.Help().Desc+"   ")
 	}
 	hints += faintSty.Render("? help   q quit")
-	toastW := 0
-	if r.toast.Text != "" {
-		t := r.toastPanelInline()
-		toastW = lipgloss.Width(t)
-		hints = ui.Truncate(hints, r.width-toastW-2)
-		gap := r.width - lipgloss.Width(hints) - toastW
-		if gap < 1 {
-			gap = 1
-		}
-		return ui.Truncate(hints, r.width) + strings.Repeat(" ", gap) + t
-	}
 	return ui.Truncate(hints, r.width)
-}
-
-func (r Root) toastPanelInline() string {
-	var sty lipgloss.Style
-	icon := "*"
-	switch r.toast.Kind {
-	case "ok":
-		sty = lipgloss.NewStyle().Foreground(ui.Palette.Green)
-		icon = "+"
-	case "err":
-		sty = lipgloss.NewStyle().Foreground(ui.Palette.Red)
-		icon = "x"
-	default:
-		sty = lipgloss.NewStyle().Foreground(ui.Palette.Blue)
-	}
-	return sty.Bold(true).Render(icon + " " + r.toast.Text + " ")
-}
-
-func (r Root) toastPanel() string {
-	t := ui.Panel().Padding(0, 1).Render(r.toastPanelInline())
-	return lipgloss.Place(r.width, lipgloss.Height(t), lipgloss.Right, lipgloss.Bottom, t,
-		lipgloss.WithWhitespaceForeground(ui.Palette.Faint))
 }
 
 func (r Root) helpPanel() string {
@@ -371,4 +330,4 @@ func lookupSection(id string) section {
 	return section{id: id, label: id}
 }
 
-type toastTickMsg struct{ seq uint64 }
+type noteExpiryMsg struct{ id uint64 }

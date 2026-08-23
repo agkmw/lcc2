@@ -4,16 +4,18 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-All Critical + High closed; M1, M4, M5, M6, M8, M10, M11, M12 done.
-Remaining: M2, M3, M7, M9 (folded into M12 closure note), L-tier. Gate green.
+N1 done: nvim-notify-style floating windows, non-destructive compositing
+(ADR-0006). Gate green. All C/H closed; M2 M3 M7 and L-tier open.
 
 ## In progress
 
-Nothing.
+Nothing — next up is T1 (cursor tracking).
 
 ## Next action
 
-Session wrap per AGENTS.md ritual — remaining backlog stays recorded, not fixed:
-1. Verify final gate: `scripts/check.sh`
-2. This status update + backlog sweep + commit
-3. Optional next session starters: [M2] unify detail-pane keys across screens; [M7] filtered/total counts; [L4] NO_COLOR support
+[T1] identity-based cursor tracking:
+1. `internal/ui/table.go`: `keys []string` parallel to rows; `SetRowsTracked(rows, keys)`; `applyFilter` restores cursor by key (nearest-index fallback)
+2. Wire keys in all five screens: files=path, processes=PID (drop syncTable PID hack), services=name, users=name, disks=mountpoint/path
+3. Tests in `internal/ui/table_test.go`: delete-shift keeps selection; filter narrow/widen keeps it
+4. Gate → ritual → commit `feat(ui): identity-based cursor tracking (T1)`
+Then [S1] content-sized detail panes.
