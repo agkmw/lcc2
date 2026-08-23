@@ -3,6 +3,7 @@ package screens
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -297,11 +298,11 @@ func (d Disks) View() string {
 		return ""
 	}
 	if d.mode == "fs" {
-		head := faintSty.Render("mounted filesystems")
-		return head + "\n" + d.fsTbl.View()
+		return pageHead("Disks",
+			fmt.Sprintf("%d mounted filesystems", len(d.fss)), d.w) + "\n" + d.fsTbl.View()
 	}
 
-	crumbs := renderCrumbs(d.path, d.w)
+	head := pageHead("Directory usage", crumbMeta(d.path), d.w)
 	status := ""
 	if d.busy {
 		status = "\n" + lipgloss.NewStyle().Foreground(ui.Accent("disk")).
@@ -315,12 +316,14 @@ func (d Disks) View() string {
 			sysinfo.FormatBytes(float64(d.items.TotalSize)) + " · scanned in " +
 			d.items.Duration.Round(100*time.Millisecond).String())
 	}
-	return crumbs + status + "\n" + d.dirTbl.View()
+	return head + status + "\n" + d.dirTbl.View()
 }
 
-func renderCrumbs(path string, w int) string {
+// crumbMeta renders a path as breadcrumb text for the page-head meta
+// slot: current segment bold accent, separators faint.
+func crumbMeta(path string) string {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
-	out := accentDiskSty.Render("/") + " "
+	out := mutedSty.Render("/")
 	for i, p := range parts {
 		if p == "" {
 			continue
@@ -329,12 +332,7 @@ func renderCrumbs(path string, w int) string {
 		if i == len(parts)-1 {
 			sty = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FAB387"))
 		}
-		out += sty.Render(p)
-		if i < len(parts)-1 {
-			out += faintSty.Render(" > ")
-		}
+		out += faintSty.Render(" › ") + sty.Render(p)
 	}
-	return " " + ui.Truncate(out, w-2) + "\n"
+	return out
 }
-
-var accentDiskSty = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FAB387"))

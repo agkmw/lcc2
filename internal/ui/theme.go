@@ -5,8 +5,8 @@ package ui
 import (
 	"strings"
 
-	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // Palette is the single source of truth for colors.

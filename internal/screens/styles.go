@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"lcc2/internal/ui"
 )
 
 // Shared styles for all screens, derived from the central palette.
@@ -53,4 +55,16 @@ func contextSel(name, detail string) string {
 		return name + faintSty.Render(" · "+detail)
 	}
 	return name
+}
+
+// pageHead renders the standard two-part page title row: bold title
+// left, faint meta right, padded to w.
+func pageHead(title, metaRight string, w int) string {
+	title = lipgloss.NewStyle().Bold(true).Render(title)
+	meta := faintSty.Render(metaRight)
+	gap := w - lipgloss.Width(title) - lipgloss.Width(metaRight)
+	if gap < 1 {
+		gap = 1
+	}
+	return ui.ClipBlock(title+strings.Repeat(" ", gap)+meta, w)
 }

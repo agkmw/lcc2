@@ -1,6 +1,7 @@
 package screens
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -309,7 +310,7 @@ func (s Services) View() string {
 	if s.w == 0 {
 		return ""
 	}
-	head := faintSty.Render(itoa(len(s.units)) + " units")
+	head := pageHead("Services", fmt.Sprintf("%d units", len(s.units)), s.w)
 	body := head + "\n" + s.tbl.View()
 
 	if !s.loaded {

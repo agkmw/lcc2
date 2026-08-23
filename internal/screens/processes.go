@@ -1,6 +1,7 @@
 package screens
 
 import (
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -365,8 +366,8 @@ func (p Processes) View() string {
 		return lipgloss.Place(p.w, p.h, lipgloss.Center, lipgloss.Center,
 			ui.EmptyState("", "Scanning processes…", "", p.w))
 	}
-	head := faintSty.Render("sorted by "+string(p.sortKey)+"  ") +
-		mutedSty.Render(itoa(len(p.all))+" processes")
+	head := pageHead("Processes",
+		fmt.Sprintf("sorted by %s · %d running", p.sortKey, len(p.all)), p.w)
 	body := head + "\n" + p.tbl.View()
 
 	if p.detailOpen {

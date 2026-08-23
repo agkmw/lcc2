@@ -129,17 +129,28 @@ detail panes; services content now wraps instead of single-line truncation.
 Detail panes overflowed their width budget at common sizes and bled
 through the app frame — read as "screens rendered over each other"
 (svc-detail@76: 81>76; users-detail@84: 89>84; files-meta similar).
-Root causes: fixed 48-col pane + clamped table floors exceeding w.
-Fix: `ui.Split` exact-width columns with ANSI-safe clipping
-(`internal/ui/split.go`); all four detail modes rebuilt on per-screen
-`detailGeom()` (side-by-side ≥100 cols, stacked below); `joinPanes`
-deleted. Files meta double-box removed.
+Fix: `ui.Split` exact-width columns (`internal/ui/split.go`); all four
+detail modes on per-screen `detailGeom()`; `joinPanes` deleted.
 Regression: `internal/screens/detail_fit_test.go` (5 sizes × 4 screens).
 
 ### U2 · closed (fix(screens) split commit, 2026-08-24)
 Ghosting guard: chrome well-formedness pinned — every section view must
 be exactly h lines and ≤ w cells at 4 window sizes, plus modal states.
 Test: `internal/app/chrome_wellformed_test.go`.
+
+### U3 · closed (ui shell commits, 2026-08-24)
+Post-polish user verdict: still messy — mixed border corners, frame-in-frame
+nesting, chip-heavy nav, floating rule, off-center empty states.
+Fix: full app-shell redesign per ADR-0008 (square-only borders, nav/status
+bars, rail with border, pageHead pattern, overview card grid, strip-below,
+true centering). Renderer hazards found & fixed en route:
+- `Style.Render` pads every line to widest input → whole-frame inflation
+  when one line overflowed (status-bar hints); now clipped post-render
+  (`internal/app/root.go`) + hints always budget-clamped
+- hand-rolled rune Truncate sliced ANSI escapes → replaced with `x/ansi`
+  (`internal/ui/theme.go`)
+- `JoinHorizontal` width normalization swallowed gutters → overview grid
+  assembled via exact-width `ui.Split`
 
 ### T1 · closed (feat(ui) tracking commit)
 Cursor did not follow the selected item across refreshes/filters —

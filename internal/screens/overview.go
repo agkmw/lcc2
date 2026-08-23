@@ -4,6 +4,7 @@
 package screens
 
 import (
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -137,48 +138,73 @@ func pctOf(v, scale float64) float64 {
 	return p
 }
 
-// View renders the dashboard panels.
+// View renders the dashboard: a 2×2 card grid plus a full-width disk
+// card, all equal heights per row.
 func (o Overview) View() string {
 	if !o.loaded || !o.widthSet {
 		return o.center(ui.EmptyState("", "Gathering system information…", "", o.w))
 	}
-	w := o.w
-	leftW := w * 2 / 5
-	rightW := w - leftW - 2
+	w, h := o.w, o.h
+	meta := fmt.Sprintf("load %.1f  ·  %s",
+		o.snap.load.One, sysinfo.FormatUptime(o.snap.host.Uptime))
+	head := pageHead("Overview", meta, w)
 
-	left := lipgloss.JoinVertical(lipgloss.Left,
-		o.systemPanel(leftW),
-		o.memoryPanel(leftW),
-	)
-	right := lipgloss.JoinVertical(lipgloss.Left,
-		o.cpuPanel(rightW),
-		o.networkPanel(rightW),
-	)
+	gutter := 2
+	cardW := (w - 4 - gutter) / 2 // two bordered cards + gutter column
+	diskH := 3
+	gridH := h - 1 - diskH - 2 // head + blank + gaps around grid
+	rh := clampInt(gridH/2-1, 4, 20)
 
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
-	if w < 72 {
+	topL := o.card("system", "system", kvBody(o.systemRows(), rh-6), cardW, rh)
+	topR := o.card("cpu", "cpu", o.cpuBody(cardW, rh), cardW, rh)
+	botL := o.card("memory", "memory", o.memBody(cardW), cardW, rh)
+	botR := o.card("network", "network", o.netBody(cardW), cardW, rh)
+
+	colW := cardW + 2 // outer card width incl. border
+	blank := strings.Repeat(" ", maxInt(w, 1))
+	var body string
+	if w >= 72 {
+		top := ui.Split(topL, topR, colW, w)
+		bot := ui.Split(botL, botR, colW, w)
+		body = top + "\n" + blank + "\n" + bot
+	} else {
 		body = lipgloss.JoinVertical(lipgloss.Left,
-			o.systemPanel(w), o.cpuPanel(w), o.memoryPanel(w), o.networkPanel(w))
+			topL, strings.Repeat(" ", colW), topR,
+			strings.Repeat(" ", colW), botL,
+			strings.Repeat(" ", colW), botR)
 	}
 
-	diskLine := ""
-	if o.snap.root != nil {
-		f := o.snap.root
-		diskLine = "\n" + mutedSty.Render("disk  ") +
-			ui.Gauge(f.UsedPercent, min(40, w-16), nil) +
-			mutedSty.Render("  "+sysinfo.FormatBytes(float64(f.Used))+" / "+
-				sysinfo.FormatBytes(float64(f.Total))+" on "+f.Mountpoint)
+	disk := o.diskCard(w - 2)
+	out := head + "\n" + body + "\n" + disk
+	lines := strings.Split(out, "\n")
+	if len(lines) > h {
+		lines = lines[:h]
 	}
-	return body + diskLine
+	return strings.Join(lines, "\n")
+}
+
+func (o Overview) card(id, title, body string, w, h int) string {
+	return ui.Card(id, title, body, w, h)
+}
+
+func (o Overview) diskCard(w int) string {
+	f := o.snap.root
+	if f == nil {
+		return ui.Card("disk", "disk", mutedSty.Render("no root filesystem"), w, 3)
+	}
+	bar := ui.Gauge(f.UsedPercent, clampInt(w/3, 16, 44), nil)
+	body := bar + "  " + faintSty.Render(sysinfo.FormatBytes(float64(f.Used))+
+		" / "+sysinfo.FormatBytes(float64(f.Total))+" on "+f.Mountpoint)
+	return ui.Card("disk", "disk "+f.Mountpoint, body, w, 3)
 }
 
 func (o Overview) center(s string) string {
 	return lipgloss.Place(o.w, o.h, lipgloss.Center, lipgloss.Center, s)
 }
 
-func (o Overview) systemPanel(w int) string {
+func (o Overview) systemRows() [][2]string {
 	h := o.snap.host
-	rows := [][2]string{
+	return [][2]string{
 		{"host", h.Hostname},
 		{"os", titleCase(h.Platform) + " " + h.PlatformVersion},
 		{"kernel", h.KernelVersion + " (" + h.KernelArch + ")"},
@@ -186,10 +212,23 @@ func (o Overview) systemPanel(w int) string {
 		{"cores", itoa(o.snap.cpu.Cores)},
 		{"load", f1(o.snap.load.One) + "  " + f1(o.snap.load.Five) + "  " + f1(o.snap.load.Fifteen)},
 	}
-	return panel("system", w-2, kvRows(rows))
 }
 
-func (o Overview) memoryPanel(w int) string {
+func kvBody(rows [][2]string, maxRows int) string {
+	if maxRows < 1 {
+		maxRows = 1
+	}
+	if len(rows) > maxRows {
+		rows = rows[:maxRows]
+	}
+	var b strings.Builder
+	for _, r := range rows {
+		b.WriteString(mutedSty.Render(padTo(r[0], 7)) + faintSty.Render(ui.Truncate(r[1], 40)) + "\n")
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+func (o Overview) memBody(w int) string {
 	m := o.snap.mem
 	var b strings.Builder
 	b.WriteString(row("ram ", ui.Gauge(m.UsedPercent, gaugeWidth(w), nil),
@@ -197,14 +236,14 @@ func (o Overview) memoryPanel(w int) string {
 	b.WriteString("\n")
 	b.WriteString(row("swap", ui.Gauge(m.SwapPercent, gaugeWidth(w), nil),
 		sysinfo.FormatBytes(float64(m.SwapUsed))+" / "+sysinfo.FormatBytes(float64(m.SwapTotal))))
-	return panel("memory", w-2, b.String())
+	return b.String()
 }
 
-func (o Overview) cpuPanel(w int) string {
+func (o Overview) cpuBody(w, h int) string {
 	c := o.snap.cpu
 	var b strings.Builder
 	b.WriteString(ui.Spark(o.cpuHist, sparkWidth(w), ui.Palette.Blue) + "\n\n")
-	const maxShow = 12
+	maxShow := clampInt(h-6, 2, 12)
 	perRow := 2
 	shown := min(c.Cores, maxShow)
 	for i := 0; i < shown; i++ {
@@ -217,12 +256,12 @@ func (o Overview) cpuPanel(w int) string {
 		}
 	}
 	if c.Cores > maxShow {
-		b.WriteString(faintSty.Render("… +"+itoa(c.Cores-maxShow)+" more cores") + "\n")
+		b.WriteString(faintSty.Render("… +" + itoa(c.Cores-maxShow) + " more cores"))
 	}
-	return panel("cpu", w-2, strings.TrimRight(b.String(), "\n"))
+	return strings.TrimRight(b.String(), "\n")
 }
 
-func (o Overview) networkPanel(w int) string {
+func (o Overview) netBody(w int) string {
 	n := o.snap.net
 	var b strings.Builder
 	b.WriteString(row("rx ", ui.Spark(o.rxHist, sparkWidth(w), ui.Palette.Teal),
@@ -233,7 +272,7 @@ func (o Overview) networkPanel(w int) string {
 	b.WriteString("\n\n")
 	b.WriteString(faintSty.Render("total  ↓ " + sysinfo.FormatBytes(float64(n.RecvTotal)) +
 		"   ↑ " + sysinfo.FormatBytes(float64(n.SentTotal))))
-	return panel("network", w-2, b.String())
+	return b.String()
 }
 
 func gaugeWidth(w int) int { return clampInt(w/2-10, 10, 40) }
@@ -241,18 +280,6 @@ func sparkWidth(w int) int { return clampInt(w-14, 10, 80) }
 
 func row(label string, bar string, right string) string {
 	return mutedSty.Render(label+" ") + bar + "  " + faintSty.Render(right)
-}
-
-func panel(title string, width int, body string) string {
-	return ui.TitledBox("overview", title, body, width)
-}
-
-func kvRows(rows [][2]string) string {
-	var b strings.Builder
-	for _, r := range rows {
-		b.WriteString(mutedSty.Render(padTo(r[0], 7)) + faintSty.Render(r[1]) + "\n")
-	}
-	return strings.TrimSuffix(b.String(), "\n")
 }
 
 func padTo(s string, w int) string {

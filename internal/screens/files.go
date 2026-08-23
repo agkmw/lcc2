@@ -434,12 +434,11 @@ func (f Files) View() string {
 	if f.w == 0 {
 		return ""
 	}
-	head := renderCrumbs(f.cwd, f.w) +
-		faintSty.Render(fmt.Sprintf("%d items · hidden %s",
-			len(f.entries), onOff(f.showHidden)))
+	meta := crumbMeta(f.cwd) + " · hidden " + onOff(f.showHidden)
 	if f.opCount.Load() > 0 {
-		head += warnSty.Render("  ·  working…")
+		meta += " · working…"
 	}
+	head := pageHead("Files", meta, f.w)
 	body := head + "\n" + f.tbl.View()
 
 	if f.meta != nil {

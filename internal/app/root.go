@@ -162,8 +162,8 @@ func (r Root) contentArea() (int, int) {
 	if r.sidebarOn {
 		w -= sidebarWidth + 1 // rail + its border column
 	}
-	w -= 4             // page margins
-	h := r.height - 5  // nav bar(2) + status bar(2) + one blank row
+	w -= 4            // page margins
+	h := r.height - 5 // nav bar(2) + status bar(2) + one blank row
 	if w < 10 {
 		w = 10
 	}

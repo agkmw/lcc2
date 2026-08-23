@@ -1,6 +1,7 @@
 package screens
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -279,9 +280,12 @@ func (u UsersGroups) View() string {
 		tblView = u.gTbl.View()
 		count = len(u.groups)
 	}
-	head := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("users")).
-		Render(strings.ToUpper(u.tab[:1])+u.tab[1:]) +
-		faintSty.Render("  ·  tab to switch  ·  "+itoa(count)+" entries")
+	tabLabel := "Users"
+	if u.tab == "groups" {
+		tabLabel = "Groups"
+	}
+	head := pageHead(tabLabel,
+		fmt.Sprintf("%s · tab switches · %d entries", otherTab(u.tab), count), u.w)
 	body := head + "\n\n" + tblView
 
 	if u.detailOpen {
