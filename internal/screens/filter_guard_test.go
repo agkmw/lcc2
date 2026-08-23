@@ -105,6 +105,30 @@ func TestFilterModeSwallowsActionKeysOnServices(t *testing.T) {
 	}
 }
 
+func TestServicesConfirmDismissedOnActionStart(t *testing.T) {
+	sv := NewServices()
+	sv = feed(sv, ui.SizeMsg{Width: 100, Height: 30}, svcListMsg{units: []services.Unit{
+		{Name: "ssh.service", Active: "active", Sub: "running"},
+	}}).(Services)
+
+	sv = feed(sv, keyRunes("s")).(Services)
+	if sv.confirm == nil {
+		t.Fatal("confirm did not open")
+	}
+	sv = feed(sv, keyRunes("y")).(Services)
+	if sv.confirm != nil {
+		t.Fatal("confirm still open after yes")
+	}
+
+	for _, res := range []error{nil, os.ErrPermission} {
+		sv2, _ := sv.Update(svcActionDoneMsg{unit: "ssh.service", action: "start", err: res})
+		sv = sv2.(Services)
+		if sv.confirm != nil {
+			t.Fatalf("confirm resurrected by done msg (err=%v)", res)
+		}
+	}
+}
+
 func TestFilterModeGuardsOnDisksAndUsers(t *testing.T) {
 	d := NewDisks()
 	d = feed(d, ui.SizeMsg{Width: 100, Height: 30}).(Disks)

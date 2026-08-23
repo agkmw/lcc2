@@ -21,10 +21,10 @@ Fix: every screen's `handleKey` delegates to the active FilterTable while
 `services.go`, `disks.go` (top of handleKey), `users.go`.
 Regression: `internal/screens/filter_guard_test.go`.
 
-### C3 · open
-Services confirm dialog never clears after "yes": handler doesn't reset
-`confirm`, `svcActionDoneMsg` doesn't either → modal traps input.
-Ptrs: `internal/screens/services.go:180-185,133-137`; correct pattern at `processes.go:142`.
+### C3 · closed (fix(screens) commit, 2026-08-23)
+Services confirm dialog never cleared after "yes" → modal trapped input.
+Fix: `s.confirm = nil` on the yes branch and in `svcActionDoneMsg`
+(`internal/screens/services.go`). Test: `filter_guard_test.go::TestServicesConfirmDismissedOnActionStart`.
 
 ## High
 

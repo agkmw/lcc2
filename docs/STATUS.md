@@ -4,17 +4,16 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-Backlog burn-down under way. [C1], [C2] closed; ADR-0004 Accepted.
-Gate green.
+[C1] [C2] [C3] closed. Criticals clear. Gate green.
 
 ## In progress
 
-Nothing — next up is C3.
+Nothing — next up is H1.
 
 ## Next action
 
-Fix [C3] services confirm dialog stuck after "yes":
-1. `internal/screens/services.go` handleKey: set `s.confirm = nil` in the `done && yes` branch
-2. Also clear in the `svcActionDoneMsg` handler (mirror `processes.go:142`)
-3. Test in `internal/screens/filter_guard_test.go` style: 's' → 'y' → svcActionDoneMsg → assert confirm nil (both err and ok paths)
-4. Gate: `scripts/check.sh` → ritual → commit `fix(screens): dismiss services confirm on action start (C3)`
+Fix [H1]+[M11] disk scan correctness:
+1. `internal/disk/scan.go`: return `ctx.Err()` on cancel (no partial results); root-unreadable walk error aborts with error instead of silent empty
+2. `internal/screens/disks.go` scanDoneMsg: ignore `context.Canceled` silently
+3. Tests in `internal/disk/scan_test.go`: cancelled ctx errors; unreadable root errors
+4. Gate → ritual → commit `fix(disk): honest scan cancellation and root errors (H1,M11)`

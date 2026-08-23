@@ -131,6 +131,7 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		return s, nil
 
 	case svcActionDoneMsg:
+		s.confirm = nil
 		if m.err != nil {
 			return s, ui.ErrToast(m.action + " failed: " + m.err.Error())
 		}
@@ -178,6 +179,7 @@ func (s Services) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		dlg, yes, done := s.confirm.Update(m)
 		*s.confirm = dlg
 		if done && yes {
+			s.confirm = nil
 			unit, action := s.pendingOp[0], s.pendingOp[1]
 			return s, func() tea.Msg {
 				err := services.Action(unit, action)
