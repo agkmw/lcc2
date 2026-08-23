@@ -59,6 +59,20 @@ func TestCopyMoveDelete(t *testing.T) {
 	}
 }
 
+func TestCopyOntoItselfRefused(t *testing.T) {
+	dir := t.TempDir()
+	src := dir + "/keep.txt"
+	os.WriteFile(src, []byte("precious"), 0644)
+
+	if err := Copy(src, dir); err == nil {
+		t.Fatal("same-path paste must be refused")
+	}
+	data, err := os.ReadFile(src)
+	if err != nil || string(data) != "precious" {
+		t.Fatalf("source damaged: %q %v", data, err)
+	}
+}
+
 func TestChmod(t *testing.T) {
 	dir := t.TempDir()
 	p := dir + "/f"

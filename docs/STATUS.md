@@ -4,18 +4,18 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-Full-app audit done at `dc03bf7`: build/vet/test green. 3 critical, 6 high,
-12 medium, 6 polish issues logged in `docs/backlog.md`. Handoff system
-(AGENTS.md, docs/, scripts/check.sh) bootstrapped this session.
+Audit done; backlog seeded (3C/6H/12M/6L). [C1] fixed and regression-tested
+(`5ba6d67` + test commit): `Copy()` refuses same-path paste. Gate green.
 
 ## In progress
 
-[C1] guard landed in `internal/files/ops.go` (`Copy()` refuses cleaned
-dst == src). Regression test NOT yet written; fix unverified.
+Nothing.
 
 ## Next action
 
-Finish [C1]:
-1. `internal/files/ops_test.go` — regression: write file, `Copy(src, dir)` must error and bytes stay intact
-2. Gate: `scripts/check.sh`
-3. Ritual: update this file → backlog C1 → `closed (commit <sha>)` → commit `test(files): self-copy regression closes C1`
+Fix [C2] filter-mode key interception (see `docs/decisions/adr-0004-*`, Proposed):
+1. `internal/ui/table.go` — no change needed if screens gate: in each screen's `handleKey`, early-return into `tbl.Update` when `Filtering()`
+2. Touch points: `internal/screens/{processes,files,services,disks,users}.go` handleKey switches
+3. Tests: extend `internal/screens/layout_test.go`-style feeding — type `/dat` on Files, assert no dialog/prompt state
+4. Gate: `scripts/check.sh`
+5. Ritual: update this file → ADR-0004 → Accepted → backlog C2 → `closed (<sha>)` → commit
