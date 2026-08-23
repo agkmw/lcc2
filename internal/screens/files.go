@@ -117,7 +117,8 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		for i, e := range m.list {
 			name := e.Name
 			if e.IsDir {
-				name += "/"
+				name = lipgloss.NewStyle().Bold(true).
+					Foreground(ui.Accent("files")).Render(name + "▸")
 			}
 			rows[i] = table.Row{
 				name,

@@ -4,18 +4,19 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-UI polish pass under way. Commit 1/4 done: design-system foundations —
-`TitledBox`, `KeyBadge`, `SelectedRow` surface highlight, `StateColor`,
-shaded fractional gauges (`internal/ui/theme.go`, `meter.go`).
-Gate green.
+UI polish pass: commits 1-2 done (design system, chrome). Commit 3/4
+done: full-line row selection, per-table position line (`n/m · pct%`,
+closes M7 visually), bordered filter row, process state/% tinting,
+service state dots, disk use% thresholds, titled overview panels,
+dir glyph in Files. Gate green.
 
 ## In progress
 
-Commit 2/4: chrome restyle.
+Commit 4/4: modals & overlays polish.
 
 ## Next action
 
-Finish commit 2 (`feat(app): chrome restyle`): pill header, glyph sidebar,
-badge footer + rule, titled screen frame in `internal/app/root.go`; update
-footer string assertions; gate → ritual → commit. Then commits 3-4 per plan
-in session context: tables/data display, modals polish.
+Finish commit 4 (`feat(ui): modals polish`): confirm dialog danger band +
+button row (`internal/ui/dialog.go`), help overlay keycap chips
+(`internal/app/root.go` helpPanel), notification kind-word caption
+(`internal/ui/notify.go`). Gate → ritual → commit → final STATUS sweep.

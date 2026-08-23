@@ -262,17 +262,10 @@ func (p *Processes) layout() {
 		detailW = clampInt(p.w/3, 34, 52)
 	}
 	tw := clampInt(p.w-detailW-3, 30, p.w)
-	th := clampInt(p.h-(p.filterBarHeight()), 5, p.h)
+	th := clampInt(p.h-1, 5, p.h) // head line + table block
 	p.tbl.SetSize(tw, th)
 	p.dvp.Width = detailW - 4
 	p.dvp.Height = paneHeight(p.detailLines, th)
-}
-
-func (p Processes) filterBarHeight() int {
-	if p.tbl.Filtering() || p.tbl.FilterString() != "" {
-		return 2
-	}
-	return 1
 }
 
 // syncTable rebuilds visible rows; the cursor follows its PID.
@@ -283,14 +276,34 @@ func (p *Processes) syncTable() {
 		rows[i] = table.Row{
 			itoa(int(pr.PID)),
 			truncCell(pr.User, 11),
-			f1(pr.CPUPercent),
-			f1(pr.MemPercent),
-			pr.State,
+			pctCell(pr.CPUPercent),
+			pctCell(pr.MemPercent),
+			stateCell(pr.State),
 			truncCell(pr.Command, 60),
 		}
 		keys[i] = itoa(int(pr.PID))
 	}
 	p.tbl.SetRowsTracked(rows, keys)
+}
+
+func pctCell(v float64) string {
+	sty := lipgloss.NewStyle().Foreground(ui.StateColor(v))
+	return sty.Render(f1(v))
+}
+
+func stateCell(s string) string {
+	var c lipgloss.TerminalColor
+	switch s {
+	case "R":
+		c = goodSty.GetForeground()
+	case "D":
+		c = warnSty.GetForeground()
+	case "Z", "X":
+		c = badSty.GetForeground()
+	default:
+		return mutedSty.Render(s)
+	}
+	return lipgloss.NewStyle().Bold(true).Foreground(c).Render(s)
 }
 
 func truncCell(s string, w int) string {
@@ -329,7 +342,7 @@ func (p *Processes) setDetailContent() {
 	b.WriteString(wordWrap(d.Command, p.dvp.Width))
 	content := b.String()
 	p.detailLines = lipgloss.Height(content)
-	p.dvp.Height = paneHeight(p.detailLines, clampInt(p.h-(p.filterBarHeight()), 5, p.h))
+	p.dvp.Height = paneHeight(p.detailLines, clampInt(p.h-1, 5, p.h))
 	p.dvp.SetContent(content)
 	p.dvp.GotoTop()
 }

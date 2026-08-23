@@ -244,13 +244,7 @@ func row(label string, bar string, right string) string {
 }
 
 func panel(title string, width int, body string) string {
-	head := lipgloss.NewStyle().Bold(true).
-		Foreground(ui.Accent("overview")).Render(title)
-	return ui.Panel().
-		BorderForeground(ui.Accent("overview")).
-		Width(width).
-		Padding(0, 1).
-		Render(head + "\n" + body)
+	return ui.TitledBox("overview", title, body, width)
 }
 
 func kvRows(rows [][2]string) string {

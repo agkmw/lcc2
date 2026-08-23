@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -22,6 +23,7 @@ type FilterTable struct {
 	filterStr string
 	input     textinput.Model
 	t         table.Model
+	vw, vh    int // total block size incl. position/filter line
 }
 
 // NewFilterTable creates a table with the given columns and dimensions.
@@ -50,15 +52,18 @@ func NewFilterTable(cols []table.Column, width, height int) FilterTable {
 		BorderForeground(Palette.Surface).
 		Foreground(Palette.Muted).
 		Bold(false)
-	s.Selected = lipgloss.NewStyle().Bold(true).Foreground(Palette.Blue)
+	s.Selected = SelectedRow() // full-line surface highlight
 	t.SetStyles(s)
 	return FilterTable{cols: cols, baseCols: cols, t: t, input: ti}
 }
 
 // SetSize updates the viewport dimensions and refits columns.
+// h is the total block height: the position/filter line reserves the
+// first row, the table gets the rest.
 func (f *FilterTable) SetSize(w, h int) {
+	f.vw, f.vh = w, h
 	f.t.SetWidth(w)
-	f.t.SetHeight(h)
+	f.t.SetHeight(h - 1)
 	f.fitColumns(w)
 }
 
@@ -329,20 +334,43 @@ func (f FilterTable) Update(msg tea.Msg) (FilterTable, tea.Cmd) {
 	return f, cmd
 }
 
-// View renders the table, optionally with an inline filter bar.
+// View renders the position/filter line above the table.
 func (f FilterTable) View() string {
 	out := f.t.View()
+	var top string
 	if f.filtering || f.filterStr != "" {
-		bar := faintSty.Render("filter:")
+		bar := faintSty.Render("filter")
 		val := f.input.View()
 		if !f.filtering {
 			val = mutedSty.Render("/" + f.filterStr)
 		} else {
 			val = "/" + val
 		}
-		out = bar + " " + val + "\n" + out
+		top = uiPanellessRow(f.vw, bar+" "+val)
+	} else if total := len(f.rows); total > 0 {
+		stats := fmt.Sprintf("%d/%d · %d%%", len(f.origIdx), total, f.scrollPct())
+		top = uiPanellessRow(f.vw, faintSty.Render(stats))
+	} else {
+		top = strings.Repeat(" ", clampW(f.vw, 0, f.vw))
 	}
-	return out
+	return top + "\n" + out
+}
+
+func uiPanellessRow(w int, content string) string {
+	gap := w - lipgloss.Width(content)
+	if gap < 0 {
+		gap = 0
+	}
+	return content + strings.Repeat(" ", gap)
+}
+
+func (f FilterTable) scrollPct() int {
+	n := len(f.origIdx)
+	if n <= 1 {
+		return 100
+	}
+	cur := f.t.Cursor()
+	return int(float64(cur) / float64(n-1) * 100)
 }
 
 // Focus is a no-op kept for interface symmetry.

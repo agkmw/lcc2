@@ -118,12 +118,13 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		rows := make([]table.Row, len(m))
 		keys := make([]string, len(m))
 		for i, f := range m {
+			pct := itoa(int(f.UsedPercent))
 			rows[i] = table.Row{
 				f.Mountpoint, f.Device, f.FSType,
 				sysinfo.FormatBytes(float64(f.Total)),
 				sysinfo.FormatBytes(float64(f.Used)),
 				sysinfo.FormatBytes(float64(f.Free)),
-				itoa(int(f.UsedPercent)),
+				lipgloss.NewStyle().Foreground(ui.StateColor(f.UsedPercent)).Render(pct),
 			}
 			keys[i] = f.Mountpoint
 		}

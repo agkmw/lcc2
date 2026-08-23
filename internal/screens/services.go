@@ -118,7 +118,7 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		for i, u := range m.units {
 			rows[i] = table.Row{
 				u.Name, stateStyled(u.Active), u.Sub,
-				orDash(u.Enabled),
+				bootStyled(u.Enabled),
 				ui.Truncate(u.Description, 40),
 			}
 			keys[i] = u.Name
@@ -164,7 +164,31 @@ func orDash(v string) string {
 	return v
 }
 
-func stateStyled(st string) string { return st }
+func stateStyled(st string) string {
+	switch st {
+	case "active":
+		return lipgloss.NewStyle().Foreground(goodSty.GetForeground()).Render("● " + st)
+	case "failed":
+		return lipgloss.NewStyle().Bold(true).Foreground(badSty.GetForeground()).Render("✕ " + st)
+	case "activating", "reloading":
+		return lipgloss.NewStyle().Foreground(warnSty.GetForeground()).Render("◐ " + st)
+	default:
+		return mutedSty.Render("○ " + st)
+	}
+}
+
+func bootStyled(v string) string {
+	switch v {
+	case "enabled":
+		return goodSty.Render(v)
+	case "disabled":
+		return faintSty.Render(v)
+	case "":
+		return "-"
+	default:
+		return v
+	}
+}
 
 func friendlySvcErr(err error) string {
 	if err == services.ErrUnavailable {
