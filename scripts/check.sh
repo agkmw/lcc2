@@ -1,0 +1,6 @@
+#!/bin/sh
+# Session gate: run before any commit. Green or no commit.
+set -e
+cd "$(dirname "$0")/.."
+go vet ./...
+go test ./...
