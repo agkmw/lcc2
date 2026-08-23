@@ -8,11 +8,11 @@ ID scheme: `C/H/M/L<n>` = critical / high / medium / polish. State:
 
 ## Critical
 
-### C1 · open
+### C1 · partial
 Same-directory paste zeroes the source file: `Copy()` opens dst with
 `O_TRUNC` where dst == src.
 Ptr: `internal/files/ops.go:161-176`, flow `internal/screens/files.go:268-280`.
-Fix sketch: refuse when `filepath.Clean(dst) == filepath.Clean(src)`; regression test bytes intact.
+Guard added at `internal/files/ops.go:127-129`; regression test outstanding.
 
 ### C2 · open
 Typing in a table filter triggers screen actions (`d` delete, `x/K` kill,

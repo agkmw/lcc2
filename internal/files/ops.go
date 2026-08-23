@@ -124,6 +124,9 @@ func Mkdir(parent, name string) error {
 // Copy recursively copies src into dstDir keeping its base name.
 func Copy(src, dstDir string) error {
 	dst := filepath.Join(dstDir, filepath.Base(src))
+	if filepath.Clean(dst) == filepath.Clean(src) {
+		return fmt.Errorf("cannot copy %s onto itself", filepath.Base(src))
+	}
 	info, err := os.Stat(src)
 	if err != nil {
 		return err

@@ -10,12 +10,12 @@ Full-app audit done at `dc03bf7`: build/vet/test green. 3 critical, 6 high,
 
 ## In progress
 
-Nothing.
+[C1] guard landed in `internal/files/ops.go` (`Copy()` refuses cleaned
+dst == src). Regression test NOT yet written; fix unverified.
 
 ## Next action
 
-Fix [C1] same-dir paste destroys source file:
-1. `internal/files/ops.go` — in `Copy()`, refuse when `filepath.Clean(dst) == filepath.Clean(src)`
-2. `internal/files/ops_test.go` — regression: `Copy(f, dir)` errors and file bytes intact
-3. Gate: `scripts/check.sh`
-4. Ritual: update this file → tick backlog C1 → commit `fix(files): refuse same-path paste`
+Finish [C1]:
+1. `internal/files/ops_test.go` — regression: write file, `Copy(src, dir)` must error and bytes stay intact
+2. Gate: `scripts/check.sh`
+3. Ritual: update this file → backlog C1 → `closed (commit <sha>)` → commit `test(files): self-copy regression closes C1`
