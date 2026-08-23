@@ -294,27 +294,28 @@ func (r Root) viewFooter(cur ui.Screen) string {
 }
 
 func (r Root) helpPanel() string {
+	chip := func(k string) string {
+		return lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Blue).
+			Render("[" + k + "]")
+	}
 	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Blue).
-		Render("Keyboard reference") + "\n\n")
+	b.WriteString(lipgloss.NewStyle().Bold(true).
+		Foreground(ui.Palette.Blue).Render("Keyboard reference") + "\n\n")
 	globals := []struct{ k, d string }{
-		{"1-6", "jump to section"}, {"j / k", "down / up"},
-		{"h / l", "back / open"}, {"enter", "select"},
+		{"1-6", "jump to section"}, {"j/k", "down / up"},
+		{"h/l", "back / open"}, {"enter", "select"},
 		{"/", "filter list"}, {"esc", "cancel / back"},
-		{"r", "refresh"}, {"?", "toggle this help"}, {"q", "quit"},
+		{"r", "refresh"}, {"?", "help"}, {"q", "quit"},
 	}
 	for _, g := range globals {
-		b.WriteString("  " + lipgloss.NewStyle().Bold(true).
-			Foreground(ui.Palette.Blue).Render(pad(g.k, 7)) +
-			faintSty.Render(g.d) + "\n")
+		b.WriteString("  " + chip(g.k) + faintSty.Render(" "+g.d) + "\n")
 	}
 	b.WriteString("\n" + lipgloss.NewStyle().Bold(true).
 		Render("Section keys") + "\n\n")
 	for _, kb := range r.current().Hints() {
 		if kb.Enabled() {
-			b.WriteString("  " + lipgloss.NewStyle().Bold(true).
-				Foreground(ui.Accent(r.current().ID())).Render(pad(kb.Help().Key, 7)) +
-				faintSty.Render(kb.Help().Desc) + "\n")
+			b.WriteString("  " + chip(kb.Help().Key) +
+				faintSty.Render(" "+kb.Help().Desc) + "\n")
 		}
 	}
 	return ui.Panel().Padding(1, 3).Render(b.String())

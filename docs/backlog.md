@@ -87,9 +87,9 @@ Ptr: `internal/screens/files.go:70-81`.
 Services `SizeMsg` branch reimplements `layout()` with different clamp.
 Ptr: `internal/screens/services.go:100-103` vs `254-257`.
 
-### M7 · open
-List headers show totals while filter active; no filtered/total count.
-Ptrs: all screens' head renderers (e.g. `services.go:264`).
+### M7 · closed (polish-batch + tables commits)
+Filtered counts and scroll position now shown per table via the reserved
+position line (`internal/ui/table.go` View).
 
 ### M8 · closed (polish-batch commit)
 Comment claims case-insensitive sort; code is byte-order.

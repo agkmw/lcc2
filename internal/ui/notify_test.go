@@ -26,10 +26,11 @@ func TestNotifyPushStacksNewestFirst(t *testing.T) {
 }
 
 func TestCompositeNotesPreservesContentOutsideWindow(t *testing.T) {
-	base := strings.Repeat("A", 60) + "\n" +
-		strings.Repeat("B", 60) + "\n" +
-		strings.Repeat("C", 60) + "\n" +
-		strings.Repeat("D", 60)
+	rows := []string{}
+	for _, ch := range []string{"A", "B", "C", "D", "E", "F", "G"} {
+		rows = append(rows, strings.Repeat(ch, 60))
+	}
+	base := strings.Join(rows, "\n")
 
 	var s NotifyStack
 	s.Push("ok", "saved")
@@ -39,8 +40,8 @@ func TestCompositeNotesPreservesContentOutsideWindow(t *testing.T) {
 	if lines[0] != strings.Split(base, "\n")[0] {
 		t.Fatal("header line must be untouched")
 	}
-	if !strings.HasPrefix(lines[2], "CCCC") || !strings.HasPrefix(lines[3], "DDDD") {
-		t.Fatalf("leading content destroyed: %q / %q", lines[2][:8], lines[3][:8])
+	if !strings.HasPrefix(lines[5], "FFFF") || !strings.HasPrefix(lines[6], "GGGG") {
+		t.Fatalf("content destroyed below window: %q / %q", lines[5][:8], lines[6][:8])
 	}
 	found := false
 	for _, l := range lines[1:] {
@@ -65,6 +66,9 @@ func TestCompositeNotesTruncatesUnderWindowOnly(t *testing.T) {
 	base := strings.Repeat("H", 80) + "\n" +
 		sty.Render(strings.Repeat("Z", 80)) + "\n" +
 		strings.Repeat("Y", 80) + "\n" +
+		strings.Repeat("W", 80) + "\n" +
+		strings.Repeat("V", 80) + "\n" +
+		strings.Repeat("U", 80) + "\n" +
 		strings.Repeat("F", 80)
 	var s NotifyStack
 	s.Push("err", "boom")
@@ -73,8 +77,8 @@ func TestCompositeNotesTruncatesUnderWindowOnly(t *testing.T) {
 	if w := lipgloss.Width(lines[1]); w > 80 {
 		t.Fatalf("line grew beyond terminal width: %d", w)
 	}
-	if !strings.Contains(lines[2], "boom") {
-		t.Fatalf("window lost over styled line: %q", lines[2])
+	if !strings.Contains(lines[3], "boom") {
+		t.Fatalf("window body lost over styled line: %q", lines[3][:40])
 	}
 }
 

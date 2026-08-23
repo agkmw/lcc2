@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // ConfirmDialog asks for yes/no before a potentially destructive action.
@@ -41,26 +42,39 @@ func (c *ConfirmDialog) Update(msg tea.Msg) (ConfirmDialog, bool, bool) {
 	return *c, false, false
 }
 
-// View renders the dialog.
+// View renders the dialog with a danger band and a button row.
 func (c ConfirmDialog) View() string {
+	inner := c.width - 4
+	band := lipgloss.NewStyle().Bold(true).
+		Background(Palette.Red).
+		Foreground(lipgloss.Color("#11111B")).
+		Width(inner).
+		Render(" " + c.Title)
 	var b strings.Builder
-	b.WriteString(Danger().Render(c.Title))
+	b.WriteString(band)
 	b.WriteString("\n\n")
-	b.WriteString(Truncate(c.Body, c.width-4))
+	b.WriteString(Truncate(c.Body, inner))
 	b.WriteString("\n\n")
-	hints := mutedSty.Render("y") + faintSty.Render(" confirm   ") +
-		mutedSty.Render("n") + faintSty.Render("/") + mutedSty.Render("esc") + faintSty.Render(" cancel")
+	hints := KeyBadgeStyle(Palette.Text).Render("[y]") + faintSty.Render(" confirm   ") +
+		KeyBadgeStyle(Palette.Text).Render("[n]") + faintSty.Render("/") +
+		KeyBadgeStyle(Palette.Text).Render("[esc]") + faintSty.Render(" cancel")
 	if c.Details != "" {
-		hints += faintSty.Render("   ") + mutedSty.Render("d") + faintSty.Render(" details")
+		hints += faintSty.Render("   ") + KeyBadgeStyle(Palette.Text).Render("[d]") +
+			faintSty.Render(" details")
 	}
 	b.WriteString(hints)
 	if c.ShowDet && c.Details != "" {
 		b.WriteString("\n\n")
-		b.WriteString(faintSty.Render(Truncate(c.Details, c.width-4)))
+		b.WriteString(faintSty.Render(Truncate(c.Details, inner)))
 	}
 	return Panel().
 		BorderForeground(Palette.Red).
 		Width(c.width).
 		Padding(1, 2).
 		Render(b.String())
+}
+
+// KeyBadgeStyle renders "[k]" chips where no section accent applies.
+func KeyBadgeStyle(c lipgloss.Color) lipgloss.Style {
+	return lipgloss.NewStyle().Bold(true).Foreground(c)
 }

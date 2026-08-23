@@ -77,11 +77,15 @@ func CompositeNotes(base string, s NotifyStack) string {
 	}
 	const margin = 1
 	cut := target - margin
+	avail := len(bl) - 2 // rows 1..len-2 stay clear of header/footer
+	if avail < len(win) {
+		if avail < 0 {
+			avail = 0
+		}
+		win = win[:avail] // never let a window straddle the footer
+	}
 	for i, wl := range win {
 		r := 1 + i // below the header line
-		if r < 1 || r >= len(bl)-1 {
-			continue // never cover header or footer
-		}
 		line := bl[r]
 		start := cut - lipgloss.Width(wl)
 		if start < 0 {
@@ -99,22 +103,35 @@ func CompositeNotes(base string, s NotifyStack) string {
 
 func noteWindow(it Notification) []string {
 	var color lipgloss.Color
-	icon := "*"
+	icon, kind := "*", "info"
 	switch it.Kind {
 	case "ok":
-		color, icon = Palette.Green, "+"
+		color, icon, kind = Palette.Green, "+", "ok"
 	case "err":
-		color, icon = Palette.Red, "x"
-	default:
-		color = Palette.Blue
+		color, icon, kind = Palette.Red, "x", "error"
 	}
-	text := Truncate(icon+" "+it.Text, clampW(lipgloss.Width(it.Text)+2, 16, 44))
+	caption := faintSty.Render(kind)
+	body := icon + " " + it.Text
+	inner := clampW(max(lipgloss.Width(body), 6), 16, 44)
+	if lipgloss.Width(body) > inner {
+		body = Truncate(body, inner)
+	}
+	pad := inner - lipgloss.Width(body)
+	content := strings.Repeat(" ", max(0, inner-6)) + caption + "\n" +
+		body + strings.Repeat(" ", max(0, pad))
 	panel := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(color).
 		Padding(0, 1).
-		Render(text)
+		Render(content)
 	return strings.Split(panel, "\n")
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func clampW(v, lo, hi int) int {
