@@ -5,6 +5,7 @@ package screens
 
 import (
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -18,7 +19,7 @@ import (
 
 const overviewInterval = time.Second
 
-type overviewTickMsg struct{}
+type overviewTickMsg struct{ gen uint64 }
 
 // snapshot bundles one round of measurements.
 type snapshot struct {
@@ -58,11 +59,12 @@ type Overview struct {
 	txHist   []float64
 	loaded   bool
 	widthSet bool
+	epoch    *atomic.Uint64 // tick-chain generation; stale chains die
 }
 
 // NewOverview builds the dashboard screen.
 func NewOverview() Overview {
-	return Overview{mon: &sysinfo.NetMonitor{}}
+	return Overview{mon: &sysinfo.NetMonitor{}, epoch: &atomic.Uint64{}}
 }
 
 // ID implements ui.Screen.
@@ -79,14 +81,14 @@ func (o Overview) Hints() []key.Binding {
 // CapturingInput implements ui.Screen.
 func (o Overview) CapturingInput() bool { return false }
 
-// Init starts the periodic refresh loop.
+// Init starts the periodic refresh loop; re-entry retires the previous chain.
 func (o Overview) Init() tea.Cmd {
-	return o.tick()
+	return o.tick(o.epoch.Add(1))
 }
 
-func (o Overview) tick() tea.Cmd {
+func (o Overview) tick(gen uint64) tea.Cmd {
 	return tea.Batch(collect(o.mon), tea.Tick(overviewInterval, func(time.Time) tea.Msg {
-		return overviewTickMsg{}
+		return overviewTickMsg{gen: gen}
 	}))
 }
 
@@ -105,11 +107,14 @@ func (o Overview) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		o.rxHist = appendHist(o.rxHist, pctOf(m.net.RecvPerSec, 1<<20)) // scale 1 MiB/s
 		o.txHist = appendHist(o.txHist, pctOf(m.net.SentPerSec, 1<<20))
 	case overviewTickMsg:
-		return o, o.tick()
+		if m.gen != o.epoch.Load() {
+			return o, nil // stale chain from a previous Init
+		}
+		return o, o.tick(m.gen)
 	case tea.KeyMsg:
 		if m.String() == "r" {
 			o.loaded = false
-			return o, o.tick()
+			return o, o.tick(o.epoch.Load())
 		}
 	}
 	return o, nil

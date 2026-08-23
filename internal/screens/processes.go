@@ -19,7 +19,7 @@ import (
 
 const procInterval = 3 * time.Second
 
-type procTickMsg struct{}
+type procTickMsg struct{ gen uint64 }
 
 type killDoneMsg struct {
 	pid int32
@@ -40,6 +40,7 @@ type Processes struct {
 
 	selectedPID int32
 	scanning    *atomic.Int32 // guards against overlapping full scans
+	epoch       *atomic.Uint64 // tick-chain generation; stale chains die
 
 	confirm     *ui.ConfirmDialog
 	pendingSig  syscall.Signal
@@ -65,6 +66,7 @@ func NewProcesses() Processes {
 		tbl:      ui.NewFilterTable(cols, 80, 20),
 		dvp:      viewport.New(40, 10),
 		scanning: &atomic.Int32{},
+		epoch:    &atomic.Uint64{},
 	}
 }
 
@@ -90,12 +92,12 @@ func (p Processes) CapturingInput() bool {
 	return p.tbl.Filtering() || p.confirm != nil || p.detailOpen
 }
 
-// Init starts the refresh loop.
-func (p Processes) Init() tea.Cmd { return p.tick() }
+// Init starts the refresh loop; re-entry retires the previous chain.
+func (p Processes) Init() tea.Cmd { return p.tick(p.epoch.Add(1)) }
 
-func (p Processes) tick() tea.Cmd {
+func (p Processes) tick(gen uint64) tea.Cmd {
 	return tea.Batch(p.refresh(), tea.Tick(procInterval, func(time.Time) tea.Msg {
-		return procTickMsg{}
+		return procTickMsg{gen: gen}
 	}))
 }
 
@@ -136,7 +138,10 @@ func (p Processes) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 
 	case procTickMsg:
-		return p, p.tick()
+		if m.gen != p.epoch.Load() {
+			return p, nil // stale chain from a previous Init
+		}
+		return p, p.tick(m.gen)
 
 	case killDoneMsg:
 		p.confirm = nil

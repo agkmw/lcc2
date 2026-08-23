@@ -144,6 +144,9 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		d.syncItems()
 
 	case spinner.TickMsg:
+		if !d.busy {
+			return d, nil // spinner chain retires when nothing is scanning
+		}
 		var cmd tea.Cmd
 		d.spin, cmd = d.spin.Update(m)
 		return d, cmd

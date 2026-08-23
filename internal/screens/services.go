@@ -85,9 +85,12 @@ func (s Services) CapturingInput() bool {
 	return s.tbl.Filtering() || s.confirm != nil || s.detailOpen
 }
 
-// Init loads the unit list.
+// Init loads the unit list and runs the loading spinner.
 func (s Services) Init() tea.Cmd {
-	return func() tea.Msg { u, err := services.List(); return svcListMsg{units: u, err: err} }
+	return tea.Batch(
+		func() tea.Msg { u, err := services.List(); return svcListMsg{units: u, err: err} },
+		s.spin.Tick,
+	)
 }
 
 func refreshSvcCmd() tea.Cmd {
@@ -122,6 +125,9 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		s.tbl.SetRows(rows)
 
 	case spinner.TickMsg:
+		if s.loaded {
+			return s, nil // loading done; retire the chain
+		}
 		var cmd tea.Cmd
 		s.spin, cmd = s.spin.Update(m)
 		return s, cmd

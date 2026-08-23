@@ -35,10 +35,12 @@ Contract reversed: `ScanDir` now returns `ctx.Err()` on cancel
 (`internal/screens/disks.go`). Old partial-result behavior recorded in
 git history (`internal/disk/scan_test.go` before this commit).
 
-### H2 · open
-Refresh tick chains multiply or die on section switches: root re-calls
-`Init()` per switch, ticks swallowed by inactive screens.
-Ptrs: `internal/app/root.go:132-139`, `overview.go:83-91`, `processes.go:94-100`.
+### H2 · closed (fix(screens) commit, 2026-08-23)
+Refresh tick chains multiplied or died across section switches.
+Fix: epoch-guarded chains — `Init` bumps a shared `*atomic.Uint64`; stale
+ticks return nil (Overview, Processes). Spinner chains retire when idle
+(Disks) or loaded (Services; spinner now actually animates via Init).
+Tests: `internal/screens/lifecycle_test.go`.
 
 ### H3 · closed (5f2e20f)
 Data race: `refreshTotalMem()` wrote `memTotal` unlocked while readers
