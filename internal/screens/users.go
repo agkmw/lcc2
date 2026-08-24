@@ -123,7 +123,7 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		for i, usr := range m.users {
 			urows[i] = table.Row{
 				accountCell(usr), idCell(usr.UID), idCell(usr.GID),
-				homeCell(usr.Home), shellCell(usr.Shell),
+				homeCell(usr.Home, 22), shellCell(usr.Shell, 20),
 			}
 			ukeys[i] = usr.Name
 		}
@@ -286,7 +286,7 @@ func (u UsersGroups) previewTitle() string {
 func (u UsersGroups) previewBody() string {
 	_, _, pw := splitGeom(u.w)
 	kv := func(k, v string) string {
-		return mutedSty.Render(padTo(k, 8)) + faintSty.Render(ui.Truncate(v, maxInt(pw-10, 4)))
+		return mutedSty.Render(padTo(k, 8)) + ui.Truncate(v, maxInt(pw-10, 4))
 	}
 	if u.tab == "users" {
 		idx, ok := u.uTbl.Selected()
@@ -296,22 +296,29 @@ func (u UsersGroups) previewBody() string {
 		usr := u.users[idx]
 		memberships := accounts.GroupsOf(usr.Name, usr.GID, u.groups)
 		lines := []string{
-			kv("uid", itoa(usr.UID)),
-			kv("gid", itoa(usr.GID)),
-			kv("home", usr.Home),
-			kv("shell", usr.Shell),
+			kv("uid", idCell(usr.UID)),
+			kv("gid", idCell(usr.GID)),
+			kv("home", homeCell(usr.Home, maxInt(pw-10, 4))),
+			kv("shell", shellCell(usr.Shell, maxInt(pw-10, 4))),
 		}
-		if isSystemAccount(usr.UID) {
-			lines = append(lines, kv("class", "system account"))
-		} else if usr.Shell != "" && !strings.Contains(usr.Shell, "nologin") &&
-			usr.Shell != "/bin/false" {
-			lines = append(lines, kv("class", "human - login allowed"))
-		} else {
-			lines = append(lines, kv("class", "no login shell"))
+		switch {
+		case isSystemAccount(usr.UID):
+			lines = append(lines, kv("class", faintSty.Render("system account")))
+		case usr.Shell != "" && !strings.Contains(usr.Shell, "nologin") &&
+			usr.Shell != "/bin/false":
+			lines = append(lines, kv("class",
+				lipgloss.NewStyle().Foreground(ui.Palette.Text).
+					Render("human - login allowed")))
+		default:
+			lines = append(lines, kv("class", warnSty.Render("no login shell")))
 		}
 		if len(memberships) > 0 {
+			tinted := make([]string, len(memberships))
+			for i, m := range memberships {
+				tinted[i] = memberCell(m)
+			}
 			lines = append(lines, "", mutedSty.Render("groups"),
-				faintSty.Render(ui.Truncate(strings.Join(memberships, ", "), pw-2)))
+				ui.Truncate(strings.Join(tinted, ", "), pw-2))
 		}
 		return strings.Join(lines, "\n")
 	}
@@ -322,14 +329,14 @@ func (u UsersGroups) previewBody() string {
 	}
 	g := u.groups[idx]
 	members := accounts.MembersOf(g, u.users)
-	lines := []string{kv("gid", itoa(g.GID))}
+	lines := []string{kv("gid", idCell(g.GID))}
 	if len(members) == 0 {
-		lines = append(lines, kv("members", "-"))
+		lines = append(lines, kv("members", faintSty.Render("-")))
 		return strings.Join(lines, "\n")
 	}
 	lines = append(lines, "", mutedSty.Render("members"))
 	for _, mem := range members {
-		lines = append(lines, faintSty.Render("  * "+mem))
+		lines = append(lines, faintSty.Render("  * ")+memberCell(mem))
 	}
 	return strings.Join(lines, "\n")
 }

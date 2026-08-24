@@ -310,20 +310,24 @@ func (p *Processes) syncTable() {
 
 // pctCell colors cpu percentages on the shared 70/90 scale.
 func pctCell(v float64) string {
-	return lipgloss.NewStyle().Foreground(ui.StateColor(v)).Render(f1(v))
+	return lipgloss.NewStyle().Foreground(cpuColor(v)).Render(f1(v))
 }
 
 // memPctCell uses memory-appropriate thresholds — a process holding
 // half of RAM is remarkable in a way 50% cpu is not.
 func memPctCell(v float64) string {
-	c := ui.Palette.Green
+	return lipgloss.NewStyle().Foreground(memColor(v)).Render(f1(v))
+}
+
+func cpuColor(v float64) lipgloss.Color      { return ui.StateColor(v) }
+func memColor(v float64) lipgloss.Color {
 	switch {
 	case v >= 70:
-		c = ui.Palette.Red
+		return ui.Palette.Red
 	case v >= 40:
-		c = ui.Palette.Yellow
+		return ui.Palette.Yellow
 	}
-	return lipgloss.NewStyle().Foreground(c).Render(f1(v))
+	return ui.Palette.Green
 }
 
 // userCell tones the row owner: root loud, everyone else muted.
@@ -433,19 +437,24 @@ func (p Processes) previewBody() string {
 }
 
 // processCard renders key/value lines from the list row, enriched
-// when full details are available.
+// when full details are available. Values reuse the table-cell
+// stylers so the pane matches the row's tones exactly.
 func processCard(d proc.Process, insp *proc.Details, w int) string {
 	kv := func(k, v string) string {
-		return mutedSty.Render(padTo(k, 9)) + faintSty.Render(ui.Truncate(v, maxInt(w-11, 4)))
+		return mutedSty.Render(padTo(k, 9)) + ui.Truncate(v, maxInt(w-11, 4))
 	}
+	faintVal := func(k, v string) string { return kv(k, faintSty.Render(v)) }
 	head := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("proc")).
 		Render(truncCell(d.Name, maxInt(w-2, 6)))
 	lines := []string{head, "",
-		kv("pid", itoa(int(d.PID))),
-		kv("user", d.User),
-		kv("state", stateName(d.State)),
-		kv("cpu", f1(d.CPUPercent)+"%"),
-		kv("memory", f1(d.MemPercent)+"% ("+sysinfo.FormatBytes(float64(d.RSS))+")"),
+		faintVal("pid", itoa(int(d.PID))),
+		kv("user", userCell(d.User)),
+		kv("state", stateCell(d.State)+faintSty.Render(" "+stateName(d.State))),
+		kv("cpu", lipgloss.NewStyle().Foreground(cpuColor(d.CPUPercent)).
+			Render(f1(d.CPUPercent)+"%")),
+		kv("memory", lipgloss.NewStyle().Foreground(memColor(d.MemPercent)).
+			Render(f1(d.MemPercent)+"%")+
+			faintSty.Render(" ("+dimUnit(sysinfo.FormatBytes(float64(d.RSS)))+")")),
 	}
 	if insp != nil {
 		set := func(k, v string) {
@@ -457,11 +466,11 @@ func processCard(d proc.Process, insp *proc.Details, w int) string {
 			}
 			lines = append(lines, kv(k, v))
 		}
-		set("parent", itoa(int(insp.PPID)))
-		set("threads", itoa(int(insp.Threads)))
-		set("fds", itoa(int(insp.FDs)))
-		set("nice", itoa(int(insp.Nice)))
-		set("started", proc.FormatAge(insp.StartedUnix))
+		set("parent", faintSty.Render(itoa(int(insp.PPID))))
+		set("threads", mutedSty.Render(itoa(int(insp.Threads))))
+		set("fds", mutedSty.Render(itoa(int(insp.FDs))))
+		set("nice", mutedSty.Render(itoa(int(insp.Nice))))
+		set("started", faintSty.Render(proc.FormatAge(insp.StartedUnix)))
 		if insp.Executable != "" {
 			lines = append(lines, kv("exe", insp.Executable))
 		}
@@ -470,7 +479,13 @@ func processCard(d proc.Process, insp *proc.Details, w int) string {
 		}
 	}
 	lines = append(lines, "", faintSty.Render("cmdline"))
-	lines = append(lines, strings.Split(wordWrap(d.Command, maxInt(w-2, 10)), "\n")...)
+	for _, l := range strings.Split(wordWrap(d.Command, maxInt(w-2, 10)), "\n") {
+		if i := strings.IndexByte(l, ' '); i > 0 {
+			lines = append(lines, l[:i]+faintSty.Render(l[i:]))
+		} else {
+			lines = append(lines, l)
+		}
+	}
 	return strings.Join(lines, "\n")
 }
 

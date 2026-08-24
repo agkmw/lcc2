@@ -97,18 +97,26 @@ func idCell(v int) string {
 }
 
 // shellCell dims shells that cannot log in.
-func shellCell(sh string) string {
+func shellCell(sh string, w int) string {
 	if sh == "" || sh == "/bin/false" || strings.Contains(sh, "nologin") {
-		return faintSty.Render(ui.Truncate(sh, 20))
+		return faintSty.Render(ui.Truncate(sh, w))
 	}
-	return ui.Truncate(sh, 20)
+	return ui.Truncate(sh, w)
 }
 
 // homeCell flags passwd entries whose home directory does not exist —
 // a classic inconsistency worth surfacing in red.
-func homeCell(home string) string {
+func homeCell(home string, w int) string {
 	if _, err := os.Stat(home); err != nil {
-		return badSty.Render(ui.Truncate(home, 22))
+		return badSty.Render(ui.Truncate(home, w))
 	}
-	return ui.Truncate(home, 22)
+	return ui.Truncate(home, w)
+}
+
+// memberCell tones a user/group member name: root loud, others muted.
+func memberCell(name string) string {
+	if name == "root" {
+		return warnSty.Render(name)
+	}
+	return mutedSty.Render(name)
 }

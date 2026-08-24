@@ -407,7 +407,8 @@ func (s Services) previewBody() string {
 	if name != "" {
 		for _, u := range s.units {
 			if u.Name == name {
-				meta = u.Active + " - " + u.Enabled
+				meta = stateStyled(u.Active) + faintSty.Render(" - ") +
+					bootStyled(u.Enabled)
 				break
 			}
 		}
@@ -423,7 +424,47 @@ func (s Services) previewBody() string {
 		body = faintSty.Render("loading status..")
 	default:
 		body = lipgloss.NewStyle().Width(maxInt(prevW-2, 10)).
-			Render(strings.TrimSpace(s.detailText))
+			Render(highlightSvcStatus(strings.TrimSpace(s.detailText)))
 	}
 	return renderPreview("services", truncCell(title, maxInt(prevW-4, 6)), meta, body, prevW, s.h-1)
+}
+
+// svcTokens are the systemctl status phrases worth surfacing, wrapped
+// with their semantic styles wherever they appear.
+var svcTokens = []struct {
+	phrase string
+	sty    lipgloss.Style
+}{
+	{"active (running)", goodSty},
+	{"activating", warnSty},
+	{"reloading", warnSty},
+	{"failed", lipgloss.NewStyle().Bold(true).Foreground(badSty.GetForeground())},
+	{"enabled", goodSty},
+	{"disabled", faintSty},
+	{"inactive", faintSty},
+	{"dead", faintSty},
+}
+
+// highlightSvcStatus wraps known status tokens with semantic styles;
+// every other byte passes through unchanged, so line widths never move.
+func highlightSvcStatus(text string) string {
+	var b strings.Builder
+	for text != "" {
+		bestPos, bestLen, bestSty := -1, 0, lipgloss.Style{}
+		for _, t := range svcTokens {
+			if p := strings.Index(text, t.phrase); p >= 0 &&
+				(bestPos == -1 || p < bestPos ||
+					(p == bestPos && len(t.phrase) > bestLen)) {
+				bestPos, bestLen, bestSty = p, len(t.phrase), t.sty
+			}
+		}
+		if bestPos < 0 {
+			b.WriteString(text)
+			break
+		}
+		b.WriteString(text[:bestPos])
+		b.WriteString(bestSty.Render(text[bestPos : bestPos+bestLen]))
+		text = text[bestPos+bestLen:]
+	}
+	return b.String()
 }
