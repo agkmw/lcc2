@@ -4,11 +4,12 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-Polish pass landed (2026-08-25): net charts now share the cpu chart's
-exact full-width geometry (direction labels on their own lines, rate
-right-aligned), and the remaining plain table cells carry semantic
-tone — symlink "@", scan dirs bold, kernel threads dimmed, failed
-units red, groups class-toned. Gate green.
+Third pass landed (2026-08-25): zsh-style semantics across files
+(archives red, executables green, dimmed units, triple-color perms),
+services (dim unit suffixes), users (missing homes red), processes
+(dim args, mem% 40/70 thresholds). Dashboard gains wide-layout extras
+behind a >80-col gate: available-mem stat, platform/kernel in the
+head, procs/threads/running strip, justified core grid. Gate green.
 
 ## In progress
 

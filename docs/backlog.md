@@ -397,6 +397,27 @@ dirs accent-bold, kernel-thread commands dimmed, failed service units
 red-tinted names, group names class-toned like users.
 Ptrs: files/disks/processes/services/users syncTable paths.
 
+## 2026-08-25 third pass (zsh-style density)
+
+### S3 · closed
+Files: archives/distributions red, executables green, size units
+dimmed (`4.0` `MB`), permission triples fully colored (r teal,
+w yellow, x green). Services: unit-type suffix dimmed. Users: missing
+home dirs red (os.Stat check at row build). Processes: args after the
+executable faint; mem% own thresholds 40/70.
+Ptrs: files.go entryNameCell/sizeCell, styles.go modeCell,
+services.go unitCell, users.go homeCell, processes.go cmdCell/memPctCell.
+
+### D1 · closed
+Dashboard density extras, each gated to w>80: mem rows lead stats
+with `avail`, page head carries platform/version + kernel, cpu box
+grows a procs/threads/running strip (new `proc.ReadCounts()` sampling
+/proc/loadavg + numeric /proc dirs), per-core columns justify across
+the interior. Narrow layouts unchanged; memLine's fit-check still
+drops right-hand stats that cannot fit.
+Test: `TestOverviewWideExtrasGate`, `TestReadCounts`.
+Ptrs: overview.go headMeta/cpuBox/coreSeps/memBox, proc/counts.go.
+
 ## Open items carried from earlier
 
 ### L3 · open
