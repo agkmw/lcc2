@@ -242,3 +242,92 @@ Files screen was unreadable: cramped marker column, cryptic glyphs, no
 pane titles. Marks folded into name cells, breadcrumb pane header added,
 staged-ops legend appears whenever ops are queued, previews numbered/
 indented.
+
+## 2026-08-24 UI overhaul audit (user verdict: "the app is shit")
+
+Batch-discovered while rebuilding the dashboard btop-style and the list
+screens yazi-style. All closed same session unless noted.
+
+### C4 · closed
+Phantom green "+" staged-create glyph on EVERY Files row:
+`stagedAt[path]` on unstaged rows returned the zero OpKind (= OpMkdir).
+Ptr: `internal/screens/files.go` syncTable; regression
+`files_glyph_test.go::TestUnstagedRowsCarryNoGlyph`.
+
+### H7 · closed
+Resize corrupted the live frame: bubbles/table re-truncates cells by
+RUNE count (`runewidth.Truncate`, v1.0.0 table.go:435), ANSI escapes
+count as runes; shrinking refits columns and sliced styled cells
+mid-escape -> orphaned `\x1b[` fragments garbled the terminal. Fix:
+`clipCells` now enforces display-width AND rune-count fit, styled
+overflow falls back to plain text (`internal/ui/table.go` `fitCell`).
+Regression: `table_test.go::TestStyledCellsSurviveShrink` +
+app-level `resize_gauntlet_test.go`. User directive: verify via such
+automated gauntlets, not tmux eyeballing.
+
+### U4 · closed
+Confirm/prompt/perm modals replaced the whole screen with a centered
+panel on an empty background — total context loss mid-action. Fix:
+`overlayCenter` splices panels over the live body
+(`internal/screens/pane.go`); services confirm uses a neutral band for
+non-destructive actions (`ui.ConfirmDialog.Danger`).
+
+### U5 · closed
+Users screen "tab switches lists" was dead: root pins tab to section
+cycling. Rebound to `s`; regression `users_switch_test.go`.
+
+### U6 · closed
+Breadcrumb rendered "/ / tmp / x" for absolute paths
+(`crumbMeta` double slash). Rewritten head+last form; hardcoded
+#FAB387 switched to Palette.Peach.
+
+### M13 · closed
+Files table sized one row too tall for its own pane header: position
+strip / last data row clipped every frame; staged legend made it two.
+Legend deleted (glyph meanings live in `?` help), sizing fixed
+(h-2/h-3 per chrome rows). Stacked split rebalanced 3/5 vs 2/5.
+
+### M14 · closed
+App violated its own ADR-0010 in chrome: `●` badge, `·` stats sep,
+`…` filter placeholder. All ASCII now; denylist hole closed by scanning
+fed-data + filter states (`TestTableChromeGlyphClean`) and files badge.
+
+### M15 · closed
+Processes preview said "select a process.." while a row was selected,
+waiting on async inspect. Preview now renders instantly from the list
+row (`processCard`), enriches when Details arrive. Filler preview
+bodies ("j/k move...", "select a unit..") removed across screens;
+blank panes instead.
+
+### M16 · closed
+Status-bar clock froze on tick-less screens; root schedules its own
+minute tick. Notify window caption assumed 6-cell width. Dead code
+(titleCase) removed; `x` cut restored to Files hints.
+
+### R1 · closed (min-size gate commit)
+No floor below which the UI renders garbage: `contentArea` clamped to
+10x4. Now MinW=64 MinH=16; below shows an exactly-frame-sized notice
+(ADR-0011). Resize broadcasts SizeMsg to ALL screens (no stale
+inactive geometry). Gauntlet: `TestResizeCyclesKeepFrame`,
+`TestResizeBelowFloorShowsNotice`.
+
+### L8 · closed (rolling peak)
+netPeak was monotonic per session; now max of a 60-sample rolling
+window (`peakWin`). Regression `TestOverviewNetPeakDecays`.
+
+### L9 · closed (tab-strip degradation)
+Narrow strips degrade by priority — badges off, numbers off, inactive
+labels shrink; active label last. `TestTabStripDegradesWithinWidth`.
+
+### T6 · open
+bubbles renderRow also emits "…" (banned glyph) whenever IT truncates;
+our invariant makes that unreachable for FilterTable rows, but any
+future direct use of bubbles tables re-exposes it. Consider vendoring
+or replacing bubbles table long-term.
+Ptr: bubbles v1.0.0 table.go:422,435.
+
+### T7 · open
+fd/rg integration assumes POSIX vimgrep parsing (SplitN on ':');
+paths containing ':' would mis-parse. Fine on this codebase's Linux
+scope; revisit if portability ever matters. Ptr: `internal/files/grep.go`.
+
