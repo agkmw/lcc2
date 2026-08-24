@@ -60,6 +60,7 @@ func Accent(id string) lipgloss.Color { return accent(id) }
 
 var (
 	appBG    = lipgloss.Color("#1E1E2E")
+	dimBG    = lipgloss.Color("#11111B") // modal backdrop (crust)
 	base     = lipgloss.NewStyle().Foreground(Palette.Text)
 	titleSty = lipgloss.NewStyle().Bold(true)
 	mutedSty = lipgloss.NewStyle().Foreground(Palette.Muted)

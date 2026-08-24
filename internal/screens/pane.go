@@ -15,13 +15,14 @@ import (
 
 const stackFold = 96 // below this width panes stack vertically
 
-// splitGeom resolves the pane geometry for a content width w.
+// splitGeom resolves the pane geometry for a content width w: main,
+// one divider column, then preview.
 func splitGeom(w int) (wide bool, mainW, prevW int) {
 	if w < stackFold {
 		return false, w, clampInt(w-2, 24, w)
 	}
 	pw := clampInt(w*2/5, 34, 56)
-	return true, w - pw - 2, pw
+	return true, w - pw - 3, pw
 }
 
 // renderPreview renders the right-hand pane: accent title, faint meta
@@ -52,11 +53,32 @@ func renderPreview(id, title, meta, body string, pw, ph int) string {
 	return strings.Join(out, "\n")
 }
 
-// joinPanesWide places main and preview side by side (mainW + gutter +
-// preview == total); stacks them vertically otherwise.
+// joinPanesWide places main and preview side by side with a vertical
+// divider column between them; stacks with a horizontal rule otherwise.
 func joinPanesWide(wide bool, main, preview string, mainW, total int) string {
 	if wide {
-		return ui.Split(main, preview, mainW, total)
+		div := lipgloss.NewStyle().Foreground(ui.Palette.Surface).Render("│")
+		lines := strings.Split(main, "\n")
+		pl := strings.Split(preview, "\n")
+		n := len(lines)
+		if len(pl) > n {
+			n = len(pl)
+		}
+		out := make([]string, n)
+		for i := 0; i < n; i++ {
+			l := ""
+			if i < len(lines) {
+				l = lines[i]
+			}
+			r := ""
+			if i < len(pl) {
+				r = pl[i]
+			}
+			out[i] = ui.ClipBlock(l, mainW) + " " + div + " " + ui.ClipBlock(r, total-mainW-3)
+		}
+		return strings.Join(out, "\n")
 	}
-	return main + "\n" + preview
+	rule := lipgloss.NewStyle().Foreground(ui.Palette.Surface).
+		Render(strings.Repeat("-", maxInt(total, 1)))
+	return main + "\n" + rule + "\n" + preview
 }

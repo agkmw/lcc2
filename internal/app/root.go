@@ -192,10 +192,17 @@ func (r Root) View() string {
 	frame := r.viewTabStrip() + "\n" +
 		strings.Join(lines, "\n") + "\n" +
 		r.viewStatusBar(cur)
-	out := ui.Canvas(frame, r.width, r.height)
 	if r.helpOpen {
-		out = r.overlay(out, r.helpPanel())
+		// Splice first, paint last: the canvas pass guarantees every
+		// cell — including the strip right of the panel — carries the
+		// dim backdrop. No card fill; the key list floats on it.
+		frame = r.overlay(frame, r.helpPanel())
 	}
+	bg := ui.BG()
+	if r.helpOpen {
+		bg = ui.BGDim()
+	}
+	out := ui.CanvasWith(frame, r.width, r.height, bg)
 	return ui.CompositeNotes(out, r.notes)
 }
 
@@ -267,7 +274,8 @@ func keycap(k string) string {
 		Foreground(ui.Palette.Text).Render("[" + k + "]")
 }
 
-// helpPanel renders the keyboard reference as a solid surface block.
+// helpPanel renders the keyboard reference as plain lines — the dimmed
+// canvas behind it is the only backdrop (ADR-0010).
 func (r Root) helpPanel() string {
 	chip := keycap
 	head := lipgloss.NewStyle().Bold(true).
@@ -309,7 +317,7 @@ func (r Root) helpPanel() string {
 			pw = w
 		}
 	}
-	return ui.PaintBlock(body, pw+4, ui.Palette.Surface)
+	return ui.ClipBlock(body, pw+4)
 }
 
 // overlay centers a filled panel on top of the base frame without

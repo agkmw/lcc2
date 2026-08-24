@@ -14,6 +14,10 @@ import (
 // transparent ones.
 func BG() lipgloss.Color { return appBG }
 
+// BGDim returns the dimmed canvas shade used behind modal overlays
+// (help): everything recedes one step darker while the overlay floats.
+func BGDim() lipgloss.Color { return dimBG }
+
 var resetSeqRe = regexp.MustCompile("\x1b\\[0?m")
 
 // bgSeqFor returns the SGR truecolor background sequence for c, or ""
@@ -60,8 +64,9 @@ func PaintBlock(block string, w int, c lipgloss.Color) string {
 // Canvas paints frame as the application's own opaque background,
 // exactly w cells wide and h lines tall. It must be the last step of
 // View: anything composited earlier that lacks an explicit fill ends
-// up on the canvas instead of the terminal's own background.
-func Canvas(frame string, w, h int) string {
+// up on the canvas instead of the terminal's own background. bg
+// selects the shade (BG normally, BGDim behind modal overlays).
+func CanvasWith(frame string, w, h int, bg lipgloss.Color) string {
 	lines := strings.Split(frame, "\n")
 	for len(lines) < h {
 		lines = append(lines, "")
@@ -69,5 +74,10 @@ func Canvas(frame string, w, h int) string {
 	if len(lines) > h {
 		lines = lines[:h]
 	}
-	return PaintBlock(strings.Join(lines, "\n"), w, appBG)
+	return PaintBlock(strings.Join(lines, "\n"), w, bg)
+}
+
+// Canvas paints frame onto the standard app background.
+func Canvas(frame string, w, h int) string {
+	return CanvasWith(frame, w, h, appBG)
 }
