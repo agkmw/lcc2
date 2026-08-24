@@ -418,6 +418,22 @@ drops right-hand stats that cannot fit.
 Test: `TestOverviewWideExtrasGate`, `TestReadCounts`.
 Ptrs: overview.go headMeta/cpuBox/coreSeps/memBox, proc/counts.go.
 
+## 2026-08-25 fourth pass (preview panes)
+
+### S4 · closed
+Preview/detail panes rendered every value as flat faint text while
+the tables beside them were toned. processCard now reuses the row
+stylers (userCell/stateCell/pctCell/memPctCell/dimUnit), users cards
+use idCell/homeCell/shellCell/memberCell (home/shell gained width
+params so the wider pane truncates correctly), class values tinted.
+Services meta line styled; body runs through highlightSvcStatus — a
+pure token scanner (active (running)/failed/enabled/...) that leaves
+all other bytes untouched, provably width-neutral.
+Tests: `TestHighlightSvcStatusPreservesText`,
+`TestProcessCardValuesToned`.
+Ptrs: processes.go processCard, users.go previewBody,
+services.go previewBody/highlightSvcStatus.
+
 ## Open items carried from earlier
 
 ### L3 · open

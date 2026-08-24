@@ -4,12 +4,11 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-Third pass landed (2026-08-25): zsh-style semantics across files
-(archives red, executables green, dimmed units, triple-color perms),
-services (dim unit suffixes), users (missing homes red), processes
-(dim args, mem% 40/70 thresholds). Dashboard gains wide-layout extras
-behind a >80-col gate: available-mem stat, platform/kernel in the
-head, procs/threads/running strip, justified core grid. Gate green.
+Fourth pass landed (2026-08-25): preview panes on processes, users and
+services tone their values with the same stylers as the table rows —
+state/cpu/mem colored, ids/homes/shells class-aware (missing homes
+red), member names toned, systemctl bodies token-highlighted by a
+width-neutral scanner. Gate green.
 
 ## In progress
 
