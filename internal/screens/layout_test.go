@@ -1,7 +1,6 @@
 package screens
 
 import (
-	"os"
 	"strings"
 	"testing"
 
@@ -98,22 +97,19 @@ func TestScreensFitAllSizes(t *testing.T) {
 	}
 }
 
-func TestDetailPaneAlignsWithTableTop(t *testing.T) {
+func TestPreviewAlignsWithTableTop(t *testing.T) {
 	p := NewProcesses()
 	p = feed(p, ui.SizeMsg{Width: 100, Height: 30},
 		procListMsg([]proc.Process{{PID: 42, Name: "demo", User: "u", State: "S"}})).(Processes)
-	p.all[0].PID = int32(os.Getpid()) // a PID Inspect can actually open
-	p = feed(p, tea.KeyMsg{Type: tea.KeyEnter}).(Processes)
 	lines := strings.Split(p.View(), "\n")
-	// The detail pane's top border must start on line 0 (next to the
-	// table header), not shifted down onto its own row.
-	found := false
-	for _, l := range lines[:2] {
-		if strings.Contains(l, "╭") || strings.Contains(l, "┌") {
-			found = true
-		}
+	// The preview title sits on the same line as the top of the table
+	// body (line 1, right after the page head), its rule on line 2.
+	if !strings.Contains(lines[1], "process") {
+		t.Fatalf("preview title not aligned with table top:\n%s",
+			strings.Join(lines[:4], "\n"))
 	}
-	if !found {
-		t.Fatalf("detail pane not aligned with table top:\n%s", strings.Join(lines[:6], "\n"))
+	if !strings.Contains(lines[2], "─") || strings.Count(lines[2], "─") < 20 {
+		t.Fatalf("preview rule missing beside table header:\n%s",
+			strings.Join(lines[:4], "\n"))
 	}
 }

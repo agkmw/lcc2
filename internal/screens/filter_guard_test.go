@@ -81,8 +81,8 @@ func TestFilterModeSwallowsActionKeysOnProcesses(t *testing.T) {
 
 	p = typeQuery(t, p, "sxKr").(Processes)
 
-	if p.confirm != nil || p.detailOpen {
-		t.Fatal("signal or detail fired during filtering")
+	if p.confirm != nil {
+		t.Fatal("signal fired during filtering")
 	}
 	if !strings.Contains(p.tbl.FilterString(), "sxKr") {
 		t.Fatalf("query corrupted: %q", p.tbl.FilterString())
@@ -97,7 +97,7 @@ func TestFilterModeSwallowsActionKeysOnServices(t *testing.T) {
 
 	sv = typeQuery(t, sv, "strDe").(Services)
 
-	if sv.confirm != nil || sv.detailOpen {
+	if sv.confirm != nil {
 		t.Fatal("service action fired during filtering")
 	}
 	if !strings.Contains(sv.tbl.FilterString(), "strDe") {

@@ -114,7 +114,7 @@ func (f *FilterTable) SetColumns(cols []table.Column) {
 
 // SetRows replaces all rows, preserving the current filter.
 func (f *FilterTable) SetRows(rows []table.Row) {
-	f.rows = rows
+	f.rows = clipCells(rows, f.cols)
 	f.keys = nil
 	f.applyFilter()
 }
@@ -126,9 +126,31 @@ func (f *FilterTable) SetRowsTracked(rows []table.Row, keys []string) {
 		panic("SetRowsTracked: keys/rows length mismatch")
 	}
 	pre := f.currentKeyOrLast()
-	f.rows = rows
+	f.rows = clipCells(rows, f.cols)
 	f.keys = keys
 	f.applyFilterWith(pre)
+}
+
+// clipCells force-fits every cell into its column's fitted width.
+// bubbles/table does not truncate cell content, so oversized cells
+// (styled or plain) shift every following column and corrupt the row
+// at narrow widths.
+func clipCells(rows []table.Row, cols []table.Column) []table.Row {
+	if len(cols) == 0 {
+		return rows
+	}
+	out := make([]table.Row, len(rows))
+	for i, r := range rows {
+		c := make(table.Row, len(r))
+		for j, cell := range r {
+			if j < len(cols) {
+				cell = Truncate(cell, cols[j].Width)
+			}
+			c[j] = cell
+		}
+		out[i] = c
+	}
+	return out
 }
 
 // SelectedKey returns the stable key of the cursor's row.

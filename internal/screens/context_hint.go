@@ -20,8 +20,12 @@ func (f Files) ContextHint() string {
 }
 
 func (s Services) ContextHint() string {
-	if u, ok := s.selectedUnit(); ok {
-		return contextSel(u.Name, u.Active)
+	if name := s.selectedName(); name != "" {
+		for _, u := range s.units {
+			if u.Name == name {
+				return contextSel(u.Name, u.Active)
+			}
+		}
 	}
 	return ""
 }

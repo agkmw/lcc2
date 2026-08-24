@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -16,33 +17,42 @@ import (
 	"lcc2/internal/ui"
 )
 
-// Detail-mode layouts must fit inside the SizeMsg box they were given,
-// at every size — this is what keeps panes from bleeding through the
-// app frame.
-func TestDetailModesFit(t *testing.T) {
+// Preview-mode layouts must fit inside the SizeMsg box they were
+// given, at every size — this is what keeps panes from bleeding
+// through the app frame. Previews are always-on since the pane
+// redesign, so no key feeds are needed to open them.
+func TestPreviewModesFit(t *testing.T) {
 	sizes := [][2]int{{64, 20}, {76, 22}, {84, 24}, {100, 30}, {140, 40}}
 	for _, sz := range sizes {
 		w, h := sz[0], sz[1]
 		size := ui.SizeMsg{Width: w, Height: h}
 
-		// processes + detail open
+		// processes: preview follows selection without any toggle
 		p := NewProcesses()
 		p = feed(p, size, procListMsg([]proc.Process{
 			{PID: int32(os.Getpid()), Name: "self", User: "u", State: "S", Command: "/bin/self --long --args"},
 			{PID: 2, Name: "other", User: "root", State: "R", CPUPercent: 50},
 		})).(Processes)
-		p = feed(p, tea.KeyMsg{Type: tea.KeyEnter}).(Processes)
-		fitCheck(t, fmt.Sprintf("proc-detail@%dx%d", w, h), p.View(), w)
+		fitCheck(t, fmt.Sprintf("proc-preview@%dx%d", w, h), p.View(), w)
+		p = feed(p, procInspectMsg{pid: int32(os.Getpid()), d: proc.Details{
+			Process:     proc.Process{PID: int32(os.Getpid()), Name: "self", Command: "/bin/self --long --args"},
+			Executable:  "/bin/self",
+			CWD:         "/tmp",
+			Threads:     3,
+			FDs:         12,
+			StartedUnix: time.Now().Unix() - 90,
+		}}).(Processes)
+		fitCheck(t, fmt.Sprintf("proc-inspected@%dx%d", w, h), p.View(), w)
 
-		// services + detail
+		// services with a fetched status text
 		sv := NewServices()
 		sv = feed(sv, size, svcListMsg{units: []services.Unit{
 			{Name: "ssh.service", Active: "active", Sub: "running",
 				Description: "long description text that should wrap nicely"},
 		}}).(Services)
 		sv.detailText = strings.Repeat("status line\n", 12)
-		sv = feed(sv, tea.KeyMsg{Type: tea.KeyEnter}).(Services)
-		fitCheck(t, fmt.Sprintf("svc-detail@%dx%d", w, h), sv.View(), w)
+		sv.detailUnit = "ssh.service"
+		fitCheck(t, fmt.Sprintf("svc-preview@%dx%d", w, h), sv.View(), w)
 
 		// users + detail both tabs
 		us, _ := accounts.Users()

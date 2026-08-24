@@ -3,6 +3,8 @@ package screens
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -13,6 +15,8 @@ import (
 	"lcc2/internal/services"
 	"lcc2/internal/ui"
 )
+
+const svcRefreshInterval = 15 * time.Second
 
 type svcListMsg struct {
 	units []services.Unit
@@ -27,8 +31,10 @@ type svcDetailMsg struct {
 	unit string
 	text string
 }
+type svcTickMsg struct{ gen uint64 }
 
-// Services is the service management screen.
+// Services is the service management screen: unit list left, live
+// systemctl status preview right, silent periodic refresh.
 type Services struct {
 	w, h    int
 	spin    spinner.Model
@@ -37,12 +43,14 @@ type Services struct {
 	loaded  bool
 	loadErr string
 
-	detailUnit string
+	detailUnit string // unit whose status is displayed
 	detailText string
-	detailOpen bool
+	fetching   bool
 
 	confirm   *ui.ConfirmDialog
 	pendingOp [2]string // unit, action
+
+	epoch *atomic.Uint64 // auto-refresh chain generation
 }
 
 // NewServices builds the services screen.
@@ -55,8 +63,9 @@ func NewServices() Services {
 		{Title: "description", Width: 40},
 	}
 	return Services{
-		tbl:  ui.NewFilterTable(cols, 80, 18),
-		spin: spinner.New(spinner.WithSpinner(spinner.Dot)),
+		tbl:   ui.NewFilterTable(cols, 80, 18),
+		spin:  spinner.New(spinner.WithSpinner(spinner.Dot)),
+		epoch: &atomic.Uint64{},
 	}
 }
 
@@ -68,34 +77,47 @@ func (s Services) Title() string { return "Services" }
 
 // Hints implements ui.Screen.
 func (s Services) Hints() []key.Binding {
-	hints := []key.Binding{ui.Keys.Filter, ui.Keys.Select}
-	if !s.detailOpen {
-		hints = append(hints,
-			key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start")),
-			key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "stop")),
-			key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "restart")),
-			key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "enable")),
-			key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "disable")),
-		)
+	return []key.Binding{
+		ui.Keys.Filter,
+		key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start")),
+		key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "stop")),
+		key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "restart")),
+		key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "enable")),
+		key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "disable")),
+		ui.Keys.Refresh,
 	}
-	return hints
 }
 
 // CapturingInput implements ui.Screen.
 func (s Services) CapturingInput() bool {
-	return s.tbl.Filtering() || s.confirm != nil || s.detailOpen
+	return s.tbl.Filtering() || s.confirm != nil
 }
 
-// Init loads the unit list and runs the loading spinner.
+// Init loads the unit list and starts the loading spinner and the
+// silent refresh chain; re-entry retires stale chains via epochs.
 func (s Services) Init() tea.Cmd {
+	gen := s.epoch.Add(1)
 	return tea.Batch(
 		func() tea.Msg { u, err := services.List(); return svcListMsg{units: u, err: err} },
 		s.spin.Tick,
+		s.tick(gen),
 	)
+}
+
+func (s Services) tick(gen uint64) tea.Cmd {
+	return tea.Tick(svcRefreshInterval, func(time.Time) tea.Msg {
+		return svcTickMsg{gen: gen}
+	})
 }
 
 func refreshSvcCmd() tea.Cmd {
 	return func() tea.Msg { u, err := services.List(); return svcListMsg{units: u, err: err} }
+}
+
+func statusCmd(unit string) tea.Cmd {
+	return func() tea.Msg {
+		return svcDetailMsg{unit: unit, text: services.StatusDetail(unit)}
+	}
 }
 
 // Update handles messages.
@@ -110,7 +132,7 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		if m.err != nil {
 			s.loadErr = friendlySvcErr(m.err)
 			s.units = nil
-			break
+			return s, nil
 		}
 		s.loadErr = ""
 		s.units = m.units
@@ -125,6 +147,13 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			keys[i] = u.Name
 		}
 		s.tbl.SetRowsTracked(rows, keys)
+		// Kick the preview for whatever the cursor landed on.
+		var cmd tea.Cmd
+		if u := s.selectedName(); u != "" && u != s.detailUnit && !s.fetching {
+			s.fetching = true
+			cmd = statusCmd(u)
+		}
+		return s, cmd
 
 	case spinner.TickMsg:
 		if s.loaded {
@@ -135,39 +164,35 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		return s, cmd
 
 	case svcDetailMsg:
-		s.detailText = m.text
-		return s, nil
+		s.fetching = false
+		if m.unit == s.selectedName() { // ignore stale fetches
+			s.detailUnit, s.detailText = m.unit, m.text
+		}
+
+	case svcTickMsg:
+		if m.gen != s.epoch.Load() {
+			return s, nil // stale chain from a previous Init
+		}
+		var cmd tea.Cmd
+		cmd = tea.Batch(refreshSvcCmd(), s.tick(m.gen))
+		if u := s.selectedName(); u != "" && !s.fetching {
+			cmd = tea.Batch(cmd, statusCmd(u))
+		}
+		return s, cmd
 
 	case svcActionDoneMsg:
 		s.confirm = nil
 		if m.err != nil {
-			return s, ui.ErrToast(m.action + " failed: " + m.err.Error())
+			return s, tea.Batch(ui.ErrToast(m.action+" failed: "+m.err.Error()),
+				statusCmd(m.unit))
 		}
-		return s, tea.Batch(ui.OkToast(m.action+" "+m.unit), refreshSvcCmd())
+		return s, tea.Batch(ui.OkToast(m.action+" "+m.unit),
+			refreshSvcCmd(), statusCmd(m.unit))
 
 	case tea.KeyMsg:
 		return s.handleKey(m)
 	}
 	return s, nil
-}
-
-// detailGeom resolves detail-pane geometry (shared pattern with the
-// other screens): side-by-side on wide terminals, stacked below 100.
-func (s Services) detailGeom() (wide bool, inner int) {
-	if !s.detailOpen {
-		return false, 0
-	}
-	if s.w < 100 {
-		return false, s.w - 2
-	}
-	return true, clampInt(s.w*2/5, 32, 52)
-}
-
-func orDash(v string) string {
-	if v == "" {
-		return "-"
-	}
-	return v
 }
 
 func stateStyled(st string) string {
@@ -203,12 +228,12 @@ func friendlySvcErr(err error) string {
 	return err.Error()
 }
 
-func (s Services) selectedUnit() (*services.Unit, bool) {
-	idx, ok := s.tbl.Selected()
-	if !ok || idx >= len(s.units) {
-		return nil, false
+func (s Services) selectedName() string {
+	k, ok := s.tbl.SelectedKey()
+	if !ok {
+		return ""
 	}
-	return &s.units[idx], true
+	return k
 }
 
 func (s Services) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
@@ -229,17 +254,6 @@ func (s Services) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return s, nil
 	}
 
-	if s.detailOpen {
-		switch m.String() {
-		case "esc", "enter":
-			s.detailOpen = false
-			s.detailUnit = ""
-			s.layout()
-			return s, nil
-		}
-		return s, nil
-	}
-
 	if s.tbl.Filtering() {
 		var cmd tea.Cmd
 		s.tbl, cmd = s.tbl.Update(m)
@@ -247,71 +261,69 @@ func (s Services) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	}
 
 	switch m.String() {
-	case "enter":
-		if u, ok := s.selectedUnit(); ok {
-			s.detailOpen = true
-			s.detailUnit = u.Name
-			s.detailText = "loading status…"
-			s.layout()
-			name := u.Name
-			return s, func() tea.Msg {
-				return svcDetailMsg{unit: name, text: services.StatusDetail(name)}
-			}
-		}
-		return s, nil
+	case "r":
+		return s.askAction("restart")
+	case "R":
+		return s, refreshSvcCmd()
 	case "s":
 		return s.askAction("start")
 	case "t":
 		return s.askAction("stop")
-	case "r":
-		return s.askAction("restart")
 	case "e":
 		return s.askAction("enable")
 	case "D":
 		return s.askAction("disable")
 	}
 
+	moved := false
+	switch m.String() {
+	case "up", "down", "j", "k", "g", "G", "home", "end", "pgup", "pgdown":
+		moved = true
+	}
 	var cmd tea.Cmd
 	s.tbl, cmd = s.tbl.Update(m)
+	if moved {
+		if u := s.selectedName(); u != "" && u != s.detailUnit {
+			s.fetching = true
+			cmd = tea.Batch(cmd, statusCmd(u))
+		}
+	}
 	return s, cmd
 }
 
 func (s Services) askAction(action string) (ui.Screen, tea.Cmd) {
-	u, ok := s.selectedUnit()
-	if !ok {
+	u := s.selectedName()
+	if u == "" {
 		return s, nil
 	}
 	dangerous := action == "stop" || action == "disable" || action == "restart"
-	body := strings.ToUpper(action[:1]) + action[1:] + " " + u.Name + "?"
-	if dangerous && u.Active == "active" && action != "restart" {
-		body += " The service is currently running."
-	}
+	body := strings.ToUpper(action[:1]) + action[1:] + " " + u + "?"
 	dlg := ui.NewConfirm(strings.ToUpper(action[:1])+action[1:]+" service", body, "")
 	dlg.SetWidth(clampInt(s.w-8, 44, 70))
 	if !dangerous {
 		dlg.Title = action
 	}
 	s.confirm = &dlg
-	s.pendingOp = [2]string{u.Name, action}
+	s.pendingOp = [2]string{u, action}
 	return s, nil
 }
 
 func (s *Services) layout() {
-	dh := clampInt(s.h-4, 5, s.h)
-	tw := s.w - 2
-	if wide, inner := s.detailGeom(); wide {
-		tw = s.w - inner - 3
+	wide, mainW, _ := splitGeom(s.w)
+	tw := clampInt(s.w-2, 30, s.w)
+	if wide {
+		tw = mainW
 	}
-	s.tbl.SetSize(clampInt(tw, 30, s.w), dh)
+	s.tbl.SetSize(tw, clampInt(s.h-1, 5, s.h))
 }
 
-// View renders the list, empty state or details pane.
+// View renders the list with the status preview beside it.
 func (s Services) View() string {
 	if s.w == 0 {
 		return ""
 	}
-	head := pageHead("Services", fmt.Sprintf("%d units", len(s.units)), s.w)
-	body := head + "\n" + s.tbl.View()
+	head := pageHead("Services", fmt.Sprintf("%d units · auto-refresh %s",
+		len(s.units), svcRefreshInterval), s.w)
 
 	if !s.loaded {
 		return lipgloss.Place(s.w, s.h, lipgloss.Center, lipgloss.Center,
@@ -325,20 +337,57 @@ func (s Services) View() string {
 				"this environment may not use systemd", s.w))
 	}
 
-	if s.detailOpen {
-		wide, inner := s.detailGeom()
-		content := lipgloss.NewStyle().Width(maxInt(inner-4, 10)).
-			Render(strings.TrimSpace(s.detailText))
-		pane := ui.TitledBox("services", truncCell(s.detailUnit, maxInt(inner-6, 8)), content, inner)
-		if wide {
-			body = ui.Split(body, pane, s.tbl.Width(), s.w)
-		} else {
-			body += "\n" + pane
+	main := s.tbl.View()
+	prev := s.previewBody()
+	wide, mainW, _ := splitGeom(s.w)
+	if !wide {
+		keep := clampInt(s.h-8, 6, s.h-4)
+		mainLines := strings.Split(ui.ClipBlock(main, mainW), "\n")
+		if len(mainLines) > keep {
+			main = strings.Join(mainLines[:keep], "\n")
 		}
 	}
+	body := joinPanesWide(wide, main, prev, mainW, s.w)
 
+	out := head + "\n" + body
+	lines := strings.Split(out, "\n")
+	for len(lines) < s.h {
+		lines = append(lines, "")
+	}
+	if len(lines) > s.h {
+		lines = lines[:s.h]
+	}
 	if s.confirm != nil {
 		return lipgloss.Place(s.w, s.h, lipgloss.Center, lipgloss.Center, s.confirm.View())
 	}
-	return body
+	return strings.Join(lines, "\n")
+}
+
+// previewBody renders the right-hand pane for the selected unit.
+func (s Services) previewBody() string {
+	_, _, prevW := splitGeom(s.w)
+	name := s.selectedName()
+	title, meta := "unit", ""
+	if name != "" {
+		for _, u := range s.units {
+			if u.Name == name {
+				meta = u.Active + " · " + u.Enabled
+				break
+			}
+		}
+		title = name
+	} else {
+		title = "unit"
+	}
+	var body string
+	switch {
+	case name == "":
+		body = faintSty.Render("select a unit…")
+	case s.detailText == "" || (s.fetching && name != s.detailUnit):
+		body = faintSty.Render("loading status…")
+	default:
+		body = lipgloss.NewStyle().Width(maxInt(prevW-2, 10)).
+			Render(strings.TrimSpace(s.detailText))
+	}
+	return renderPreview("services", truncCell(title, maxInt(prevW-4, 6)), meta, body, prevW, s.h-1)
 }
