@@ -381,6 +381,22 @@ Active tab indicated only by bold+accent — too subtle. Now an
 inverted chip (surface bg, accent text), enabled by U8's painter.
 Ptr: `app/root.go viewTabStrip`.
 
+## 2026-08-25 polish pass
+
+### U9 · closed
+Net charts sat behind a 6-column gutter, narrower by the rate suffix
+— misaligned with the cpu chart's full-width plot. Direction labels
+moved to their own lines (rate right-aligned); both plots now span
+the whole box interior with identical edges. Budget base h-14-cRows.
+Test: `TestNetBoxAlignedLikeCpu`. Ptr: `internal/screens/overview.go`.
+
+### S2 · closed
+Remaining plain table cells gained semantic tone: files symlinks teal
+with "@" tail (`entryNameCell`, shared with dir previews), disks scan
+dirs accent-bold, kernel-thread commands dimmed, failed service units
+red-tinted names, group names class-toned like users.
+Ptrs: files/disks/processes/services/users syncTable paths.
+
 ## Open items carried from earlier
 
 ### L3 · open
