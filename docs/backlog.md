@@ -331,3 +331,57 @@ fd/rg integration assumes POSIX vimgrep parsing (SplitN on ':');
 paths containing ':' would mis-parse. Fine on this codebase's Linux
 scope; revisit if portability ever matters. Ptr: `internal/files/grep.go`.
 
+## 2026-08-24 second live-pass batch (user feedback after overhaul)
+
+### U7 · closed
+Dashboard box tops were w-1 cells: the ┐ sat one column left of every
+body row (fill = iw-3-H-1 instead of iw-2-H-S). Fixed in ui.Section;
+`TestSectionRectangle` pins widths and corner columns.
+Ptrs: `internal/ui/section.go`, `section_test.go`.
+
+### U8 · closed
+Canvas PaintBlock replaced EVERY reset with reset+canvas-bg,
+erasing intentional backgrounds (selection highlight, dialog bands).
+Replaced with an SGR state machine: spans push/pop, pops re-synthesize
+the enclosing style, base level resumes the canvas fill
+(`internal/ui/canvas.go`). Enables SelectedRow bold-on-Surface and the
+active-tab chip.
+
+### N2 · closed
+Net dashboard graphs plotted pctOfScaled(currentRate) — ONE point per
+tick; rxHist/txHist existed but were never wired in. Now plots the
+byte-rate history normalized against the scale. Scale basis gains
+hysteresis: grows instantly with the rolling peak, steps down only
+after it drops below ¼ of the basis (floor 64 KiB/s) — no more
+continuous shrinking under ordinary load (user report). Tests:
+`TestOverviewNetHistoryPlotted`, `TestOverviewNetPeakHysteresis`,
+`TestOverviewNetPeakDecays`.
+Ptr: `internal/screens/overview.go`.
+
+### X1 · closed
+Help overlay was borderless text on dim backdrop — read as stray
+content. Now a bordered card (ADR-0010 no-card clause superseded for
+help only). Ptr: `app/root.go helpPanel`.
+
+### X2 · closed
+Aux search stole j/k/g/G for navigation, making such queries
+impossible; arrows-only now steer results, letters type literally.
+rg also ran smart-case ('Todo' matched nothing) — now always -i, plus
+a 'searching..' indicator. Ptrs: `files_aux.go handleAuxKey`,
+`files/grep.go`.
+
+### X3 · closed
+Directory traversal had no forward history: h went up, but you could
+not return to where you left. ctrl+o / ctrl+i walk back/forward
+stacks; entering dirs pushes, new descent clears forward.
+Tests: `TestDirectoryBackForwardHistory`. Ptr: `files.go navigate`.
+
+### X4 · closed
+Active tab indicated only by bold+accent — too subtle. Now an
+inverted chip (surface bg, accent text), enabled by U8's painter.
+Ptr: `app/root.go viewTabStrip`.
+
+## Open items carried from earlier
+
+### L3 · open
+
