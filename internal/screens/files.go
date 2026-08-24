@@ -430,8 +430,8 @@ func (f *Files) syncTable() {
 		rows[i] = table.Row{
 			mark + glyph + name,
 			sizeOrDash(e),
-			e.Mode.String(),
-			files.UserName(e.UID),
+			modeCell(e.Mode),
+			mutedSty.Render(files.UserName(e.UID)),
 		}
 		keys[i] = e.Path
 	}

@@ -119,7 +119,9 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		for i, f := range m {
 			pct := itoa(int(f.UsedPercent)) + "%"
 			rows[i] = table.Row{
-				f.Mountpoint, f.Device, f.FSType,
+				f.Mountpoint,
+				mutedSty.Render(ui.Truncate(f.Device, 18)),
+				faintSty.Render(ui.Narrow(f.FSType)),
 				sysinfo.FormatBytes(float64(f.Total)),
 				lipgloss.NewStyle().Foreground(ui.StateColor(f.UsedPercent)).Render(pct),
 			}

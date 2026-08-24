@@ -142,9 +142,9 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		keys := make([]string, len(m.units))
 		for i, u := range m.units {
 			rows[i] = table.Row{
-				u.Name, stateStyled(u.Active), u.Sub,
+				u.Name, stateStyled(u.Active), subStyled(u.Sub),
 				bootStyled(u.Enabled),
-				ui.Truncate(u.Description, 40),
+				mutedSty.Render(ui.Truncate(u.Description, 40)),
 			}
 			keys[i] = u.Name
 		}
@@ -220,6 +220,27 @@ func bootStyled(v string) string {
 		return "-"
 	default:
 		return v
+	}
+}
+
+// subStyled tones the fine-grained unit sub-state: running green,
+// failed loud red, transitional states amber, quiet ones dim.
+func subStyled(v string) string {
+	switch v {
+	case "running":
+		return goodSty.Render(v)
+	case "failed":
+		return lipgloss.NewStyle().Bold(true).
+			Foreground(badSty.GetForeground()).Render(v)
+	case "activating", "reloading", "activating-done", "start", "stop",
+		"reload", "mounting", "unmounting":
+		return warnSty.Render(v)
+	case "", "-":
+		return "-"
+	case "exited", "dead", "plugged", "mounted":
+		return faintSty.Render(v)
+	default:
+		return mutedSty.Render(v)
 	}
 }
 

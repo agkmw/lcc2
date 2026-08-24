@@ -122,8 +122,8 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		ukeys := make([]string, len(m.users))
 		for i, usr := range m.users {
 			urows[i] = table.Row{
-				userCell(usr), itoa(usr.UID), itoa(usr.GID),
-				ui.Truncate(usr.Home, 22), usr.Shell,
+				accountCell(usr), idCell(usr.UID), idCell(usr.GID),
+				ui.Truncate(usr.Home, 22), shellCell(usr.Shell),
 			}
 			ukeys[i] = usr.Name
 		}
@@ -135,7 +135,7 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			if members == "" {
 				members = "-"
 			}
-			grows[i] = table.Row{g.Name, itoa(g.GID), ui.Truncate(members, 30)}
+			grows[i] = table.Row{g.Name, idCell(g.GID), ui.Truncate(members, 30)}
 			gkeys[i] = g.Name
 		}
 		u.gTbl.SetRowsTracked(grows, gkeys)
@@ -149,7 +149,11 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 // isSystemAccount reports non-human accounts; root stays highlighted.
 func isSystemAccount(uid int) bool { return uid != 0 && uid < 1000 }
 
-func userCell(usr accounts.User) string {
+// accountCell tones the account name: system accounts dim, root loud.
+func accountCell(usr accounts.User) string {
+	if usr.UID == 0 {
+		return warnSty.Render(usr.Name)
+	}
 	if isSystemAccount(usr.UID) {
 		return mutedSty.Render(usr.Name)
 	}

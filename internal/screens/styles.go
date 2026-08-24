@@ -1,6 +1,7 @@
 package screens
 
 import (
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -56,4 +57,45 @@ func pageHead(title, metaRight string, w int) string {
 		gap = 1
 	}
 	return ui.ClipBlock(title+strings.Repeat(" ", gap)+meta, w)
+}
+
+// modeCell colors a permission string by meaning: the type bit stands
+// out (d/l accent-bold), executable bits tint green, everything else
+// stays faint.
+func modeCell(mode os.FileMode) string {
+	s := ui.Narrow(mode.String())
+	var b strings.Builder
+	for i, r := range s {
+		switch {
+		case i == 0 && (r == 'd' || r == 'l'):
+			b.WriteString(lipgloss.NewStyle().Bold(true).
+				Foreground(ui.Accent("files")).Render(string(r)))
+		case r == 'x':
+			b.WriteString(goodSty.Render(string(r)))
+		default:
+			b.WriteString(faintSty.Render(string(r)))
+		}
+	}
+	return b.String()
+}
+
+// idCell tones numeric ids by account class: root loud, system
+// accounts dim, humans normal.
+func idCell(v int) string {
+	switch {
+	case v == 0:
+		return warnSty.Render(itoa(v))
+	case v < 1000:
+		return faintSty.Render(itoa(v))
+	default:
+		return itoa(v)
+	}
+}
+
+// shellCell dims shells that cannot log in.
+func shellCell(sh string) string {
+	if sh == "" || sh == "/bin/false" || strings.Contains(sh, "nologin") {
+		return faintSty.Render(ui.Truncate(sh, 20))
+	}
+	return ui.Truncate(sh, 20)
 }

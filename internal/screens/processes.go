@@ -296,8 +296,8 @@ func (p *Processes) syncTable() {
 	keys := make([]string, len(p.all))
 	for i, pr := range p.all {
 		rows[i] = table.Row{
-			itoa(int(pr.PID)),
-			truncCell(pr.User, 11),
+			faintSty.Render(itoa(int(pr.PID))),
+			userCell(pr.User),
 			pctCell(pr.CPUPercent),
 			pctCell(pr.MemPercent),
 			stateCell(pr.State),
@@ -311,6 +311,14 @@ func (p *Processes) syncTable() {
 func pctCell(v float64) string {
 	sty := lipgloss.NewStyle().Foreground(ui.StateColor(v))
 	return sty.Render(f1(v))
+}
+
+// userCell tones the row owner: root loud, everyone else muted.
+func userCell(u string) string {
+	if u == "root" {
+		return warnSty.Render(truncCell(u, 11))
+	}
+	return mutedSty.Render(truncCell(u, 11))
 }
 
 func stateCell(s string) string {
