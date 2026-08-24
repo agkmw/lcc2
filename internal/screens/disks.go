@@ -264,10 +264,11 @@ func (d *Disks) syncItems() {
 		}
 		name := it.Name
 		if it.IsDir {
-			name += "/"
+			name = lipgloss.NewStyle().Bold(true).
+				Foreground(ui.Accent("disk")).Render(name)
 		}
 		rows = append(rows, table.Row{
-			truncCell(name, 40),
+			name,
 			sysinfo.FormatBytes(float64(it.Size)),
 			lipgloss.NewStyle().Foreground(ui.StateColor(share)).Render(f1(share)),
 		})

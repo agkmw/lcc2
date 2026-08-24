@@ -135,7 +135,7 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			if members == "" {
 				members = "-"
 			}
-			grows[i] = table.Row{g.Name, idCell(g.GID), ui.Truncate(members, 30)}
+			grows[i] = table.Row{groupCell(g), idCell(g.GID), ui.Truncate(members, 30)}
 			gkeys[i] = g.Name
 		}
 		u.gTbl.SetRowsTracked(grows, gkeys)
@@ -158,6 +158,18 @@ func accountCell(usr accounts.User) string {
 		return mutedSty.Render(usr.Name)
 	}
 	return lipgloss.NewStyle().Foreground(ui.Palette.Text).Render(usr.Name)
+}
+
+// groupCell mirrors accountCell's class tones onto group names.
+func groupCell(g accounts.Group) string {
+	switch {
+	case g.GID == 0:
+		return warnSty.Render(g.Name)
+	case g.GID < 1000:
+		return mutedSty.Render(g.Name)
+	default:
+		return lipgloss.NewStyle().Foreground(ui.Palette.Text).Render(g.Name)
+	}
 }
 
 func (u UsersGroups) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {

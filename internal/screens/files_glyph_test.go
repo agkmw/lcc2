@@ -84,3 +84,20 @@ func minInt(a, b int) int {
 	}
 	return b
 }
+
+// Symlinks render with an "@" tail so they are distinguishable from
+// regular files at a glance.
+func TestSymlinkNameGetsAtTail(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "target.txt"), []byte("x"), 0644)
+	os.Symlink(filepath.Join(dir, "target.txt"), filepath.Join(dir, "link"))
+	lst, err := files.List(dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := NewFiles()
+	f = feed(f, ui.SizeMsg{Width: 100, Height: 30}, dirListMsg{dir: dir, list: lst}).(Files)
+	if !strings.Contains(stripANSI(f.View()), "link@") {
+		t.Error("symlink missing '@' marker in listing")
+	}
+}

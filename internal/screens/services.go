@@ -142,7 +142,7 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		keys := make([]string, len(m.units))
 		for i, u := range m.units {
 			rows[i] = table.Row{
-				u.Name, stateStyled(u.Active), subStyled(u.Sub),
+				unitCell(u), stateStyled(u.Active), subStyled(u.Sub),
 				bootStyled(u.Enabled),
 				mutedSty.Render(ui.Truncate(u.Description, 40)),
 			}
@@ -221,6 +221,14 @@ func bootStyled(v string) string {
 	default:
 		return v
 	}
+}
+
+// unitCell tints failed units red so they surface at a glance.
+func unitCell(u services.Unit) string {
+	if u.Active == "failed" {
+		return badSty.Render(u.Name)
+	}
+	return u.Name
 }
 
 // subStyled tones the fine-grained unit sub-state: running green,

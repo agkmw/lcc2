@@ -436,11 +436,7 @@ func (f *Files) syncTable() {
 		if k, ok := stagedAt[e.Path]; ok {
 			glyph = stagedGlyph(k) + " "
 		}
-		name := e.Name
-		if e.IsDir {
-			name = lipgloss.NewStyle().Bold(true).
-				Foreground(ui.Accent("files")).Render(name + "/")
-		}
+		name := entryNameCell(e)
 		rows[i] = table.Row{
 			mark + glyph + name,
 			sizeOrDash(e),
@@ -450,6 +446,21 @@ func (f *Files) syncTable() {
 		keys[i] = e.Path
 	}
 	f.tbl.SetRowsTracked(rows, keys)
+}
+
+// entryNameCell styles a listing name: dirs accent-bold with "/",
+// symlinks teal with "@" — the rest plain.
+func entryNameCell(e files.Entry) string {
+	switch {
+	case e.IsDir:
+		return lipgloss.NewStyle().Bold(true).
+			Foreground(ui.Accent("files")).Render(e.Name + "/")
+	case e.Link != "":
+		return lipgloss.NewStyle().Foreground(ui.Palette.Teal).
+			Render(e.Name + "@")
+	default:
+		return e.Name
+	}
 }
 
 func stagedGlyph(k files.OpKind) string {
@@ -981,11 +992,7 @@ func numberLines(lines []string, first, hit int) string {
 func dirListingCard(list []files.Entry) string {
 	var b strings.Builder
 	for _, e := range list {
-		name := e.Name
-		if e.IsDir {
-			name = lipgloss.NewStyle().Bold(true).
-				Foreground(ui.Accent("files")).Render(name + "/")
-		}
+		name := entryNameCell(e)
 		b.WriteString("  " + name + strings.Repeat(" ",
 			maxInt(30-lipgloss.Width(name), 1)) +
 			faintSty.Render(sizeOrDash(e)) + "\n")

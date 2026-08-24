@@ -301,7 +301,7 @@ func (p *Processes) syncTable() {
 			pctCell(pr.CPUPercent),
 			pctCell(pr.MemPercent),
 			stateCell(pr.State),
-			truncCell(pr.Command, 60),
+			cmdCell(pr),
 		}
 		keys[i] = itoa(int(pr.PID))
 	}
@@ -319,6 +319,16 @@ func userCell(u string) string {
 		return warnSty.Render(truncCell(u, 11))
 	}
 	return mutedSty.Render(truncCell(u, 11))
+}
+
+// cmdCell dims kernel threads ([kthreadd] and children) — they are
+// noise next to real processes.
+func cmdCell(pr proc.Process) string {
+	cmd := truncCell(pr.Command, 60)
+	if strings.HasPrefix(pr.Name, "[") {
+		return mutedSty.Render(cmd)
+	}
+	return cmd
 }
 
 func stateCell(s string) string {
