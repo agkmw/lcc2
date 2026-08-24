@@ -4,11 +4,14 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-App-shell redesign landed (3 commits, ADR-0008): square-only borders,
-nav/status bars, bordered rail, pageHead pattern, overview card grid,
-strip-below tables, context slot in status bar. Renderer pitfalls
-(Style.Render inflation, ANSI-unsafe truncation, JoinHorizontal
-normalization) fixed and pinned by tests. Gate green.
+Canvas-shell redesign landed end-to-end (ADR-0009, supersedes
+0007/0008; 5 commits). App owns an opaque background (`ui.Canvas`,
+transparent-terminal safe), sidebar replaced by a bufferline tab strip
+with Tab/Shift+Tab cycling, all six screens use the borderless
+main|preview pane pattern. Overview is btop-style (stacked cpu/mem/
+net/disk sections, per-core graphs, autoscaled net). Files is oil-style:
+multi-select + staged ops (`files.Stager`), applied only on `w`, with
+live dir/text/binary preview. Gate green.
 
 ## In progress
 
@@ -16,6 +19,8 @@ Nothing — session wrapped.
 
 ## Next action
 
-Live pass: `go run ./cmd/lcc2` — judge nav/rail/dashboard on a real
-terminal at ~90 and ~130 cols. Log anything off to `docs/backlog.md`
-with a pointer. Open items: M2 M3, L1-L7.
+Live pass: `go run ./cmd/lcc2` at ~90 and ~130 cols on a real terminal.
+Check: canvas opacity on the transparent setup, tab-strip truncation
+(L9), net-scale pinning after a big transfer (L8), staged-save flow on
+real files. Log to `docs/backlog.md`. Open items: L3, L4(partial),
+L6, L7, L8, L9.

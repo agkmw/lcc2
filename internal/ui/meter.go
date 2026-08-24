@@ -133,7 +133,8 @@ func Graph(samples []float64, w, h int, c lipgloss.Color) string {
 
 // SegGauge renders a bar where the filled fraction uses color fill and
 // the sub-fraction within it uses overlay (btop-style segmented usage,
-// e.g. cache inside used memory). The empty remainder is faint.
+// e.g. cache inside used memory). The empty remainder trails on the
+// right, faint.
 func SegGauge(pct, innerPct float64, width int, fill, overlay lipgloss.Color) string {
 	if width < 4 {
 		width = 4
@@ -144,9 +145,9 @@ func SegGauge(pct, innerPct float64, width int, fill, overlay lipgloss.Color) st
 	fsty := lipgloss.NewStyle().Foreground(fill)
 	isty := lipgloss.NewStyle().Foreground(overlay)
 	esty := lipgloss.NewStyle().Foreground(Palette.Faint)
-	return esty.Render(strings.Repeat("░", slots-nFill)) +
-		isty.Render(strings.Repeat("█", nInner)) +
-		fsty.Render(strings.Repeat("█", nFill-nInner))
+	return isty.Render(strings.Repeat("█", nInner)) +
+		fsty.Render(strings.Repeat("█", nFill-nInner)) +
+		esty.Render(strings.Repeat("░", slots-nFill))
 }
 
 func itoa(v int) string {

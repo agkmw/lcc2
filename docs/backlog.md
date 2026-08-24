@@ -57,23 +57,28 @@ Silent overwrites via Rename/copyFile/Move. All three now refuse with
 "%s already exists" (`internal/files/ops.go`).
 Tests: `ops_test.go::TestOverwritesRefused`.
 
-### H6 · closed (fix(files) commit, 2026-08-23)
+### H6 · closed (5f2e20f, amended in staged-files commit)
 Directory copied into its own subtree recursed unbounded.
 Fix: `nestingErr` prefix check in `internal/files/ops.go`.
 Test: `ops_test.go::TestCopyIntoOwnSubtreeRefused`.
+Amendment (2026-08-24): `nestingErr` inverted its `rel == "."` case, so
+copying a dir into *itself* (`Copy(sub, sub)`) slipped through and still
+recursed. Logic rewritten; caught by `stage_test.go::TestStageValidation`.
 
 ## Medium
 
 ### M1 · closed (polish-batch commit)
 `wordWrap` slices bytes, corrupts UTF-8 cmdlines. Ptr: `internal/screens/processes.go:393-395`.
 
-### M2 · open
-Detail-pane keys differ per screen: proc `esc/enter/q`; services swallows `q`
-(`services.go:193-202`); users lets `q` quit app (`users.go:90-92`); files needs `esc`.
+### M2 · closed (canvas redesign, ADR-0009)
+Detail-pane keys differed per screen (proc `esc/enter/q`; services
+swallowed `q`; users let `q` through). Detail modals are gone entirely:
+previews are persistent panes that never capture input; `esc` only
+cancels transient states, `q` always quits.
 
-### M3 · open
-Cells not clipped to fitted column widths → misalignment on narrow terminals.
-Ptrs: `internal/screens/processes.go:280`, `internal/ui/table.go:68-98`.
+### M3 · closed (canvas redesign, ADR-0009)
+`FilterTable.SetRowsTracked`/`SetRows` now clip every cell to its
+fitted column width centrally (`internal/ui/table.go` `clipCells`).
 
 ### M4 · closed (polish-batch commit)
 Disks footer shows two conflicting `enter` hints ("select" + "analyze").
@@ -169,26 +174,46 @@ New: `internal/ui/notify.go` (NotifyStack + CompositeNotes), root wiring in
 
 ## Polish
 
-### L1 · open
-Rounding/truncation nits: `f1` truncates (99.96→"99.9"), Gauge label truncates,
-one wasted label column. Ptrs: `overview.go:273-276`, `meter.go:15,35`, `format.go:37-44`.
+### L1 · closed (overview rebuild commit, canvas redesign)
+`f1` truncation replaced with `strconv.FormatFloat` rounding; Gauge
+label now rounds (`int(v+0.5)`); the wasted label column went away with
+the old Gauge layout in the btop sections. SegGauge renders label-free
+by design (value shown beside).
 
-### L2 · open
-Help panel claims global j/k/h/l that do nothing on Overview.
-Ptr: `internal/app/root.go:324-329`.
+### L2 · closed (canvas chrome commit)
+Help panel rewritten: globals are exactly what root binds
+(tab/shift+tab, 1-6, j/k, /, enter, esc, ?, q). The phantom `h/l`
+globals are gone.
 
 ### L3 · open
 Symlink rows show lstat metadata except when Info() errors — inconsistent.
-Ptr: `internal/files/ops.go:75-89`.
+Ptr: `internal/files/ops.go:75-89`. (Entry.Link now captured for previews.)
 
-### L4 · open
-Hardcoded dark palette; poor contrast under NO_COLOR/light terminals.
-Ptr: `internal/ui/theme.go:22-33`.
+### L4 · partial (canvas shell)
+App paints its own opaque background (`ui.Canvas`) so transparent and
+light terminals get a consistent surface; palette is still hardcoded
+Catppuccin Mocha — no theme switching or NO_COLOR-specific palette.
+Ptr: `internal/ui/theme.go`, `internal/ui/canvas.go`.
 
-### L5 · open
-Network sparkline fixed scale 1 MiB/s saturates on fast links.
-Ptr: `internal/screens/overview.go:105-106`.
+### L5 · closed (overview rebuild commit)
+Network graphs auto-scale to the session peak with a 64 KiB/s floor;
+scale label rendered in section title. Ptr: `internal/screens/overview.go`.
 
 ### L6 · open
 No `--version`/`--help`; no mouse support; `time.Tick` leak.
 Ptrs: `cmd/lcc2/main.go`, `internal/proc/procfs.go:170`.
+
+### L7 · open
+File saves have per-op progress + stop-on-error (staged pipeline), but
+still no byte-level progress or cancel within a single big copy/move.
+Ptrs: `internal/screens/files.go` `runStageStep`, pattern `internal/disk/scan.go`.
+
+### L8 · open
+Overview netPeak is monotonic per session — one huge transfer pins the
+graph scale forever after. Needs decay or rolling window.
+Ptr: `internal/screens/overview.go` `observe`.
+
+### L9 · open
+Tab strip truncates mid-segment below ~70 cols (ClipBlock cuts the
+rightmost tabs first, no priority logic).
+Ptr: `internal/app/root.go` `viewTabStrip`.

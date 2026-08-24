@@ -3,8 +3,6 @@
 package ui
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -80,59 +78,17 @@ func Muted() lipgloss.Style { return mutedSty }
 // Faint styles hints and decorations.
 func Faint() lipgloss.Style { return faintSty }
 
-// Box returns a square border style tinted with the section accent.
-func Box(sectionID string) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(accent(sectionID))
-}
-
-// Panel returns a neutral square-bordered panel.
+// Panel returns a neutral square-bordered panel for modals (prompt,
+// permission editor). Main content is borderless per ADR-0009.
 func Panel() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderForeground(Palette.Surface)
 }
 
-// TitledBox renders an accent-bordered square panel with the title
-// spliced into its top border: ┌─ title ──────┐. height > 0 pins the
-// inner block height (border adds two rows on top).
-func TitledBox(sectionID, title, body string, width int) string {
-	return card(sectionID, title, body, width, 0)
-}
-
-// Card is TitledBox with an optional fixed inner height.
-func Card(sectionID, title, body string, width, height int) string {
-	return card(sectionID, title, body, width, height)
-}
-
-func card(sectionID, title, body string, width, height int) string {
-	sty := Panel().BorderForeground(Accent(sectionID)).Width(width)
-	if height > 0 {
-		sty = sty.Height(height)
-	}
-	p := sty.Render(body)
-	lines := strings.Split(p, "\n")
-	if len(lines) == 0 || !strings.HasPrefix(lines[0], "┌") {
-		return p
-	}
-	w := lipgloss.Width(lines[0])
-	label := lipgloss.NewStyle().Bold(true).Foreground(Accent(sectionID)).
-		Render(" " + title + " ")
-	lw := 1 + lipgloss.Width(label)
-	fill := w - 2 - lw
-	if fill < 0 {
-		fill = 0
-	}
-	lines[0] = "┌─" + label + strings.Repeat("─", fill) + "┐"
-	return strings.Join(lines, "\n")
-}
-
-// KeyBadge renders a footer keycap like "[q]" in the section accent.
-func KeyBadge(sectionID, key string) string {
-	return lipgloss.NewStyle().Bold(true).Foreground(Accent(sectionID)).
-		Render("[" + key + "]")
-}
+// TitledBox, Card, card and KeyBadge were removed with the borderless
+// canvas redesign (ADR-0009); panes are now drawn by screens via the
+// shared preview scaffold and whitespace, not bordered boxes.
 
 // SelectedRow styles the focused list row: bold foreground only.
 // Background fills are reserved for intentional surfaces (dialogs,
