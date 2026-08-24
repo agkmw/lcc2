@@ -78,6 +78,7 @@ func (r *Root) switchTo(i int) tea.Cmd {
 func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m := msg.(type) {
 	case tea.WindowSizeMsg:
+		resized := r.width != m.Width || r.height != m.Height
 		r.width, r.height = m.Width, m.Height
 		var cmds []tea.Cmd
 		for _, s := range r.order {
@@ -86,6 +87,11 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, c)
 		}
 		cmds = append(cmds, r.sendSize())
+		if resized {
+			// tmux split/zoom leaves stale cells outside bubbletea's
+			// diff expectations; force a full repaint.
+			cmds = append(cmds, tea.ClearScreen)
+		}
 		return r, tea.Batch(cmds...)
 
 	case ui.SizeMsg:
