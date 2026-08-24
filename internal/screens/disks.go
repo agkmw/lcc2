@@ -66,9 +66,9 @@ func fsCols() []table.Column {
 
 func itemCols() []table.Column {
 	return []table.Column{
-		{Title: "name", Width: 44},
-		{Title: "size", Width: 11},
-		{Title: "% of dir", Width: 24},
+		{Title: "name", Width: 40},
+		{Title: "size", Width: 10},
+		{Title: "share%", Width: 8},
 	}
 }
 
@@ -256,19 +256,18 @@ func (d *Disks) syncItems() {
 	rows := make([]table.Row, 0, len(d.items.Items))
 	keys := make([]string, 0, len(d.items.Items))
 	for _, it := range d.items.Items {
-		pct := 0.0
+		share := 0.0
 		if total > 0 {
-			pct = float64(it.Size) / total * 100
+			share = float64(it.Size) / total * 100
 		}
-		bar := ui.Gauge(pct, 22, colorPtr(ui.Accent("disk")))
 		name := it.Name
 		if it.IsDir {
 			name += "/"
 		}
 		rows = append(rows, table.Row{
-			truncCell(name, 44),
+			truncCell(name, 40),
 			sysinfo.FormatBytes(float64(it.Size)),
-			bar,
+			lipgloss.NewStyle().Foreground(ui.StateColor(share)).Render(f1(share)),
 		})
 		keys = append(keys, it.Path)
 	}
@@ -301,20 +300,20 @@ func (d Disks) View() string {
 			fmt.Sprintf("%d mounted filesystems", len(d.fss)), d.w)
 		main = d.fsTbl.View()
 	} else {
-		head = pageHead("Directory usage", crumbMeta(d.path), d.w)
-		main = d.dirTbl.View()
+		meta := ""
 		if d.busy {
-			main += "\n" + lipgloss.NewStyle().Foreground(ui.Accent("disk")).
-				Render(d.spin.View()+" analyzing ") +
-				faintSty.Render(ui.Truncate(d.path, clampInt(d.w-16, 10, d.w))) +
-				faintSty.Render("  -  esc to cancel")
-		} else if d.err != "" {
-			main += "\n" + badSty.Render(d.err)
+			meta = lipgloss.NewStyle().Foreground(ui.Accent("disk")).
+				Render(d.spin.View()+" analyzing") +
+				faintSty.Render(" - esc cancels")
 		} else if d.items != nil {
-			main += faintSty.Render("\n"+itoa(len(d.items.Items))+" entries - "+
-				sysinfo.FormatBytes(float64(d.items.TotalSize))+" - scanned in "+
+			meta = fmt.Sprintf("%d entries - %s - %s", len(d.items.Items),
+				sysinfo.FormatBytes(float64(d.items.TotalSize)),
 				d.items.Duration.Round(100*time.Millisecond).String())
+		} else if d.err != "" {
+			meta = d.err
 		}
+		head = pageHead("Directory usage: "+crumbMeta(d.path), meta, d.w)
+		main = d.dirTbl.View()
 	}
 
 	prev := renderPreview("disk", d.previewTitle(), "", d.previewBody(), prevW, d.h-1)
