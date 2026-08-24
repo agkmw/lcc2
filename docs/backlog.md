@@ -217,3 +217,28 @@ Ptr: `internal/screens/overview.go` `observe`.
 Tab strip truncates mid-segment below ~70 cols (ClipBlock cuts the
 rightmost tabs first, no priority logic).
 Ptr: `internal/app/root.go` `viewTabStrip`.
+
+### T2 · closed (glyph-ban commit, ADR-0010)
+Services preview bled into the table; dashboard bars drifted; files
+rows wandered. Root cause: EAW-Ambiguous glyphs (● ▸ ▾ · › …) count as
+1 cell in lipgloss but render 2 in tmux/CJK locales. Fixed via ui.Narrow
+sanitizer + ASCII chrome + denylist test (`internal/app/glyph_test.go`).
+Discovery recorded in `docs/experiments.md`.
+
+### T3 · closed (canvas paint-order commit, ADR-0010)
+Help overlay left a transparent strip right of the panel on transparent
+terminals: the splice dropped the remainder of each line after the
+panel. Canvas now paints last, guaranteeing full coverage; help is a
+dim backdrop (#11111B) with no card.
+
+### T4 · closed (ClearScreen commit, ADR-0010)
+tmux split/zoom ghosted frames from inactive screens. Any dimension
+change now batches tea.ClearScreen; regression gauntlet
+`ghosting_test.go` requires byte-equality with fresh renders across
+resize/tab sequences.
+
+### T5 · closed (files structural pass commit)
+Files screen was unreadable: cramped marker column, cryptic glyphs, no
+pane titles. Marks folded into name cells, breadcrumb pane header added,
+staged-ops legend appears whenever ops are queued, previews numbered/
+indented.

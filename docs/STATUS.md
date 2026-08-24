@@ -4,23 +4,22 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-Canvas-shell redesign landed end-to-end (ADR-0009, supersedes
-0007/0008; 5 commits). App owns an opaque background (`ui.Canvas`,
-transparent-terminal safe), sidebar replaced by a bufferline tab strip
-with Tab/Shift+Tab cycling, all six screens use the borderless
-main|preview pane pattern. Overview is btop-style (stacked cpu/mem/
-net/disk sections, per-core graphs, autoscaled net). Files is oil-style:
-multi-select + staged ops (`files.Stager`), applied only on `w`, with
-live dir/text/binary preview. Gate green.
+Grounding pass landed (ADR-0010, 6 commits) after the user's first
+live tmux session. EAW-Ambiguous glyphs banned (the services-bleed /
+misalignment root cause), pane divider column added, help is a dim
+backdrop painted by the final canvas pass, tmux resize forces full
+repaints with a byte-equality ghosting test. Overview: braille line
+graphs default (`g` toggles block, `LCC2_GRAPH` seeds), labeled net
+graphs with pow2 scale steps, right-flush disk rows. Files got its
+structural pass; disks main pane is now a pure table. Gate green.
 
 ## In progress
 
-Nothing — session wrapped.
+Nothing — awaiting the user's second live pass.
 
 ## Next action
 
-Live pass: `go run ./cmd/lcc2` at ~90 and ~130 cols on a real terminal.
-Check: canvas opacity on the transparent setup, tab-strip truncation
-(L9), net-scale pinning after a big transfer (L8), staged-save flow on
-real files. Log to `docs/backlog.md`. Open items: L3, L4(partial),
-L6, L7, L8, L9.
+User verifies in real tmux: bleed gone, divider reads clearly, help
+dims fully edge-to-edge, braille renders on their font (`g` fallback),
+zoom/split no longer ghosts. Then L8/L9 remain open; candidates next:
+netPeak decay, tab-strip priority truncation.
