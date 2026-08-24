@@ -97,3 +97,34 @@ func TestConfirmDialogAnswering(t *testing.T) {
 		t.Fatal("d toggles details")
 	}
 }
+
+func TestGraphBrailleShape(t *testing.T) {
+	g := GraphBraille([]float64{0, 50, 100}, 5, 2, Palette.Blue)
+	lines := strings.Split(g, "\n")
+	if len(lines) != 2 {
+		t.Fatalf("%d rows, want 2", len(lines))
+	}
+	for i, l := range lines {
+		if w := lipgloss.Width(l); w != 5 {
+			t.Fatalf("row %d width %d, want 5", i, w)
+		}
+		for _, r := range l {
+			if r == ' ' || r == '\x1b' || r == '[' || r == 'm' {
+				continue
+			}
+			if r < '\u2800' || r > '\u28FF' {
+				t.Fatalf("non-braille rune %q in graph", r)
+			}
+		}
+	}
+	// rising series: newest (100%) must sit at the TOP of the last column
+	last := func(s string) rune { rs := []rune(s); return rs[len(rs)-1] }
+	top, bottom := last(lines[0]), last(lines[1])
+	isBlank := func(r rune) bool { return r == ' ' }
+	if isBlank(top) && !isBlank(bottom) {
+		t.Fatal("rising line ends at bottom row")
+	}
+	if GraphBraille(nil, 4, 2, Palette.Blue) == "" {
+		t.Fatal("empty input must render blank rows")
+	}
+}

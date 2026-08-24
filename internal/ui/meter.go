@@ -131,6 +131,97 @@ func Graph(samples []float64, w, h int, c lipgloss.Color) string {
 	return strings.Join(rows, "\n")
 }
 
+// brailleBase is the Unicode braille pattern start; bits map to the
+// 2x4 dot grid per cell: col0 rows0-3 = 0x01,0x02,0x04,0x40,
+// col1 rows0-3 = 0x08,0x10,0x20,0x80.
+const brailleBase = 0x2800
+
+var brailleBits = [8]byte{0x01, 0x02, 0x04, 0x40, 0x08, 0x10, 0x20, 0x80}
+
+// GraphBraille renders samples as a smooth connected line using
+// braille dots: each cell is a 2x4 sub-pixel grid, so h rows carry
+// h*4 vertical levels. EAW-neutral codepoints only - safe under tmux.
+func GraphBraille(samples []float64, w, h int, c lipgloss.Color) string {
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	start := 0
+	if len(samples) > w*2 {
+		start = len(samples) - w*2
+	}
+	vals := samples[start:]
+	if len(vals) == 0 {
+		return strings.Join(emptyRows(w, h), "\n")
+	}
+
+	// subgrid: w*2 columns x h*4 rows of booleans
+	gw, gh := w*2, h*4
+	grid := make([][]bool, gh)
+	for i := range grid {
+		grid[i] = make([]bool, gw)
+	}
+	px := func(x, y int) { // plot with bounds clamp
+		if x >= 0 && x < gw && y >= 0 && y < gh {
+			grid[gh-1-y][x] = true // y up
+		}
+	}
+
+	toY := func(v float64) int {
+		v = clampF(v, 0, 100)
+		return int(math.Round(v / 100 * float64(gh-1)))
+	}
+	for i, v := range vals {
+		x, y := i, toY(v)
+		px(x, y)
+		if i > 0 { // connect vertically to the previous point
+			py := toY(vals[i-1])
+			if py != y {
+				step := 1
+				if py > y {
+					step = -1
+				}
+				for yy := py + step; yy != y; yy += step {
+					px(x, yy)
+				}
+			}
+		}
+	}
+
+	sty := lipgloss.NewStyle().Foreground(c)
+	rows := make([]string, h)
+	for r := 0; r < h; r++ {
+		cells := make([]rune, w)
+		for cx := 0; cx < w; cx++ {
+			var bits byte
+			for dy := 0; dy < 4; dy++ {
+				for dx := 0; dx < 2; dx++ {
+					if grid[r*4+dy][cx*2+dx] {
+						bits |= brailleBits[dy*2+dx]
+					}
+				}
+			}
+			if bits == 0 {
+				cells[cx] = ' '
+			} else {
+				cells[cx] = rune(brailleBase + int(bits))
+			}
+		}
+		rows[r] = sty.Render(string(cells))
+	}
+	return strings.Join(rows, "\n")
+}
+
+func emptyRows(w, h int) []string {
+	rows := make([]string, h)
+	for i := range rows {
+		rows[i] = strings.Repeat(" ", w)
+	}
+	return rows
+}
+
 // SegGauge renders a bar where the filled fraction uses color fill and
 // the sub-fraction within it uses overlay (btop-style segmented usage,
 // e.g. cache inside used memory). The empty remainder trails on the

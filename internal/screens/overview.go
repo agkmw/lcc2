@@ -5,6 +5,7 @@ package screens
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -56,22 +57,30 @@ func collect(mon *sysinfo.NetMonitor) tea.Cmd {
 // Overview is the monitoring dashboard: btop-style stacked sections
 // for cpu, memory, network and disks on one borderless canvas.
 type Overview struct {
-	w, h     int
-	mon      *sysinfo.NetMonitor
-	snap     snapshot
-	cpuHist  []float64
-	coreHist [][]float64
-	rxHist   []float64
-	txHist   []float64
-	netPeak  float64 // bytes/s; monotonic auto-scale for the net graphs
-	loaded   bool
-	widthSet bool
-	epoch    *atomic.Uint64 // tick-chain generation; stale chains die
+	w, h       int
+	mon        *sysinfo.NetMonitor
+	snap       snapshot
+	cpuHist    []float64
+	coreHist   [][]float64
+	rxHist     []float64
+	txHist     []float64
+	netPeak    float64 // bytes/s; monotonic auto-scale for the net graphs
+	graphStyle string  // "braille" or "block"; g toggles, LCC2_GRAPH seeds
+	loaded     bool
+	widthSet   bool
+	epoch      *atomic.Uint64 // tick-chain generation; stale chains die
 }
 
 // NewOverview builds the dashboard screen.
 func NewOverview() Overview {
-	return Overview{mon: &sysinfo.NetMonitor{}, epoch: &atomic.Uint64{}}
+	style := os.Getenv("LCC2_GRAPH")
+	if style != "block" {
+		style = "braille" // default and anything unknown
+	}
+	return Overview{
+		mon: &sysinfo.NetMonitor{}, graphStyle: style,
+		epoch: &atomic.Uint64{},
+	}
 }
 
 // ID implements ui.Screen.
@@ -82,11 +91,22 @@ func (o Overview) Title() string { return "Overview" }
 
 // Hints implements ui.Screen.
 func (o Overview) Hints() []key.Binding {
-	return []key.Binding{ui.Keys.Refresh}
+	return []key.Binding{
+		ui.Keys.Refresh,
+		key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "graph: "+o.graphStyle)),
+	}
 }
 
 // CapturingInput implements ui.Screen.
 func (o Overview) CapturingInput() bool { return false }
+
+// chart renders a time-series with the active style.
+func (o Overview) chart(hist []float64, w, h int, c lipgloss.Color) string {
+	if o.graphStyle == "block" {
+		return ui.Graph(hist, w, h, c)
+	}
+	return ui.GraphBraille(hist, w, h, c)
+}
 
 // Init starts the periodic refresh loop; re-entry retires the previous chain.
 func (o Overview) Init() tea.Cmd {
@@ -120,6 +140,13 @@ func (o Overview) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		if m.String() == "r" {
 			o.loaded = false
 			return o, o.tick(o.epoch.Load())
+		}
+		if m.String() == "g" {
+			if o.graphStyle == "braille" {
+				o.graphStyle = "block"
+			} else {
+				o.graphStyle = "braille"
+			}
 		}
 	}
 	return o, nil
@@ -212,7 +239,7 @@ func (o Overview) cpuSection(w, graphH, cRows int) string {
 		f1(o.snap.load.Fifteen), c.Cores)
 	var b strings.Builder
 	b.WriteString(secTitle("overview", "cpu", right, w) + "\n")
-	b.WriteString(ui.Graph(o.cpuHist, w, graphH, ui.Palette.Blue))
+	b.WriteString(o.chart(o.cpuHist, w, graphH, ui.Palette.Blue))
 	b.WriteString("\n")
 	b.WriteString(strings.TrimRight(o.coreGrid(w), "\n"))
 	return b.String()
@@ -301,21 +328,66 @@ func memLine(label, bar, usage, stats string, w int) string {
 
 func (o Overview) netSection(w, graphH int) string {
 	n := o.snap.net
-	scale := maxFloat(o.netPeak, 64<<10) // floor: 64 KiB/s
+	scale := snapScale(o.netPeak)
 	rx := pctOfScaled(n.RecvPerSec, scale)
 	tx := pctOfScaled(n.SentPerSec, scale)
-	right := fmt.Sprintf("↓ %s - ↑ %s - scale %s",
+	right := fmt.Sprintf("down %s - up %s - scale %s",
 		sysinfo.FormatRate(n.RecvPerSec), sysinfo.FormatRate(n.SentPerSec),
 		sysinfo.FormatRate(scale))
+
+	const labelW = 6 // "down " / "up   "
+	rxRate := faintSty.Render(sysinfo.FormatRate(n.RecvPerSec))
+	txRate := faintSty.Render(sysinfo.FormatRate(n.SentPerSec))
+	suffix := lipgloss.Width(rxRate)
+	if s := lipgloss.Width(txRate); s > suffix {
+		suffix = s
+	}
+	gw := clampInt(w-labelW-2-suffix, 10, w)
+
+	// Labeled graphs: gutter word left of each chart's first row,
+	// current rate suffixed after it.
+	rxRows := strings.Split(o.chart(rx, gw, graphH, ui.Palette.Teal), "\n")
+	txRows := strings.Split(o.chart(tx, gw, graphH, ui.Palette.Peach), "\n")
+	downLbl := mutedSty.Render(padTo("down", labelW-1))
+	upLbl := mutedSty.Render(padTo("up", labelW-1))
+
 	var b strings.Builder
 	b.WriteString(secTitle("services", "net", right, w) + "\n")
-	b.WriteString(ui.Graph(rx, w, graphH, ui.Palette.Teal) + "\n")
-	b.WriteString(ui.Graph(tx, w, graphH, ui.Palette.Peach) + "\n")
-	totals := fmt.Sprintf("↓ total %s   ↑ total %s",
+	for i := 0; i < graphH; i++ {
+		if i == 0 {
+			b.WriteString(downLbl + rxRows[i] + "  " + rxRate)
+		} else {
+			b.WriteString(strings.Repeat(" ", labelW) + rxRows[i])
+		}
+		b.WriteString("\n")
+	}
+	for i := 0; i < graphH; i++ {
+		if i == 0 {
+			b.WriteString(upLbl + txRows[i] + "  " + txRate)
+		} else {
+			b.WriteString(strings.Repeat(" ", labelW) + txRows[i])
+		}
+		b.WriteString("\n")
+	}
+	totals := fmt.Sprintf("down total %s   up total %s",
 		sysinfo.FormatBytes(float64(n.RecvTotal)),
 		sysinfo.FormatBytes(float64(n.SentTotal)))
 	b.WriteString(faintSty.Render(totals))
 	return b.String()
+}
+
+// snapScale floors the auto-scale at 64 KiB/s and snaps upward to the
+// next power of two so the axis label moves in recognizable steps.
+func snapScale(peak float64) float64 {
+	const floor = 64 << 10
+	if peak < floor {
+		return floor
+	}
+	p := float64(floor)
+	for p < peak {
+		p *= 2
+	}
+	return p
 }
 
 func (o Overview) diskSection(w, rows int) string {
@@ -323,15 +395,27 @@ func (o Overview) diskSection(w, rows int) string {
 	sort.Slice(fss, func(i, j int) bool { return fss[i].Total > fss[j].Total })
 	var b strings.Builder
 	b.WriteString(secTitle("proc", "disk", itoa(len(fss))+" mounts", w))
-	barW := clampInt(w/2-12, 16, 48)
 	shown := min(rows, len(fss))
+	barW := clampInt(w/2-16, 16, 44)
+	mountW := 8
+	for i := 0; i < shown; i++ {
+		if n := lipgloss.Width(fss[i].Mountpoint); n+1 > mountW && n < w/3 {
+			mountW = n + 1
+		}
+	}
 	for i := 0; i < shown; i++ {
 		f := fss[i]
 		bar := ui.Gauge(f.UsedPercent, barW, nil)
 		usage := sysinfo.FormatBytes(float64(f.Used)) + " / " +
 			sysinfo.FormatBytes(float64(f.Total))
-		line := mutedSty.Render(padTo(f.Mountpoint, 14)) + bar + "  " +
-			faintSty.Render(usage)
+		left := mutedSty.Render(padTo(f.Mountpoint, mountW)) + bar
+		gap := w - lipgloss.Width(left) - len(usage) - 1
+		line := left
+		if gap >= 1 {
+			line += strings.Repeat(" ", gap) + faintSty.Render(usage)
+		} else {
+			line += "  " + faintSty.Render(usage)
+		}
 		b.WriteString("\n" + ui.Truncate(line, w))
 	}
 	if len(fss) > shown {
