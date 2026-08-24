@@ -29,7 +29,7 @@ type FilterTable struct {
 // NewFilterTable creates a table with the given columns and dimensions.
 func NewFilterTable(cols []table.Column, width, height int) FilterTable {
 	ti := textinput.New()
-	ti.Placeholder = "filter…"
+	ti.Placeholder = "type to filter"
 	ti.Prompt = "/"
 	ti.PromptStyle = lipgloss.NewStyle().Foreground(Palette.Blue)
 	ti.TextStyle = lipgloss.NewStyle().Foreground(Palette.Text)
@@ -132,9 +132,12 @@ func (f *FilterTable) SetRowsTracked(rows []table.Row, keys []string) {
 }
 
 // clipCells force-fits every cell into its column's fitted width.
-// bubbles/table does not truncate cell content, so oversized cells
-// (styled or plain) shift every following column and corrupt the row
-// at narrow widths.
+// bubbles/table re-truncates cells by RUNE count on render (its
+// runewidth.Truncate counts ANSI escapes as runes), so a styled cell
+// longer than its column in runes gets sliced mid-escape once columns
+// refit narrower — orphaned escapes then garble the live terminal.
+// The invariant here: display width AND rune count must both fit the
+// column; styled cells that cannot satisfy both drop their styling.
 func clipCells(rows []table.Row, cols []table.Column) []table.Row {
 	if len(cols) == 0 {
 		return rows
@@ -144,13 +147,42 @@ func clipCells(rows []table.Row, cols []table.Column) []table.Row {
 		c := make(table.Row, len(r))
 		for j, cell := range r {
 			if j < len(cols) {
-				cell = Truncate(cell, cols[j].Width)
+				cell = fitCell(cell, cols[j].Width)
 			}
 			c[j] = cell
 		}
 		out[i] = c
 	}
 	return out
+}
+
+func fitCell(cell string, w int) string {
+	cell = Truncate(cell, w) // ansi-aware display-cell clip
+	if len([]rune(cell)) <= w {
+		return cell
+	}
+	// Escapes inflate the rune count past the budget: fall back to
+	// plain text so bubbles' rune-based truncation never fires.
+	return Truncate(stripStyles(cell), w)
+}
+
+// stripStyles removes ANSI escape sequences from s.
+func stripStyles(s string) string {
+	var b strings.Builder
+	esc := false
+	for _, r := range s {
+		switch {
+		case r == '\x1b':
+			esc = true
+		case esc:
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				esc = false
+			}
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // SelectedKey returns the stable key of the cursor's row.
@@ -371,7 +403,7 @@ func (f FilterTable) View() string {
 		return uiPanellessRow(f.vw, bar+" "+val) + "\n" + out
 	}
 	if total := len(f.rows); total > 0 {
-		stats := faintSty.Render(fmt.Sprintf("%d/%d · %d%%",
+		stats := faintSty.Render(fmt.Sprintf("%d/%d | %d%%",
 			len(f.origIdx), total, f.scrollPct()))
 		out += "\n" + uiPanellessRow(f.vw, stats)
 	}

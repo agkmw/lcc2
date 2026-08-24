@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func newTestTable() FilterTable {
@@ -15,6 +16,43 @@ func newTestTable() FilterTable {
 		{"alpha"}, {"beta"}, {"alphabet"}, {"gamma"},
 	})
 	return ft
+}
+
+// The table's own chrome must never emit East-Asian-Ambiguous glyphs
+// (ADR-0010): the app-level denylist test only sees empty tables, so
+// the stats line and filter placeholder escape it unless scanned here.
+func TestTableChromeGlyphClean(t *testing.T) {
+	deny := func(r rune) bool { return strings.ContainsRune("●○◌◐◑◕◉✕✗✔✖▸◂▴▾◄►◊◈◇◆•·‣›‹…—", r) }
+	scan := func(name, s string) {
+		t.Helper()
+		for _, r := range stripSeq(s) {
+			if deny(r) {
+				t.Errorf("%s emits ambiguous glyph %q", name, string(r))
+			}
+		}
+	}
+	ft := newTestTable()
+	scan("stats", ft.View())
+	ft, _ = ft.Update(keyMsg("/"))
+	scan("filter", ft.View())
+}
+
+func stripSeq(s string) string {
+	var b strings.Builder
+	esc := false
+	for _, r := range s {
+		switch {
+		case r == '\x1b':
+			esc = true
+		case esc:
+			if r == 'm' {
+				esc = false
+			}
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func typeString(ft *FilterTable, s string) {
@@ -152,4 +190,54 @@ func rows5() []table.Row {
 	return []table.Row{
 		{"alpha"}, {"beta"}, {"gamma"}, {"delta"}, {"echo"},
 	}
+}
+
+// Regression: bubbles re-truncates cells by rune count on render, and
+// ANSI escapes count as runes. A styled cell whose escapes pushed it
+// past its refitted column got sliced mid-escape on terminal shrink,
+// garbling the live frame. clipCells must keep every cell within its
+// column in both display cells and runes.
+func TestStyledCellsSurviveShrink(t *testing.T) {
+	cols := []table.Column{{Title: "name", Width: 30}, {Title: "pct", Width: 6}}
+	ft := NewFilterTable(cols, 80, 4)
+	styled := lipgloss.NewStyle().Bold(true).Foreground(Palette.Red)
+	rows := []table.Row{
+		{styled.Render("a-very-long-directory-name-indeed/"), styled.Render("99%")},
+		{"plain-but-long-plaintext-name-here.txt", "0.0"},
+	}
+	ft.SetRowsTracked(rows, []string{"a", "b"})
+	for _, w := range []int{60, 40, 26, 18, 12} {
+		ft.SetSize(w, 4)
+		for i, l := range strings.Split(ft.View(), "\n") {
+			if lw := lipgloss.Width(l); lw > w {
+				t.Fatalf("w=%d: line %d is %d cells (cap %d)", w, i, lw, w)
+			}
+			if !balancedEscapes(l) {
+				t.Fatalf("w=%d: line %d has a sliced escape sequence: %q", w, i, l)
+			}
+		}
+	}
+}
+
+// balancedEscapes reports whether every ESC[ sequence in s reaches a
+// proper final byte instead of being cut at a cell boundary.
+func balancedEscapes(s string) bool {
+	for i := 0; i < len(s); {
+		if s[i] != '\x1b' {
+			i++
+			continue
+		}
+		j := i + 1
+		if j < len(s) && s[j] == '[' {
+			j++
+		}
+		for j < len(s) && (s[j] == ';' || (s[j] >= '0' && s[j] <= '9')) {
+			j++
+		}
+		if j >= len(s) || s[j] < 0x40 || s[j] > 0x7e {
+			return false
+		}
+		i = j + 1
+	}
+	return true
 }
