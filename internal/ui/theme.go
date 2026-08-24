@@ -93,11 +93,13 @@ func Panel() lipgloss.Style {
 // canvas redesign (ADR-0009); panes are now drawn by screens via the
 // shared preview scaffold and whitespace, not bordered boxes.
 
-// SelectedRow styles the focused list row: bold foreground only.
-// Background fills are reserved for intentional surfaces (dialogs,
-// toasts, help) — never scattered per-widget backgrounds.
+// SelectedRow styles the focused list row: bold text on a surface
+// background, a full-line highlight. Requires the SGR-state canvas
+// painter so inner spans' resets don't punch holes in the fill.
 func SelectedRow() lipgloss.Style {
-	return lipgloss.NewStyle().Bold(true).Foreground(Palette.Text)
+	return lipgloss.NewStyle().Bold(true).
+		Foreground(Palette.Text).
+		Background(Palette.Surface)
 }
 
 // StateColor maps a 0-100 percentage onto threshold colors.
