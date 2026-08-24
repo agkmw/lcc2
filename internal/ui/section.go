@@ -25,12 +25,17 @@ func Section(id, title, right string, w, h int, body string) string {
 	if right != "" {
 		head += " " + faintSty.Render(right)
 	}
-	fill := iw - 3 - lipgloss.Width(head) - 1
+	// Top row budget: "┌─ "(3) + head(H) + sep(S) + dashes(F) + "┐"(1)
+	// must equal iw+2 cells, so F = iw - 2 - H - S. The corner then
+	// sits in the same column as every body row's right edge.
+	sep := " "
+	fill := iw - 2 - lipgloss.Width(head) - 1
 	if fill < 0 {
-		head = Truncate(head, iw-3)
-		fill = 0
+		head = Truncate(head, maxInt(iw-2, 1))
+		fill = maxInt(iw-2-lipgloss.Width(head), 0)
+		sep = ""
 	}
-	top := sectionEdge.Render("┌─ ") + head + " " +
+	top := sectionEdge.Render("┌─ ") + head + sep +
 		sectionEdge.Render(strings.Repeat("─", fill)+"┐")
 	bottom := sectionEdge.Render("└" + strings.Repeat("─", iw) + "┘")
 
@@ -47,4 +52,11 @@ func Section(id, title, right string, w, h int, body string) string {
 	}
 	out = append(out, bottom)
 	return strings.Join(out, "\n")
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
