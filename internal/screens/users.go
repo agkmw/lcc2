@@ -123,7 +123,7 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		for i, usr := range m.users {
 			urows[i] = table.Row{
 				accountCell(usr), idCell(usr.UID), idCell(usr.GID),
-				ui.Truncate(usr.Home, 22), shellCell(usr.Shell),
+				homeCell(usr.Home), shellCell(usr.Shell),
 			}
 			ukeys[i] = usr.Name
 		}

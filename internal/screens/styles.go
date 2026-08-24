@@ -103,3 +103,12 @@ func shellCell(sh string) string {
 	}
 	return ui.Truncate(sh, 20)
 }
+
+// homeCell flags passwd entries whose home directory does not exist —
+// a classic inconsistency worth surfacing in red.
+func homeCell(home string) string {
+	if _, err := os.Stat(home); err != nil {
+		return badSty.Render(ui.Truncate(home, 22))
+	}
+	return ui.Truncate(home, 22)
+}

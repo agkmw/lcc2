@@ -223,12 +223,18 @@ func bootStyled(v string) string {
 	}
 }
 
-// unitCell tints failed units red so they surface at a glance.
+// unitCell tints failed units red so they surface at a glance;
+// otherwise the unit-type suffix (.service/.timer/...) dims so the
+// base name carries the row.
 func unitCell(u services.Unit) string {
 	if u.Active == "failed" {
 		return badSty.Render(u.Name)
 	}
-	return u.Name
+	i := strings.LastIndexByte(u.Name, '.')
+	if i <= 0 {
+		return u.Name
+	}
+	return u.Name[:i] + faintSty.Render(u.Name[i:])
 }
 
 // subStyled tones the fine-grained unit sub-state: running green,

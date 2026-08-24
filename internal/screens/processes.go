@@ -299,7 +299,7 @@ func (p *Processes) syncTable() {
 			faintSty.Render(itoa(int(pr.PID))),
 			userCell(pr.User),
 			pctCell(pr.CPUPercent),
-			pctCell(pr.MemPercent),
+			memPctCell(pr.MemPercent),
 			stateCell(pr.State),
 			cmdCell(pr),
 		}
@@ -308,9 +308,22 @@ func (p *Processes) syncTable() {
 	p.tbl.SetRowsTracked(rows, keys)
 }
 
+// pctCell colors cpu percentages on the shared 70/90 scale.
 func pctCell(v float64) string {
-	sty := lipgloss.NewStyle().Foreground(ui.StateColor(v))
-	return sty.Render(f1(v))
+	return lipgloss.NewStyle().Foreground(ui.StateColor(v)).Render(f1(v))
+}
+
+// memPctCell uses memory-appropriate thresholds — a process holding
+// half of RAM is remarkable in a way 50% cpu is not.
+func memPctCell(v float64) string {
+	c := ui.Palette.Green
+	switch {
+	case v >= 70:
+		c = ui.Palette.Red
+	case v >= 40:
+		c = ui.Palette.Yellow
+	}
+	return lipgloss.NewStyle().Foreground(c).Render(f1(v))
 }
 
 // userCell tones the row owner: root loud, everyone else muted.
@@ -321,14 +334,20 @@ func userCell(u string) string {
 	return mutedSty.Render(truncCell(u, 11))
 }
 
-// cmdCell dims kernel threads ([kthreadd] and children) — they are
-// noise next to real processes.
+// cmdCell dims kernel threads ([kthreadd] and children) entirely; for
+// real processes the arguments after the executable go faint so the
+// binary name carries the row.
 func cmdCell(pr proc.Process) string {
-	cmd := truncCell(pr.Command, 60)
 	if strings.HasPrefix(pr.Name, "[") {
-		return mutedSty.Render(cmd)
+		return mutedSty.Render(truncCell(pr.Command, 60))
 	}
-	return cmd
+	if i := strings.IndexByte(pr.Command, ' '); i > 0 {
+		rest := pr.Command[i+1:]
+		exe := truncCell(pr.Command[:i], maxInt(60-len(rest)-1, 8))
+		args := faintSty.Render(truncCell(rest, maxInt(58-lipgloss.Width(exe), 6)))
+		return exe + " " + args
+	}
+	return truncCell(pr.Command, 60)
 }
 
 func stateCell(s string) string {
