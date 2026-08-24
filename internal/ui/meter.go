@@ -156,6 +156,7 @@ func GraphBraille(samples []float64, w, h int, c lipgloss.Color) string {
 	if len(vals) == 0 {
 		return strings.Join(emptyRows(w, h), "\n")
 	}
+	off := w*2 - len(vals) // newest at the right edge, like Graph
 
 	// subgrid: w*2 columns x h*4 rows of booleans
 	gw, gh := w*2, h*4
@@ -174,7 +175,7 @@ func GraphBraille(samples []float64, w, h int, c lipgloss.Color) string {
 		return int(math.Round(v / 100 * float64(gh-1)))
 	}
 	for i, v := range vals {
-		x, y := i, toY(v)
+		x, y := off+i, toY(v)
 		px(x, y)
 		if i > 0 { // connect vertically to the previous point
 			py := toY(vals[i-1])

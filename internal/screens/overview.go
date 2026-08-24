@@ -258,6 +258,9 @@ func (o Overview) coreGrid(w int) string {
 		end := min(start+perRow, shown)
 		cells := make([]string, 0, end-start)
 		for i := start; i < end; i++ {
+			if i >= len(o.coreHist) {
+				break // ring not seeded yet (hotplug race); render the rest
+			}
 			v := o.snap.cpu.PerCore[i]
 			lbl := "c" + itoa(i)
 			for lipgloss.Width(lbl) < 4 {
