@@ -439,7 +439,7 @@ func (f *Files) syncTable() {
 		name := entryNameCell(e)
 		rows[i] = table.Row{
 			mark + glyph + name,
-			sizeOrDash(e),
+			sizeCell(e),
 			modeCell(e.Mode),
 			mutedSty.Render(files.UserName(e.UID)),
 		}
@@ -448,8 +448,27 @@ func (f *Files) syncTable() {
 	f.tbl.SetRowsTracked(rows, keys)
 }
 
+// archiveExts marks compressed/binary-distribution names, tinted red
+// like eza highlights them.
+var archiveExts = map[string]bool{
+	".zip": true, ".tar": true, ".tgz": true, ".tbz": true, ".tbz2": true,
+	".gz": true, ".bz2": true, ".xz": true, ".zst": true, ".7z": true,
+	".rar": true, ".iso": true, ".deb": true, ".rpm": true, ".jar": true,
+}
+
+func isArchive(name string) bool {
+	n := strings.ToLower(name)
+	for _, suf := range []string{".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst"} {
+		if strings.HasSuffix(n, suf) {
+			return true
+		}
+	}
+	return archiveExts[filepath.Ext(n)]
+}
+
 // entryNameCell styles a listing name: dirs accent-bold with "/",
-// symlinks teal with "@" — the rest plain.
+// symlinks teal with "@", archives red, executables green — the rest
+// plain.
 func entryNameCell(e files.Entry) string {
 	switch {
 	case e.IsDir:
@@ -458,6 +477,10 @@ func entryNameCell(e files.Entry) string {
 	case e.Link != "":
 		return lipgloss.NewStyle().Foreground(ui.Palette.Teal).
 			Render(e.Name + "@")
+	case isArchive(e.Name):
+		return lipgloss.NewStyle().Foreground(ui.Palette.Red).Render(e.Name)
+	case e.Mode&0111 != 0:
+		return goodSty.Render(e.Name)
 	default:
 		return e.Name
 	}
@@ -494,6 +517,18 @@ func sizeOrDash(e files.Entry) string {
 		return "-"
 	}
 	return sysinfo.FormatBytes(float64(e.Size))
+}
+
+// sizeCell dims the unit suffix so magnitudes scan faster.
+func sizeCell(e files.Entry) string { return dimUnit(sizeOrDash(e)) }
+
+// dimUnit styles "4.0 MB" as value + faint unit.
+func dimUnit(s string) string {
+	i := strings.LastIndexByte(s, ' ')
+	if i < 0 {
+		return s
+	}
+	return s[:i] + faintSty.Render(s[i:])
 }
 
 func (f Files) selected() (*files.Entry, bool) {

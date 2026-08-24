@@ -59,10 +59,10 @@ func pageHead(title, metaRight string, w int) string {
 	return ui.ClipBlock(title+strings.Repeat(" ", gap)+meta, w)
 }
 
-// modeCell colors a permission string by meaning: the type bit stands
-// out (d/l accent-bold), executable bits tint green, everything else
-// stays faint.
+// modeCell colors a permission string zsh-plugin style: type bit
+// accent-bold (d/l), r teal, w yellow, x green, filler faint.
 func modeCell(mode os.FileMode) string {
+	tealSty := lipgloss.NewStyle().Foreground(ui.Palette.Teal)
 	s := ui.Narrow(mode.String())
 	var b strings.Builder
 	for i, r := range s {
@@ -70,6 +70,10 @@ func modeCell(mode os.FileMode) string {
 		case i == 0 && (r == 'd' || r == 'l'):
 			b.WriteString(lipgloss.NewStyle().Bold(true).
 				Foreground(ui.Accent("files")).Render(string(r)))
+		case r == 'r':
+			b.WriteString(tealSty.Render(string(r)))
+		case r == 'w':
+			b.WriteString(warnSty.Render(string(r)))
 		case r == 'x':
 			b.WriteString(goodSty.Render(string(r)))
 		default:
