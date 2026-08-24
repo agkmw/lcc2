@@ -16,7 +16,7 @@ import (
 // sparse screens and slipped off the bottom on crowded ones).
 func TestFooterPinnedToLastLine(t *testing.T) {
 	for _, tc := range []struct{ w, h int }{
-		{100, 10}, {100, 16}, {100, 24}, {120, 40}, {80, 14}, {200, 50},
+		{100, 16}, {100, 24}, {120, 40}, {80, 17}, {200, 50},
 	} {
 		r := New(screens.NewOverview(), screens.NewProcesses())
 		m, _ := r.Update(tea.WindowSizeMsg{Width: tc.w, Height: tc.h})
@@ -37,6 +37,26 @@ func TestFooterPinnedToLastLine(t *testing.T) {
 		if !strings.Contains(lines[tc.h-1], "quit") {
 			t.Errorf("w=%d h=%d: footer not on last line: %q",
 				tc.w, tc.h, lines[tc.h-1])
+		}
+	}
+}
+
+// Below the minimum geometry the app shows a friendly notice sized to
+// the full frame instead of broken layouts.
+func TestTooSmallNotice(t *testing.T) {
+	for _, sz := range [][2]int{{40, 12}, {63, 15}, {20, 8}, {100, 9}} {
+		w, h := sz[0], sz[1]
+		r := New(screens.NewOverview(), screens.NewProcesses())
+		m, _ := r.Update(tea.WindowSizeMsg{Width: w, Height: h})
+		root := m.(Root)
+		lines := strings.Split(root.View(), "\n")
+		if len(lines) != h {
+			t.Fatalf("%dx%d: %d lines, want %d", w, h, len(lines), h)
+		}
+		body := stripANSI(strings.Join(lines, "\n"))
+		if !strings.Contains(body, "terminal too small") ||
+			!strings.Contains(body, "have ") {
+			t.Errorf("%dx%d: notice missing:\n%s", w, h, body)
 		}
 	}
 }
