@@ -84,8 +84,7 @@ type stageStepMsg struct {
 // NewFiles builds the file manager rooted at $HOME.
 func NewFiles() Files {
 	cols := []table.Column{
-		{Title: "", Width: 3},
-		{Title: "name", Width: 30},
+		{Title: "name", Width: 34},
 		{Title: "size", Width: 8},
 		{Title: "mode", Width: 10},
 		{Title: "owner", Width: 10},
@@ -184,7 +183,7 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			} else {
 				f.prevMeta = sysinfo.FormatBytes(float64(m.p.Size))
 			}
-			body := strings.Join(m.p.Lines, "\n")
+			body := numberLines(m.p.Lines)
 			if m.p.Truncated {
 				body += "\n" + faintSty.Render(".. truncated")
 			}
@@ -332,7 +331,8 @@ func (f *Files) pruneMarks() {
 	}
 }
 
-// syncTable rebuilds rows with mark + staged-op glyphs; cursor follows.
+// syncTable rebuilds rows; marks and staged glyphs live in the name
+// cell so the name column keeps its full width. Cursor follows.
 func (f *Files) syncTable() {
 	stagedAt := map[string]files.OpKind{}
 	for _, op := range f.stager.Ops() {
@@ -346,22 +346,21 @@ func (f *Files) syncTable() {
 	rows := make([]table.Row, len(f.entries))
 	keys := make([]string, len(f.entries))
 	for i, e := range f.entries {
-		mark := " "
+		mark := "  "
 		if f.marked[e.Path] {
-			mark = lipgloss.NewStyle().Foreground(ui.Palette.Mauve).Render("●")
+			mark = lipgloss.NewStyle().Foreground(ui.Palette.Mauve).Render("* ")
 		}
 		glyph := stagedGlyph(stagedAt[e.Path])
+		if glyph != "" {
+			glyph += " "
+		}
 		name := e.Name
 		if e.IsDir {
 			name = lipgloss.NewStyle().Bold(true).
 				Foreground(ui.Accent("files")).Render(name + "/")
 		}
-		if glyph != "" {
-			name = glyph + " " + name
-		}
 		rows[i] = table.Row{
-			mark,
-			name,
+			mark + glyph + name,
 			sizeOrDash(e),
 			e.Mode.String(),
 			files.UserName(e.UID),
@@ -709,27 +708,38 @@ func (f Files) View() string {
 	if f.w == 0 {
 		return ""
 	}
-	meta := crumbMeta(f.cwd) + " - hidden " + onOff(f.showHidden)
+	var meta string
+	if f.showHidden {
+		meta = "hidden on"
+	}
 	if n := f.stager.Len(); n > 0 {
-		meta += fmt.Sprintf(" - %d pending", n)
+		if meta != "" {
+			meta += " - "
+		}
+		meta += fmt.Sprintf("%d pending", n)
 	}
 	if f.saving {
 		meta += fmt.Sprintf(" - saving %d/%d", f.saveDone, len(f.saveOps))
-	}
-	if f.opCount.Load() > 0 && !f.saving {
+	} else if f.opCount.Load() > 0 {
 		meta += " - working.."
 	}
 	head := pageHead("Files", meta, f.w)
 
-	main := f.tbl.View()
-	prev := renderPreview("files", f.previewTitle(), f.previewMeta(),
-		f.previewContent(), f.paneW(), f.h-1)
+	extra := mainExtraLines(f)
+	main := f.mainHeader() + "\n" + f.tbl.View()
+	if extra > 1 {
+		main += "\n" + faintSty.Render(
+			"staged: + create  - delete  > rename  ~ chmod   w save  u undo  U discard")
+	}
+
+	prev := renderPreview("preview", f.previewTitle(), f.previewMeta(),
+		f.previewContent(), f.paneW(), f.h-1-extra)
 	wide, mainW, _ := splitGeom(f.w)
 	if !wide {
 		keep := clampInt(f.h-8, 6, f.h-4)
-		mainLines := strings.Split(ui.ClipBlock(main, mainW), "\n")
-		if len(mainLines) > keep {
-			main = strings.Join(mainLines[:keep], "\n")
+		lines := strings.Split(ui.ClipBlock(main, mainW), "\n")
+		if len(lines) > keep {
+			main = strings.Join(lines[:keep], "\n")
 		}
 	}
 	body := joinPanesWide(wide, main, prev, mainW, f.w)
@@ -755,11 +765,32 @@ func (f Files) View() string {
 	return strings.Join(lines, "\n")
 }
 
-func onOff(b bool) string {
-	if b {
-		return "on"
+// mainExtraLines reports how many rows the main pane adds above the
+// table body (header + optional staged legend).
+func mainExtraLines(f Files) int {
+	n := 1 // header
+	if f.stager.Len() > 0 {
+		n++
 	}
-	return "off"
+	return n
+}
+
+// paneMainW returns the main column width for the current geometry.
+func (f Files) paneMainW() int {
+	_, mainW, _ := splitGeom(f.w)
+	return mainW
+}
+
+// mainHeader renders the main pane's own title row: accent breadcrumb,
+// entry count right.
+func (f Files) mainHeader() string {
+	crumb := crumbMeta(f.cwd)
+	count := mutedSty.Render(itoa(len(f.entries)) + " items")
+	gap := f.paneMainW() - lipgloss.Width(crumb) - lipgloss.Width(count) - 1
+	if gap < 1 {
+		gap = 1
+	}
+	return ui.ClipBlock(crumb+" "+strings.Repeat(" ", gap)+count, f.paneMainW())
 }
 
 // --- preview plumbing -------------------------------------------------
@@ -793,6 +824,19 @@ func fetchPreviewCmd(e files.Entry) tea.Cmd {
 	}
 }
 
+// numberLines prefixes faint line numbers, gutter-aligned to the block.
+func numberLines(lines []string) string {
+	gutter := len([]rune(itoa(len(lines))))
+	if gutter < 2 {
+		gutter = 2
+	}
+	var b strings.Builder
+	for i, l := range lines {
+		b.WriteString(faintSty.Render(padLeft(itoa(i+1), gutter)+"  ") + l + "\n")
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
 func dirListingCard(list []files.Entry) string {
 	var b strings.Builder
 	for _, e := range list {
@@ -801,7 +845,8 @@ func dirListingCard(list []files.Entry) string {
 			name = lipgloss.NewStyle().Bold(true).
 				Foreground(ui.Accent("files")).Render(name + "/")
 		}
-		b.WriteString(" " + name + "  " +
+		b.WriteString("  " + name + strings.Repeat(" ",
+			maxInt(30-lipgloss.Width(name), 1)) +
 			faintSty.Render(sizeOrDash(e)) + "\n")
 	}
 	if len(list) == 0 {
@@ -842,7 +887,7 @@ func (f Files) previewContent() string {
 	if f.prevBody != "" {
 		return f.prevBody
 	}
-	return faintSty.Render("select an entry..")
+	return faintSty.Render("j/k move - enter open dir\nspace mark - d/m/R stage ops")
 }
 
 // permEditorView draws the interactive rwx matrix with a live octal readout.
