@@ -95,11 +95,13 @@ func (f Files) auxDebounced(m auxDebounceMsg) tea.Cmd {
 	if m.gen != f.auxGen.Load() || m.mode != f.mode {
 		return nil
 	}
+	f.auxSearch = true
 	return auxRun(m.gen, f.mode, f.cwd, f.auxInput.Value(), f.showHidden)
 }
 
-// handleAuxKey owns the keyboard in find/grep mode. j/k steer the
-// results cursor while every other key feeds the query input.
+// handleAuxKey owns the keyboard in find/grep mode. Arrow keys steer
+// the results cursor while every other key feeds the query input —
+// including letters like j/k, which are legitimate query characters.
 func (f Files) handleAuxKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	steer := func(key tea.KeyType) tea.Cmd {
 		tbl := f.auxTable()
@@ -112,13 +114,17 @@ func (f Files) handleAuxKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return f, f.exitAux()
 	case "enter":
 		return f.auxOpen()
-	case "up", "k":
+	case "up":
 		return f, steer(tea.KeyUp)
-	case "down", "j":
+	case "down":
 		return f, steer(tea.KeyDown)
-	case "g":
+	case "pgup":
+		return f, steer(tea.KeyPgUp)
+	case "pgdown":
+		return f, steer(tea.KeyPgDown)
+	case "home":
 		return f, steer(tea.KeyHome)
-	case "G":
+	case "end":
 		return f, steer(tea.KeyEnd)
 	}
 
@@ -153,7 +159,7 @@ func (f Files) auxOpen() (ui.Screen, tea.Cmd) {
 	sc.mode = "list"
 	sc.auxInput.Blur()
 	sc.prevHit = 0
-	return sc, listDir(dir, f.showHidden)
+	return sc, sc.navigate(dir)
 }
 
 // expectKey is the fetch identity of the current cursor: previews for
@@ -201,8 +207,10 @@ func (f *Files) auxFollow() tea.Cmd {
 	return nil
 }
 
-// auxTable returns whichever results table is active.
-func (f Files) auxTable() *ui.FilterTable {
+// auxTable returns whichever results table is active. Pointer
+// receiver: callers mutate through the returned field, so it must
+// alias the caller's struct, not a receiver copy.
+func (f *Files) auxTable() *ui.FilterTable {
 	if f.mode == "find" {
 		return &f.findTbl
 	}
@@ -245,15 +253,24 @@ func (f Files) auxCount() int {
 	return len(f.grepRes)
 }
 
+// auxStatus is the right-hand query-bar slot: live feedback while a
+// search runs, the tally otherwise.
+func (f Files) auxStatus() string {
+	if f.auxSearch {
+		return warnSty.Render("searching..")
+	}
+	return faintSty.Render(strconv.Itoa(f.auxCount()) + " results")
+}
+
 // auxBar renders the query row above the results.
 func (f Files) auxBar() string {
 	label := mutedSty.Render(f.mode+" ") + f.auxInput.View()
-	count := faintSty.Render(strconv.Itoa(f.auxCount()) + " results")
-	budget := f.paneMainW() - lipgloss.Width(count) - 2
+	status := f.auxStatus()
+	budget := f.paneMainW() - lipgloss.Width(status) - 2
 	bar := ui.ClipBlock(label, maxInt(budget, 12))
-	gap := f.paneMainW() - lipgloss.Width(bar) - lipgloss.Width(count)
+	gap := f.paneMainW() - lipgloss.Width(bar) - lipgloss.Width(status)
 	if gap < 1 {
 		gap = 1
 	}
-	return bar + strings.Repeat(" ", gap) + count
+	return bar + strings.Repeat(" ", gap) + status
 }

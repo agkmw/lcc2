@@ -32,10 +32,14 @@ type Files struct {
 	mode      string // "list", "find" (fd) or "grep" (rg)
 	auxInput  textinput.Model
 	auxGen    *atomic.Uint64 // debounce/spawn generation
+	auxSearch bool           // a search spawn is in flight
 	findRes   []files.Entry  // latest fd results
 	grepRes   []files.Match  // latest rg results
 	findTbl   ui.FilterTable
 	grepTbl   ui.FilterTable
+
+	backStack []string // visited dirs; ctrl+o pops
+	fwdStack  []string // forward history; ctrl+i pops
 
 	stager *files.Stager // shared across value copies: closures stage into it
 	marked map[string]bool // marked paths (multi-select)
@@ -129,7 +133,7 @@ func (f Files) Title() string { return "Files" }
 func (f Files) Hints() []key.Binding {
 	if f.mode != "list" { // aux search: the query bar owns everything
 		return []key.Binding{
-			key.NewBinding(key.WithKeys("j/k"), key.WithHelp("j/k", "results")),
+			key.NewBinding(key.WithKeys("up/down"), key.WithHelp("up/down", "results")),
 			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "reveal dir")),
 			key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "exit search")),
 		}
@@ -151,6 +155,14 @@ func (f Files) Hints() []key.Binding {
 		h = append(h,
 			key.NewBinding(key.WithKeys("w"), key.WithHelp("w", fmt.Sprintf("save %d", n))),
 			key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "undo op")))
+	}
+	if len(f.backStack) > 0 {
+		h = append(h, key.NewBinding(key.WithKeys("ctrl+o"),
+			key.WithHelp("ctrl+o", "back")))
+	}
+	if len(f.fwdStack) > 0 {
+		h = append(h, key.NewBinding(key.WithKeys("ctrl+i"),
+			key.WithHelp("ctrl+i", "forward")))
 	}
 	return h
 }
@@ -265,6 +277,7 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 
 	case findResultMsg:
 		f.findRes = nil
+		f.auxSearch = false
 		if m.gen != f.auxGen.Load() {
 			return f, nil // stale search
 		}
@@ -277,6 +290,7 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 
 	case grepResultMsg:
 		f.grepRes = nil
+		f.auxSearch = false
 		if m.gen != f.auxGen.Load() {
 			return f, nil // stale search
 		}
@@ -479,6 +493,37 @@ func (f Files) selected() (*files.Entry, bool) {
 	return &f.entries[idx], true
 }
 
+// navigate records a directory change into the back/forward history.
+func (f *Files) navigate(to string) tea.Cmd {
+	if to == f.cwd {
+		return listDir(to, f.showHidden)
+	}
+	f.backStack = append(f.backStack, f.cwd)
+	f.fwdStack = nil
+	return listDir(to, f.showHidden)
+}
+
+// goBack / goForward walk the traversal history (ctrl+o / ctrl+i).
+func (f *Files) goBack() tea.Cmd {
+	if len(f.backStack) == 0 {
+		return nil
+	}
+	prev := f.backStack[len(f.backStack)-1]
+	f.backStack = f.backStack[:len(f.backStack)-1]
+	f.fwdStack = append(f.fwdStack, f.cwd)
+	return listDir(prev, f.showHidden)
+}
+
+func (f *Files) goForward() tea.Cmd {
+	if len(f.fwdStack) == 0 {
+		return nil
+	}
+	next := f.fwdStack[len(f.fwdStack)-1]
+	f.fwdStack = f.fwdStack[:len(f.fwdStack)-1]
+	f.backStack = append(f.backStack, f.cwd)
+	return listDir(next, f.showHidden)
+}
+
 func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	if f.permEdit != nil {
 		return f.handlePermKeys(m)
@@ -525,17 +570,21 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return f, f.startAux("find")
 	case "F":
 		return f, f.startAux("grep")
+	case "ctrl+o":
+		return f, f.goBack()
+	case "ctrl+i":
+		return f, f.goForward()
 	case "enter", "l":
 		if e, ok := f.selected(); ok && e.IsDir {
 			f.clearMarks()
-			return f, listDir(e.Path, f.showHidden)
+			return f, f.navigate(e.Path)
 		}
 		return f, nil
 	case "h":
 		parent := parentDir(f.cwd)
 		if parent != f.cwd {
 			f.clearMarks()
-			return f, listDir(parent, f.showHidden)
+			return f, f.navigate(parent)
 		}
 	case "a":
 		f.showHidden = !f.showHidden

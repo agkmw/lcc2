@@ -16,9 +16,10 @@ type Match struct {
 	Text string
 }
 
-// Grep searches file contents under root with ripgrep (smart-case,
-// vimgrep output). Hidden files follow the flag; results stop at max,
-// killing the search process.
+// Grep searches file contents under root with ripgrep (case-
+// insensitive by default so queries behave like users expect; vimgrep
+// output). Hidden files follow the flag; results stop at max, killing
+// the search process.
 func Grep(ctx context.Context, root, query string, hidden bool, max int) ([]Match, error) {
 	if strings.TrimSpace(query) == "" {
 		return []Match{}, nil
@@ -27,7 +28,7 @@ func Grep(ctx context.Context, root, query string, hidden bool, max int) ([]Matc
 	if err != nil {
 		return nil, err
 	}
-	args := []string{"--vimgrep", "--smart-case", "--no-heading",
+	args := []string{"--vimgrep", "--ignore-case", "--no-heading",
 		"--color", "never", "--max-columns", "300"}
 	if hidden {
 		args = append(args, "--hidden")
