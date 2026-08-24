@@ -22,7 +22,8 @@ import (
 )
 
 const overviewInterval = time.Second
-const histMax = 120 // samples kept per ring (1 s apart)
+const histMax = 120  // samples kept per ring (1 s apart)
+const peakWin = 60   // samples feeding the net auto-scale (rolling, L8)
 
 type overviewTickMsg struct{ gen uint64 }
 
@@ -64,8 +65,9 @@ type Overview struct {
 	coreHist   [][]float64
 	rxHist     []float64
 	txHist     []float64
-	netPeak    float64 // bytes/s; monotonic auto-scale for the net graphs
-	graphStyle string  // "braille" or "block"; g toggles, LCC2_GRAPH seeds
+	netWin     []float64 // recent rx/tx maxima; the auto-scale source
+	netPeak    float64   // bytes/s; max of netWin (rolling window)
+	graphStyle string    // "braille" or "block"; g toggles, LCC2_GRAPH seeds
 	loaded     bool
 	widthSet   bool
 	epoch      *atomic.Uint64 // tick-chain generation; stale chains die
@@ -152,19 +154,41 @@ func (o Overview) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 	return o, nil
 }
 
-// observe folds a snapshot into the history rings.
+// observe folds a snapshot into the history rings. The first sample
+// back-fills every ring with zeros so the charts span their full
+// width immediately (btop-style flat start) instead of growing from
+// the right edge.
 func (o *Overview) observe(s snapshot) {
-	o.cpuHist = appendHist(o.cpuHist, s.cpu.Total)
+	first := len(o.cpuHist) == 0
 	if len(o.coreHist) != s.cpu.Cores { // first sample or hotplug
 		o.coreHist = make([][]float64, s.cpu.Cores)
+		for i := range o.coreHist {
+			if first {
+				o.coreHist[i] = zeroHist()
+			}
+		}
 	}
+	if first {
+		o.cpuHist = zeroHist()
+		o.rxHist = zeroHist()
+		o.txHist = zeroHist()
+	}
+	o.cpuHist = appendHist(o.cpuHist, s.cpu.Total)
 	for i, v := range s.cpu.PerCore {
 		o.coreHist[i] = appendHist(o.coreHist[i], v)
 	}
 	o.rxHist = appendHist(o.rxHist, s.net.RecvPerSec)
 	o.txHist = appendHist(o.txHist, s.net.SentPerSec)
-	o.netPeak = maxFloat(o.netPeak, s.net.RecvPerSec, s.net.SentPerSec)
+
+	peak := maxFloat(s.net.RecvPerSec, s.net.SentPerSec)
+	o.netWin = append(o.netWin, peak)
+	if len(o.netWin) > peakWin {
+		o.netWin = o.netWin[len(o.netWin)-peakWin:]
+	}
+	o.netPeak = maxFloat(o.netWin...)
 }
+
+func zeroHist() []float64 { return make([]float64, histMax) }
 
 func appendHist(h []float64, v float64) []float64 {
 	h = append(h, v)
@@ -174,7 +198,8 @@ func appendHist(h []float64, v float64) []float64 {
 	return h
 }
 
-// View renders stacked full-width sections: cpu, mem, net, disk.
+// View renders stacked full-width btop-style boxes: cpu, mem, net,
+// disk. Heights are budgeted so the stack lands exactly on h.
 func (o Overview) View() string {
 	if !o.loaded || !o.widthSet {
 		return lipgloss.Place(o.w, o.h, lipgloss.Center, lipgloss.Center,
@@ -185,25 +210,21 @@ func (o Overview) View() string {
 	head := pageHead("Overview",
 		o.snap.host.Hostname+" - up "+sysinfo.FormatUptime(o.snap.host.Uptime), w)
 
-	// Budget: 13 fixed rows + graphH + cRows + 2*netH + fsRows == h.
-	// Fixed: head, blank, cpu title, blank, mem title, ram, swap,
-	// blank, net title, net totals, blank, disk title (+1 spare).
-	cRows := o.coreRows(w)
-	left := clampInt(h-14-cRows, 3, 1000)
-	graphH := clampInt(left*2/5, 3, 10)
-	rem := maxInt(left-graphH, 0)
-	netH := clampInt(rem/4, 1, 6)
-	fsRows := clampInt(rem-2*netH, 1, len(o.snap.fss))
+	// Budget: head(1) + borders(8) + ram+swap(2) + net totals(1) plus
+	// graphs and rows must land exactly on h.
+	cRows := o.coreRows(w - 4)
+	rem := h - 12 - cRows
+	graphH := clampInt(rem*2/5, 3, 12)
+	rest := maxInt(rem-graphH, 0)
+	netH := clampInt(rest/3, 1, 6)
+	fsRows := clampInt(rest-2*netH, 1, len(o.snap.fss))
 
 	var b strings.Builder
-	b.WriteString(head + "\n\n")
-	b.WriteString(o.cpuSection(w, graphH, cRows))
-	b.WriteString("\n\n")
-	b.WriteString(o.memSection(w))
-	b.WriteString("\n\n")
-	b.WriteString(o.netSection(w, netH))
-	b.WriteString("\n\n")
-	b.WriteString(o.diskSection(w, fsRows))
+	b.WriteString(head + "\n")
+	b.WriteString(o.cpuBox(w, graphH, cRows) + "\n")
+	b.WriteString(o.memBox(w) + "\n")
+	b.WriteString(o.netBox(w, netH) + "\n")
+	b.WriteString(o.diskBox(w, fsRows))
 
 	lines := strings.Split(b.String(), "\n")
 	for len(lines) < h {
@@ -220,29 +241,17 @@ func pctOfScaled(v, scale float64) []float64 {
 	return []float64{p}
 }
 
-// secTitle renders an accent-colored section label with a faint
-// detail string right-aligned within w.
-func secTitle(id, label, right string, w int) string {
-	l := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent(id)).
-		Render(label)
-	gap := w - lipgloss.Width(l) - lipgloss.Width(right)
-	if gap < 1 {
-		gap = 1
-	}
-	return ui.ClipBlock(l+" "+faintSty.Render(right), w)
-}
-
-func (o Overview) cpuSection(w, graphH, cRows int) string {
+func (o Overview) cpuBox(w, graphH, cRows int) string {
 	c := o.snap.cpu
-	right := fmt.Sprintf("total %s%% - load %s %s %s - %d cores",
+	right := fmt.Sprintf("%s%% - load %s %s %s - %d cores",
 		f1(c.Total), f1(o.snap.load.One), f1(o.snap.load.Five),
 		f1(o.snap.load.Fifteen), c.Cores)
-	var b strings.Builder
-	b.WriteString(secTitle("overview", "cpu", right, w) + "\n")
-	b.WriteString(o.chart(o.cpuHist, w, graphH, ui.Palette.Blue))
-	b.WriteString("\n")
-	b.WriteString(strings.TrimRight(o.coreGrid(w), "\n"))
-	return b.String()
+	iw := w - 4
+	body := o.chart(o.cpuHist, iw, graphH, ui.Palette.Blue)
+	if grid := strings.TrimRight(o.coreGrid(iw), "\n"); grid != "" {
+		body += "\n" + grid
+	}
+	return ui.Section("overview", "cpu", right, w, graphH+cRows+2, body)
 }
 
 // coreGrid renders per-core sparkline cells, as many columns as fit.
@@ -273,7 +282,7 @@ func (o Overview) coreGrid(w int) string {
 		}
 		out = append(out, strings.Join(cells, " "))
 	}
-	return strings.Join(out, "\n") + "\n"
+	return strings.Join(out, "\n")
 }
 
 // coreRows reports how many lines coreGrid emits at width w.
@@ -286,13 +295,13 @@ func (o Overview) coreRows(w int) int {
 	return (shown + perRow - 1) / perRow
 }
 
-func (o Overview) memSection(w int) string {
+func (o Overview) memBox(w int) string {
 	m := o.snap.mem
 	cachePct := 0.0
 	if m.Total > 0 {
 		cachePct = float64(m.Cached) / float64(m.Total) * 100
 	}
-	barW := clampInt(w/2-8, 20, 60)
+	barW := clampInt((w-4)/2-8, 20, 60)
 
 	ramBar := ui.SegGauge(m.UsedPercent, cachePct, barW,
 		ui.StateColor(m.UsedPercent), ui.Palette.Mauve) +
@@ -303,20 +312,17 @@ func (o Overview) memSection(w int) string {
 
 	line := memLine("ram ", ramBar,
 		sysinfo.FormatBytes(float64(m.Used))+" / "+sysinfo.FormatBytes(float64(m.Total)),
-		ramStats, w)
-	var b strings.Builder
-	b.WriteString(secTitle("disk", "mem", "total "+
-		sysinfo.FormatBytes(float64(m.Total)), w) + "\n")
-	b.WriteString(line)
+		ramStats, w-4)
 	if m.SwapTotal > 0 {
 		swapBar := ui.Gauge(m.SwapPercent, barW, nil)
-		b.WriteString("\n" + memLine("swap", swapBar,
+		line += "\n" + memLine("swap", swapBar,
 			sysinfo.FormatBytes(float64(m.SwapUsed))+" / "+
-				sysinfo.FormatBytes(float64(m.SwapTotal)), "", w))
+				sysinfo.FormatBytes(float64(m.SwapTotal)), "", w-4)
 	} else {
-		b.WriteString("\n" + mutedSty.Render("swap none"))
+		line += "\n" + mutedSty.Render("swap none")
 	}
-	return b.String()
+	return ui.Section("disk", "mem", "total "+
+		sysinfo.FormatBytes(float64(m.Total)), w, 4, line)
 }
 
 // memLine places label + bar + usage left and stats right when both fit.
@@ -329,15 +335,13 @@ func memLine(label, bar, usage, stats string, w int) string {
 	return line + strings.Repeat(" ", maxInt(gap, 2)) + faintSty.Render(stats)
 }
 
-func (o Overview) netSection(w, graphH int) string {
+func (o Overview) netBox(w, netH int) string {
 	n := o.snap.net
 	scale := snapScale(o.netPeak)
 	rx := pctOfScaled(n.RecvPerSec, scale)
 	tx := pctOfScaled(n.SentPerSec, scale)
-	right := fmt.Sprintf("down %s - up %s - scale %s",
-		sysinfo.FormatRate(n.RecvPerSec), sysinfo.FormatRate(n.SentPerSec),
-		sysinfo.FormatRate(scale))
 
+	iw := w - 4
 	const labelW = 6 // "down " / "up   "
 	rxRate := faintSty.Render(sysinfo.FormatRate(n.RecvPerSec))
 	txRate := faintSty.Render(sysinfo.FormatRate(n.SentPerSec))
@@ -345,38 +349,33 @@ func (o Overview) netSection(w, graphH int) string {
 	if s := lipgloss.Width(txRate); s > suffix {
 		suffix = s
 	}
-	gw := clampInt(w-labelW-2-suffix, 10, w)
+	gw := clampInt(iw-labelW-2-suffix, 10, iw)
 
-	// Labeled graphs: gutter word left of each chart's first row,
-	// current rate suffixed after it.
-	rxRows := strings.Split(o.chart(rx, gw, graphH, ui.Palette.Teal), "\n")
-	txRows := strings.Split(o.chart(tx, gw, graphH, ui.Palette.Peach), "\n")
+	rxRows := strings.Split(o.chart(rx, gw, netH, ui.Palette.Teal), "\n")
+	txRows := strings.Split(o.chart(tx, gw, netH, ui.Palette.Peach), "\n")
 	downLbl := mutedSty.Render(padTo("down", labelW-1))
 	upLbl := mutedSty.Render(padTo("up", labelW-1))
 
-	var b strings.Builder
-	b.WriteString(secTitle("services", "net", right, w) + "\n")
-	for i := 0; i < graphH; i++ {
+	var body []string
+	for i := 0; i < netH; i++ {
 		if i == 0 {
-			b.WriteString(downLbl + rxRows[i] + "  " + rxRate)
+			body = append(body, downLbl+rxRows[i]+"  "+rxRate)
 		} else {
-			b.WriteString(strings.Repeat(" ", labelW) + rxRows[i])
+			body = append(body, strings.Repeat(" ", labelW)+rxRows[i])
 		}
-		b.WriteString("\n")
 	}
-	for i := 0; i < graphH; i++ {
+	for i := 0; i < netH; i++ {
 		if i == 0 {
-			b.WriteString(upLbl + txRows[i] + "  " + txRate)
+			body = append(body, upLbl+txRows[i]+"  "+txRate)
 		} else {
-			b.WriteString(strings.Repeat(" ", labelW) + txRows[i])
+			body = append(body, strings.Repeat(" ", labelW)+txRows[i])
 		}
-		b.WriteString("\n")
 	}
-	totals := fmt.Sprintf("down total %s   up total %s",
+	body = append(body, faintSty.Render(fmt.Sprintf("down total %s   up total %s",
 		sysinfo.FormatBytes(float64(n.RecvTotal)),
-		sysinfo.FormatBytes(float64(n.SentTotal)))
-	b.WriteString(faintSty.Render(totals))
-	return b.String()
+		sysinfo.FormatBytes(float64(n.SentTotal)))))
+	return ui.Section("services", "net", "scale "+sysinfo.FormatRate(scale),
+		w, len(body)+2, strings.Join(body, "\n"))
 }
 
 // snapScale floors the auto-scale at 64 KiB/s and snaps upward to the
@@ -393,39 +392,42 @@ func snapScale(peak float64) float64 {
 	return p
 }
 
-func (o Overview) diskSection(w, rows int) string {
+func (o Overview) diskBox(w, rows int) string {
 	fss := append([]disk.Filesystem(nil), o.snap.fss...)
 	sort.Slice(fss, func(i, j int) bool { return fss[i].Total > fss[j].Total })
-	var b strings.Builder
-	b.WriteString(secTitle("proc", "disk", itoa(len(fss))+" mounts", w))
+	iw := w - 4
 	shown := min(rows, len(fss))
-	barW := clampInt(w/2-16, 16, 44)
+	barW := clampInt(iw/2-16, 16, 44)
 	mountW := 8
 	for i := 0; i < shown; i++ {
-		if n := lipgloss.Width(fss[i].Mountpoint); n+1 > mountW && n < w/3 {
+		if n := lipgloss.Width(fss[i].Mountpoint); n+1 > mountW && n < iw/3 {
 			mountW = n + 1
 		}
 	}
+	var lines []string
 	for i := 0; i < shown; i++ {
 		f := fss[i]
 		bar := ui.Gauge(f.UsedPercent, barW, nil)
 		usage := sysinfo.FormatBytes(float64(f.Used)) + " / " +
 			sysinfo.FormatBytes(float64(f.Total))
 		left := mutedSty.Render(padTo(f.Mountpoint, mountW)) + bar
-		gap := w - lipgloss.Width(left) - len(usage) - 1
-		line := left
+		gap := iw - lipgloss.Width(left) - len(usage) - 1
 		if gap >= 1 {
-			line += strings.Repeat(" ", gap) + faintSty.Render(usage)
+			lines = append(lines, left+strings.Repeat(" ", gap)+
+				faintSty.Render(usage))
 		} else {
-			line += "  " + faintSty.Render(usage)
+			lines = append(lines, left+"  "+faintSty.Render(usage))
 		}
-		b.WriteString("\n" + ui.Truncate(line, w))
 	}
 	if len(fss) > shown {
-		b.WriteString("\n" + faintSty.Render(
-			"  .. +" + itoa(len(fss)-shown) + " more - see Disks"))
+		lines = append(lines, faintSty.Render(
+			".. +" + itoa(len(fss)-shown) + " more - see Disks"))
 	}
-	return b.String()
+	if len(lines) == 0 {
+		lines = append(lines, mutedSty.Render("no mounts"))
+	}
+	return ui.Section("proc", "disk", itoa(len(fss))+" mounts",
+		w, len(lines)+2, strings.Join(lines, "\n"))
 }
 
 func padTo(s string, w int) string {
@@ -450,13 +452,6 @@ func clampF(v, lo, hi float64) float64 {
 		return hi
 	}
 	return v
-}
-
-func titleCase(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func f1(v float64) string {

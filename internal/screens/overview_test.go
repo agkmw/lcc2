@@ -46,12 +46,34 @@ func TestOverviewNetPeakScale(t *testing.T) {
 	}
 }
 
-// Per-core history rings track core count changes.
+// Per-core history rings track core count changes; rings prefill with
+// zeros so charts span full width immediately.
 func TestOverviewCoreRings(t *testing.T) {
 	o := NewOverview()
 	o.observe(snapshot{cpu: sysinfo.CPUSample{Cores: 2, PerCore: []float64{1, 2}}})
 	o.observe(snapshot{cpu: sysinfo.CPUSample{Cores: 2, PerCore: []float64{3, 4}}})
-	if len(o.coreHist) != 2 || len(o.coreHist[0]) != 2 {
+	if len(o.coreHist) != 2 {
 		t.Fatalf("rings = %d x %d", len(o.coreHist), len(o.coreHist[0]))
+	}
+	r0 := o.coreHist[0]
+	if r0[len(r0)-2] != 1 || r0[len(r0)-1] != 3 {
+		t.Fatalf("core0 ring tail = %v, want [1 3]", r0[len(r0)-2:])
+	}
+	r1 := o.coreHist[1]
+	if r1[len(r1)-2] != 2 || r1[len(r1)-1] != 4 {
+		t.Fatalf("core1 ring tail = %v, want [2 4]", r1[len(r1)-2:])
+	}
+}
+
+// The net auto-scale uses a rolling window: one burst must not pin
+// the scale forever after (backlog L8).
+func TestOverviewNetPeakDecays(t *testing.T) {
+	o := NewOverview()
+	o.observe(snapshot{net: sysinfo.NetRates{RecvPerSec: 8 << 20}})
+	for i := 0; i < peakWin+10; i++ {
+		o.observe(snapshot{net: sysinfo.NetRates{RecvPerSec: 1 << 10}})
+	}
+	if o.netPeak > 1<<11 {
+		t.Fatalf("netPeak stuck at %v after quiet window, want ~1 KiB", o.netPeak)
 	}
 }
