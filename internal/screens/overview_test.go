@@ -65,15 +65,51 @@ func TestOverviewCoreRings(t *testing.T) {
 	}
 }
 
-// The net auto-scale uses a rolling window: one burst must not pin
-// the scale forever after (backlog L8).
+// The net auto-scale uses a rolling window with hysteresis: one burst
+// must not pin the scale forever after (backlog L8); the basis decays
+// only after a long quiet stretch and never below the 64 KiB floor.
 func TestOverviewNetPeakDecays(t *testing.T) {
 	o := NewOverview()
 	o.observe(snapshot{net: sysinfo.NetRates{RecvPerSec: 8 << 20}})
 	for i := 0; i < peakWin+10; i++ {
 		o.observe(snapshot{net: sysinfo.NetRates{RecvPerSec: 1 << 10}})
 	}
-	if o.netPeak > 1<<11 {
-		t.Fatalf("netPeak stuck at %v after quiet window, want ~1 KiB", o.netPeak)
+	if o.netPeak != minScale {
+		t.Fatalf("netPeak = %v after quiet window, want the %v floor", o.netPeak, minScale)
+	}
+}
+
+// Hysteresis: ordinary fluctuations must not shrink the scale basis.
+func TestOverviewNetPeakHysteresis(t *testing.T) {
+	o := NewOverview()
+	o.observe(snapshot{net: sysinfo.NetRates{RecvPerSec: 4 << 20}})
+	for i := 0; i < 30; i++ { // mild noise around half the peak
+		o.observe(snapshot{net: sysinfo.NetRates{RecvPerSec: 3 << 20}})
+	}
+	if o.netPeak < 3<<20 {
+		t.Fatalf("basis shrank under mild load: %v", o.netPeak)
+	}
+}
+
+// Net graphs plot recorded history, not just the latest sample.
+func TestOverviewNetHistoryPlotted(t *testing.T) {
+	o := NewOverview()
+	for i := 0; i < histMax; i++ {
+		v := float64(i) / histMax * 100
+		o.observe(snapshot{cpu: sysinfo.CPUSample{Cores: 1},
+			net: sysinfo.NetRates{RecvPerSec: v * minScale}})
+	}
+	if len(o.rxHist) != histMax {
+		t.Fatalf("rxHist = %d samples", len(o.rxHist))
+	}
+	plot := scaleHist(o.rxHist, snapScale(o.netPeak))
+	nonZero := 0
+	for _, v := range plot {
+		if v > 1 {
+			nonZero++
+		}
+	}
+	if nonZero < histMax/2 {
+		t.Fatalf("history plot mostly flat: %d/%d non-zero", nonZero, histMax)
 	}
 }

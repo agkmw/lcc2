@@ -22,8 +22,9 @@ import (
 )
 
 const overviewInterval = time.Second
-const histMax = 120  // samples kept per ring (1 s apart)
-const peakWin = 60   // samples feeding the net auto-scale (rolling, L8)
+const histMax = 120   // samples kept per ring (1 s apart)
+const peakWin = 60    // samples feeding the net auto-scale (rolling, L8)
+const minScale = 64 << 10 // net auto-scale floor, bytes/s
 
 type overviewTickMsg struct{ gen uint64 }
 
@@ -185,7 +186,17 @@ func (o *Overview) observe(s snapshot) {
 	if len(o.netWin) > peakWin {
 		o.netWin = o.netWin[len(o.netWin)-peakWin:]
 	}
-	o.netPeak = maxFloat(o.netWin...)
+	// Hysteresis: grow instantly with the rolling peak, but step down
+	// only after it falls below a quarter of the current basis — the
+	// graph must not shrink on every ordinary fluctuation (user report:
+	// "when the speed changes the graph shrinks, hard to view").
+	windowed := maxFloat(o.netWin...)
+	switch {
+	case windowed >= o.netPeak:
+		o.netPeak = windowed
+	case o.netPeak > minScale && windowed < o.netPeak/4:
+		o.netPeak = maxFloat(windowed, minScale)
+	}
 }
 
 func zeroHist() []float64 { return make([]float64, histMax) }
@@ -239,6 +250,15 @@ func (o Overview) View() string {
 func pctOfScaled(v, scale float64) []float64 {
 	p := clampF(v/scale*100, 0, 100)
 	return []float64{p}
+}
+
+// scaleHist normalizes a byte-rate history against the current scale.
+func scaleHist(hist []float64, scale float64) []float64 {
+	out := make([]float64, len(hist))
+	for i, v := range hist {
+		out[i] = clampF(v/scale*100, 0, 100)
+	}
+	return out
 }
 
 func (o Overview) cpuBox(w, graphH, cRows int) string {
@@ -338,8 +358,6 @@ func memLine(label, bar, usage, stats string, w int) string {
 func (o Overview) netBox(w, netH int) string {
 	n := o.snap.net
 	scale := snapScale(o.netPeak)
-	rx := pctOfScaled(n.RecvPerSec, scale)
-	tx := pctOfScaled(n.SentPerSec, scale)
 
 	iw := w - 4
 	const labelW = 6 // "down " / "up   "
@@ -351,8 +369,11 @@ func (o Overview) netBox(w, netH int) string {
 	}
 	gw := clampInt(iw-labelW-2-suffix, 10, iw)
 
-	rxRows := strings.Split(o.chart(rx, gw, netH, ui.Palette.Teal), "\n")
-	txRows := strings.Split(o.chart(tx, gw, netH, ui.Palette.Peach), "\n")
+	// Plot the recorded history (absolute bytes/s), normalized against
+	// the current scale — the whole line breathes together instead of
+	// a lone point per tick.
+	rxRows := strings.Split(o.chart(scaleHist(o.rxHist, scale), gw, netH, ui.Palette.Teal), "\n")
+	txRows := strings.Split(o.chart(scaleHist(o.txHist, scale), gw, netH, ui.Palette.Peach), "\n")
 	downLbl := mutedSty.Render(padTo("down", labelW-1))
 	upLbl := mutedSty.Render(padTo("up", labelW-1))
 
@@ -378,14 +399,14 @@ func (o Overview) netBox(w, netH int) string {
 		w, len(body)+2, strings.Join(body, "\n"))
 }
 
-// snapScale floors the auto-scale at 64 KiB/s and snaps upward to the
-// next power of two so the axis label moves in recognizable steps.
+// snapScale snaps the auto-scale basis upward to the next power of
+// two so the axis label moves in recognizable steps; minScale floors
+// it at 64 KiB/s.
 func snapScale(peak float64) float64 {
-	const floor = 64 << 10
-	if peak < floor {
-		return floor
+	if peak < minScale {
+		return minScale
 	}
-	p := float64(floor)
+	p := float64(minScale)
 	for p < peak {
 		p *= 2
 	}
