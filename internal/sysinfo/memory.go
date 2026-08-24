@@ -7,6 +7,7 @@ type Memory struct {
 	Total       uint64
 	Used        uint64
 	Available   uint64
+	Cached      uint64 // buffers + cache + SReclaimable
 	UsedPercent float64
 	SwapTotal   uint64
 	SwapUsed    uint64
@@ -24,6 +25,7 @@ func ReadMemory() Memory {
 		Total:       m.Total,
 		Used:        m.Used,
 		Available:   m.Available,
+		Cached:      m.Buffers + m.Cached + m.Sreclaimable,
 		UsedPercent: m.UsedPercent,
 	}
 	if sw, err := mem.SwapMemory(); err == nil {

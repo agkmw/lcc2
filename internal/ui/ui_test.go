@@ -42,6 +42,44 @@ func TestSparkEmptyAndValues(t *testing.T) {
 	}
 }
 
+func TestGraphShape(t *testing.T) {
+	g := Graph([]float64{0, 50, 100}, 5, 3, Palette.Blue)
+	lines := strings.Split(g, "\n")
+	if len(lines) != 3 {
+		t.Fatalf("%d rows, want 3", len(lines))
+	}
+	for i, l := range lines {
+		if w := lipgloss.Width(l); w != 5 {
+			t.Fatalf("row %d width %d, want 5", i, w)
+		}
+	}
+	// Newest (100%) at the right edge must fill every row of the
+	// last column; the blank history columns stay empty.
+	lastCol := func(s string) rune {
+		runes := []rune(s)
+		return runes[len(runes)-1]
+	}
+	for _, l := range lines {
+		if lastCol(l) != '█' {
+			t.Fatalf("full sample not filling column: %q", l)
+		}
+	}
+	if first := []rune(lines[0])[0]; first != ' ' {
+		t.Fatalf("unrecorded history must be blank, got %q", first)
+	}
+}
+
+func TestSegGaugeSegments(t *testing.T) {
+	bar := SegGauge(100, 50, 10, Palette.Green, Palette.Mauve)
+	if w := lipgloss.Width(bar); w != 10 {
+		t.Fatalf("width %d, want 10", w)
+	}
+	empty := SegGauge(0, 0, 8, Palette.Green, Palette.Mauve)
+	if strings.Contains(strings.ReplaceAll(empty, "░", ""), "█") {
+		t.Fatalf("zero pct must be all faint: %q", empty)
+	}
+}
+
 func TestConfirmDialogAnswering(t *testing.T) {
 	c := NewConfirm("Delete?", "really?", "")
 	c.SetWidth(40)

@@ -41,7 +41,7 @@ func feed(s ui.Screen, msgs ...tea.Msg) ui.Screen {
 func TestScreensFitAllSizes(t *testing.T) {
 	for _, sz := range sizes {
 		w, h := sz[0], sz[1]
-		size := ui.SizeMsg{Width: w - 20, Height: h - 4} // sidebar + chrome
+		size := ui.SizeMsg{Width: w - 4, Height: h - 4} // page margins + chrome
 
 		o := NewOverview()
 		o.w, o.h = size.Width, size.Height // widthSet without a tick loop
@@ -50,7 +50,7 @@ func TestScreensFitAllSizes(t *testing.T) {
 			mem:  sysinfo.Memory{Total: 8 << 30, Used: 4 << 30, UsedPercent: 50},
 			load: sysinfo.Load{One: 1.5, Five: 1.2, Fifteen: 0.9},
 			net:  sysinfo.NetRates{RecvPerSec: 1024, SentPerSec: 2048, RecvTotal: 1 << 30, SentTotal: 2 << 30},
-			root: &disk.Filesystem{Mountpoint: "/", Total: 100 << 30, Used: 50 << 30, UsedPercent: 50},
+			fss:  []disk.Filesystem{{Mountpoint: "/", Total: 100 << 30, Used: 50 << 30, UsedPercent: 50}},
 		}).(Overview)
 		assertFits(t, "overview", o.View(), w)
 

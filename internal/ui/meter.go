@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -87,6 +88,65 @@ func Spark(samples []float64, width int, c lipgloss.Color) string {
 		out = append(out, '▁')
 	}
 	return lipgloss.NewStyle().Foreground(c).Render(string(out))
+}
+
+// Graph renders a multi-row area chart of 0-100 samples, newest at
+// the right edge. Columns beyond the recorded history stay blank so
+// the chart grows into its full width.
+func Graph(samples []float64, w, h int, c lipgloss.Color) string {
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	start := 0
+	if len(samples) > w {
+		start = len(samples) - w
+	}
+	vals := samples[start:]
+	off := w - len(vals)
+	grid := make([][]rune, h)
+	for i := range grid {
+		grid[i] = []rune(strings.Repeat(" ", w))
+	}
+	blocks := []rune{' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇'}
+	for j, v := range vals {
+		v = clampF(v, 0, 100)
+		eighths := int(math.Round(v / 100 * float64(h*8)))
+		full := eighths / 8
+		part := eighths % 8
+		for k := 0; k < full && k < h; k++ {
+			grid[h-1-k][off+j] = '█'
+		}
+		if part > 0 && full < h {
+			grid[h-1-full][off+j] = blocks[part]
+		}
+	}
+	sty := lipgloss.NewStyle().Foreground(c)
+	rows := make([]string, h)
+	for i, r := range grid {
+		rows[i] = sty.Render(string(r))
+	}
+	return strings.Join(rows, "\n")
+}
+
+// SegGauge renders a bar where the filled fraction uses color fill and
+// the sub-fraction within it uses overlay (btop-style segmented usage,
+// e.g. cache inside used memory). The empty remainder is faint.
+func SegGauge(pct, innerPct float64, width int, fill, overlay lipgloss.Color) string {
+	if width < 4 {
+		width = 4
+	}
+	slots := width
+	nFill := int(clampF(pct/100, 0, 1) * float64(slots))
+	nInner := int(clampF(innerPct/100, 0, 1) * float64(nFill))
+	fsty := lipgloss.NewStyle().Foreground(fill)
+	isty := lipgloss.NewStyle().Foreground(overlay)
+	esty := lipgloss.NewStyle().Foreground(Palette.Faint)
+	return esty.Render(strings.Repeat("░", slots-nFill)) +
+		isty.Render(strings.Repeat("█", nInner)) +
+		fsty.Render(strings.Repeat("█", nFill-nInner))
 }
 
 func itoa(v int) string {
