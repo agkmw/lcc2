@@ -326,17 +326,17 @@ func truncCell(s string, w int) string {
 	if len(r) <= w {
 		return s
 	}
-	return string(r[:w-1]) + "…"
+	return string(r[:w-2]) + ".."
 }
 
 // View renders the list with the live process preview beside it.
 func (p Processes) View() string {
 	if !p.loaded || p.w == 0 {
 		return lipgloss.Place(p.w, p.h, lipgloss.Center, lipgloss.Center,
-			ui.EmptyState("", "Scanning processes…", "", p.w))
+			ui.EmptyState("", "Scanning processes..", "", p.w))
 	}
 	head := pageHead("Processes",
-		fmt.Sprintf("sorted by %s · %d running", p.sortKey, len(p.all)), p.w)
+		fmt.Sprintf("sorted by %s - %d running", p.sortKey, len(p.all)), p.w)
 
 	main := p.tbl.View()
 	prev := p.previewBody()
@@ -377,7 +377,7 @@ func (p Processes) previewBody() string {
 	case p.inspErr != "" && p.insp == nil:
 		body = mutedSty.Render(p.inspErr)
 	case p.insp == nil:
-		body = faintSty.Render("select a process…")
+		body = faintSty.Render("select a process..")
 	default:
 		body = p.inspectCard(*p.insp, prevW)
 	}

@@ -151,12 +151,12 @@ func appendHist(h []float64, v float64) []float64 {
 func (o Overview) View() string {
 	if !o.loaded || !o.widthSet {
 		return lipgloss.Place(o.w, o.h, lipgloss.Center, lipgloss.Center,
-			ui.EmptyState("", "Gathering system information…", "", o.w))
+			ui.EmptyState("", "Gathering system information..", "", o.w))
 	}
 	w, h := o.w, o.h
 
 	head := pageHead("Overview",
-		o.snap.host.Hostname+" · up "+sysinfo.FormatUptime(o.snap.host.Uptime), w)
+		o.snap.host.Hostname+" - up "+sysinfo.FormatUptime(o.snap.host.Uptime), w)
 
 	// Budget: 13 fixed rows + graphH + cRows + 2*netH + fsRows == h.
 	// Fixed: head, blank, cpu title, blank, mem title, ram, swap,
@@ -197,7 +197,7 @@ func pctOfScaled(v, scale float64) []float64 {
 // detail string right-aligned within w.
 func secTitle(id, label, right string, w int) string {
 	l := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent(id)).
-		Render("▾ " + label)
+		Render(label)
 	gap := w - lipgloss.Width(l) - lipgloss.Width(right)
 	if gap < 1 {
 		gap = 1
@@ -207,7 +207,7 @@ func secTitle(id, label, right string, w int) string {
 
 func (o Overview) cpuSection(w, graphH, cRows int) string {
 	c := o.snap.cpu
-	right := fmt.Sprintf("total %s%% · load %s %s %s · %d cores",
+	right := fmt.Sprintf("total %s%% - load %s %s %s - %d cores",
 		f1(c.Total), f1(o.snap.load.One), f1(o.snap.load.Five),
 		f1(o.snap.load.Fifteen), c.Cores)
 	var b strings.Builder
@@ -268,8 +268,8 @@ func (o Overview) memSection(w int) string {
 		ui.StateColor(m.UsedPercent), ui.Palette.Mauve) +
 		mutedSty.Render(" "+padLeft(itoa(int(m.UsedPercent+0.5)), 3)+"%")
 	ramStats := "used " + sysinfo.FormatBytes(float64(m.Used)) +
-		" · cache " + sysinfo.FormatBytes(float64(m.Cached)) +
-		" · free " + sysinfo.FormatBytes(float64(m.Total)-float64(m.Used))
+		" - cache " + sysinfo.FormatBytes(float64(m.Cached)) +
+		" - free " + sysinfo.FormatBytes(float64(m.Total)-float64(m.Used))
 
 	line := memLine("ram ", ramBar,
 		sysinfo.FormatBytes(float64(m.Used))+" / "+sysinfo.FormatBytes(float64(m.Total)),
@@ -304,7 +304,7 @@ func (o Overview) netSection(w, graphH int) string {
 	scale := maxFloat(o.netPeak, 64<<10) // floor: 64 KiB/s
 	rx := pctOfScaled(n.RecvPerSec, scale)
 	tx := pctOfScaled(n.SentPerSec, scale)
-	right := fmt.Sprintf("↓ %s · ↑ %s · scale %s",
+	right := fmt.Sprintf("↓ %s - ↑ %s - scale %s",
 		sysinfo.FormatRate(n.RecvPerSec), sysinfo.FormatRate(n.SentPerSec),
 		sysinfo.FormatRate(scale))
 	var b strings.Builder
@@ -336,7 +336,7 @@ func (o Overview) diskSection(w, rows int) string {
 	}
 	if len(fss) > shown {
 		b.WriteString("\n" + faintSty.Render(
-			"  … +" + itoa(len(fss)-shown) + " more — see Disks"))
+			"  .. +" + itoa(len(fss)-shown) + " more - see Disks"))
 	}
 	return b.String()
 }

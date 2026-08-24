@@ -214,7 +214,7 @@ func (u UsersGroups) View() string {
 				ui.EmptyState("", "cannot read account database", u.err, u.w))
 		}
 		return lipgloss.Place(u.w, u.h, lipgloss.Center, lipgloss.Center,
-			ui.EmptyState("", "reading /etc/passwd…", "", u.w))
+			ui.EmptyState("", "reading /etc/passwd..", "", u.w))
 	}
 
 	tblView := u.uTbl.View()
@@ -228,7 +228,7 @@ func (u UsersGroups) View() string {
 		tabLabel = "Groups"
 	}
 	head := pageHead(tabLabel,
-		fmt.Sprintf("tab switches · %d entries · system accounts dimmed", count), u.w)
+		fmt.Sprintf("tab switches - %d entries - system accounts dimmed", count), u.w)
 
 	wide, mainW, prevW := splitGeom(u.w)
 	prev := renderPreview("users", u.previewTitle(), "", u.previewBody(), prevW, u.h-1)
@@ -275,7 +275,7 @@ func (u UsersGroups) previewBody() string {
 	if u.tab == "users" {
 		idx, ok := u.uTbl.Selected()
 		if !ok || idx >= len(u.users) {
-			return faintSty.Render("select a user…")
+			return faintSty.Render("select a user..")
 		}
 		usr := u.users[idx]
 		memberships := accounts.GroupsOf(usr.Name, usr.GID, u.groups)
@@ -289,7 +289,7 @@ func (u UsersGroups) previewBody() string {
 			lines = append(lines, kv("class", "system account"))
 		} else if usr.Shell != "" && !strings.Contains(usr.Shell, "nologin") &&
 			usr.Shell != "/bin/false" {
-			lines = append(lines, kv("class", "human · login allowed"))
+			lines = append(lines, kv("class", "human - login allowed"))
 		} else {
 			lines = append(lines, kv("class", "no login shell"))
 		}
@@ -302,7 +302,7 @@ func (u UsersGroups) previewBody() string {
 
 	idx, ok := u.gTbl.Selected()
 	if !ok || idx >= len(u.groups) {
-		return faintSty.Render("select a group…")
+		return faintSty.Render("select a group..")
 	}
 	g := u.groups[idx]
 	members := accounts.MembersOf(g, u.users)
@@ -313,7 +313,7 @@ func (u UsersGroups) previewBody() string {
 	}
 	lines = append(lines, "", mutedSty.Render("members"))
 	for _, mem := range members {
-		lines = append(lines, faintSty.Render("  • "+mem))
+		lines = append(lines, faintSty.Render("  * "+mem))
 	}
 	return strings.Join(lines, "\n")
 }

@@ -199,20 +199,17 @@ func (r Root) View() string {
 	return ui.CompositeNotes(out, r.notes)
 }
 
-var sectionGlyph = map[string]string{
-	"overview": "◈", "proc": "⚙", "disk": "▤",
-	"files": "▸", "services": "✦", "users": "◍",
-}
-
 // viewTabStrip renders the nvim-bufferline-style top bar: logo, one
-// segment per screen with faint index digits, dividers between.
+// numbered segment per screen, dividers between. No decorative glyphs:
+// East-Asian-Ambiguous shapes render double-width in tmux/locales and
+// shift every following column (ADR-0010).
 func (r Root) viewTabStrip() string {
 	logo := lipgloss.NewStyle().Bold(true).Render("lcc2")
 	segs := []string{logo}
 	div := faintSty.Render("│")
 	for i, id := range r.order {
 		s := lookupSection(id)
-		label := sectionGlyph[s.id] + " " + s.label
+		label := s.label
 		if bs, ok := r.screens[id].(ui.BadgeSource); ok {
 			if b := bs.Badge(); b != "" {
 				label += " " + lipgloss.NewStyle().Bold(true).
@@ -251,7 +248,7 @@ func (r Root) viewStatusBar(cur ui.Screen) string {
 
 	right := ""
 	if cs, ok := cur.(ui.ContextSource); ok && cs.ContextHint() != "" {
-		right = cs.ContextHint() + faintSty.Render(" · ")
+		right = cs.ContextHint() + faintSty.Render(" - ")
 	}
 	right += faintSty.Render(time.Now().Format("15:04"))
 

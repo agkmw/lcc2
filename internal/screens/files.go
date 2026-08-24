@@ -186,7 +186,7 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			}
 			body := strings.Join(m.p.Lines, "\n")
 			if m.p.Truncated {
-				body += "\n" + faintSty.Render("… truncated")
+				body += "\n" + faintSty.Render(".. truncated")
 			}
 			f.prevBody = body
 		case m.err != nil:
@@ -196,7 +196,7 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		default: // binary: metadata fallback
 			f.prevTitle = filepathBase(m.path)
 			f.prevMeta = sysinfo.FormatBytes(float64(m.p.Size))
-			f.prevBody = faintSty.Render("binary file — no text preview")
+			f.prevBody = faintSty.Render("binary file - no text preview")
 			if e != nil {
 				f.prevBody = metaCard(*e, f.paneW()-2) + "\n\n" + f.prevBody
 			}
@@ -212,7 +212,7 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		f.prevBody = dirListingCard(m.list)
 		f.prevMeta = itoa(len(m.list)) + " entries"
 		if e != nil {
-			f.prevTitle, f.prevMeta = e.Name, entryMetaLine(*e)+" · "+itoa(len(m.list))+" entries"
+			f.prevTitle, f.prevMeta = e.Name, entryMetaLine(*e)+" - "+itoa(len(m.list))+" entries"
 		} else {
 			f.prevTitle = filepathBase(m.path)
 		}
@@ -354,7 +354,7 @@ func (f *Files) syncTable() {
 		name := e.Name
 		if e.IsDir {
 			name = lipgloss.NewStyle().Bold(true).
-				Foreground(ui.Accent("files")).Render(name + "▸")
+				Foreground(ui.Accent("files")).Render(name + "/")
 		}
 		if glyph != "" {
 			name = glyph + " " + name
@@ -709,15 +709,15 @@ func (f Files) View() string {
 	if f.w == 0 {
 		return ""
 	}
-	meta := crumbMeta(f.cwd) + " · hidden " + onOff(f.showHidden)
+	meta := crumbMeta(f.cwd) + " - hidden " + onOff(f.showHidden)
 	if n := f.stager.Len(); n > 0 {
-		meta += fmt.Sprintf(" · %d pending", n)
+		meta += fmt.Sprintf(" - %d pending", n)
 	}
 	if f.saving {
-		meta += fmt.Sprintf(" · saving %d/%d", f.saveDone, len(f.saveOps))
+		meta += fmt.Sprintf(" - saving %d/%d", f.saveDone, len(f.saveOps))
 	}
 	if f.opCount.Load() > 0 && !f.saving {
-		meta += " · working…"
+		meta += " - working.."
 	}
 	head := pageHead("Files", meta, f.w)
 
@@ -766,8 +766,8 @@ func onOff(b bool) string {
 
 func entryMetaLine(e files.Entry) string {
 	bits := files.ParsePermBits(e.Mode)
-	return bits.Octal() + " · " + files.UserName(e.UID) +
-		" · " + sysinfo.FormatBytes(float64(e.Size))
+	return bits.Octal() + " - " + files.UserName(e.UID) +
+		" - " + sysinfo.FormatBytes(float64(e.Size))
 }
 
 // fetchPreview issues the right async read for the given entry.
@@ -799,7 +799,7 @@ func dirListingCard(list []files.Entry) string {
 		name := e.Name
 		if e.IsDir {
 			name = lipgloss.NewStyle().Bold(true).
-				Foreground(ui.Accent("files")).Render(name + "▸")
+				Foreground(ui.Accent("files")).Render(name + "/")
 		}
 		b.WriteString(" " + name + "  " +
 			faintSty.Render(sizeOrDash(e)) + "\n")
@@ -842,7 +842,7 @@ func (f Files) previewContent() string {
 	if f.prevBody != "" {
 		return f.prevBody
 	}
-	return faintSty.Render("select an entry…")
+	return faintSty.Render("select an entry..")
 }
 
 // permEditorView draws the interactive rwx matrix with a live octal readout.
@@ -877,10 +877,10 @@ func (f Files) permEditorView() string {
 		}
 		grid += "\n"
 	}
-	help := faintSty.Render("h/j/k/l move · space toggle · enter stage · esc cancel")
+	help := faintSty.Render("h/j/k/l move - space toggle - enter stage - esc cancel")
 
 	body := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("files")).
-		Render("permissions — "+target) + "\n\n" +
+		Render("permissions - "+target) + "\n\n" +
 		grid + "\n" +
 		mutedSty.Render(bits.Symbolic()) + "  " +
 		lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Yellow).

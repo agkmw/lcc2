@@ -41,7 +41,7 @@ func contextSel(name, detail string) string {
 		return ""
 	}
 	if detail != "" {
-		return name + faintSty.Render(" · "+detail)
+		return name + faintSty.Render(" - "+detail)
 	}
 	return name
 }

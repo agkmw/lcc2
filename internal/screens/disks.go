@@ -307,12 +307,12 @@ func (d Disks) View() string {
 			main += "\n" + lipgloss.NewStyle().Foreground(ui.Accent("disk")).
 				Render(d.spin.View()+" analyzing ") +
 				faintSty.Render(ui.Truncate(d.path, clampInt(d.w-16, 10, d.w))) +
-				faintSty.Render("  ·  esc to cancel")
+				faintSty.Render("  -  esc to cancel")
 		} else if d.err != "" {
 			main += "\n" + badSty.Render(d.err)
 		} else if d.items != nil {
-			main += faintSty.Render("\n"+itoa(len(d.items.Items))+" entries · "+
-				sysinfo.FormatBytes(float64(d.items.TotalSize))+" · scanned in "+
+			main += faintSty.Render("\n"+itoa(len(d.items.Items))+" entries - "+
+				sysinfo.FormatBytes(float64(d.items.TotalSize))+" - scanned in "+
 				d.items.Duration.Round(100*time.Millisecond).String())
 		}
 	}
@@ -345,7 +345,7 @@ func (d Disks) previewBody() string {
 	if d.mode == "fs" {
 		idx, ok := d.fsTbl.Selected()
 		if !ok || idx >= len(d.fss) {
-			return faintSty.Render("select a filesystem…")
+			return faintSty.Render("select a filesystem..")
 		}
 		f := d.fss[idx]
 		bar := ui.Gauge(f.UsedPercent, clampInt(pw-14, 16, 44), colorPtr(ui.StateColor(f.UsedPercent)))
@@ -365,7 +365,7 @@ func (d Disks) previewBody() string {
 
 	idx, ok := d.dirTbl.Selected()
 	if !ok || d.items == nil || idx >= len(d.items.Items) {
-		return faintSty.Render("select an entry…")
+		return faintSty.Render("select an entry..")
 	}
 	it := d.items.Items[idx]
 	total := float64(d.items.TotalSize)
@@ -412,7 +412,7 @@ func crumbMeta(path string) string {
 		if i == len(parts)-1 {
 			sty = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FAB387"))
 		}
-		out += faintSty.Render(" › ") + sty.Render(p)
+		out += faintSty.Render(" / ") + sty.Render(p)
 	}
 	return out
 }

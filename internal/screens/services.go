@@ -116,7 +116,9 @@ func refreshSvcCmd() tea.Cmd {
 
 func statusCmd(unit string) tea.Cmd {
 	return func() tea.Msg {
-		return svcDetailMsg{unit: unit, text: services.StatusDetail(unit)}
+		// systemctl leads lines with ambiguous-width glyphs; narrow
+		// them so tmux cannot shift the pane columns.
+		return svcDetailMsg{unit: unit, text: ui.Narrow(services.StatusDetail(unit))}
 	}
 }
 
@@ -198,13 +200,13 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 func stateStyled(st string) string {
 	switch st {
 	case "active":
-		return lipgloss.NewStyle().Foreground(goodSty.GetForeground()).Render("● " + st)
+		return lipgloss.NewStyle().Foreground(goodSty.GetForeground()).Render("* " + st)
 	case "failed":
-		return lipgloss.NewStyle().Bold(true).Foreground(badSty.GetForeground()).Render("✕ " + st)
+		return lipgloss.NewStyle().Bold(true).Foreground(badSty.GetForeground()).Render("x " + st)
 	case "activating", "reloading":
-		return lipgloss.NewStyle().Foreground(warnSty.GetForeground()).Render("◐ " + st)
+		return lipgloss.NewStyle().Foreground(warnSty.GetForeground()).Render("~ " + st)
 	default:
-		return mutedSty.Render("○ " + st)
+		return mutedSty.Render("o " + st)
 	}
 }
 
@@ -223,7 +225,7 @@ func bootStyled(v string) string {
 
 func friendlySvcErr(err error) string {
 	if err == services.ErrUnavailable {
-		return "systemctl not found — service management unavailable here"
+		return "systemctl not found: service management unavailable here"
 	}
 	return err.Error()
 }
@@ -322,14 +324,14 @@ func (s Services) View() string {
 	if s.w == 0 {
 		return ""
 	}
-	head := pageHead("Services", fmt.Sprintf("%d units · auto-refresh %s",
+	head := pageHead("Services", fmt.Sprintf("%d units - auto-refresh %s",
 		len(s.units), svcRefreshInterval), s.w)
 
 	if !s.loaded {
 		return lipgloss.Place(s.w, s.h, lipgloss.Center, lipgloss.Center,
 			lipgloss.JoinVertical(lipgloss.Center,
 				lipgloss.NewStyle().Foreground(ui.Accent("services")).Render(s.spin.View()),
-				faintSty.Render("querying systemd…")))
+				faintSty.Render("querying systemd..")))
 	}
 	if s.loadErr != "" {
 		return lipgloss.Place(s.w, s.h, lipgloss.Center, lipgloss.Center,
@@ -371,7 +373,7 @@ func (s Services) previewBody() string {
 	if name != "" {
 		for _, u := range s.units {
 			if u.Name == name {
-				meta = u.Active + " · " + u.Enabled
+				meta = u.Active + " - " + u.Enabled
 				break
 			}
 		}
@@ -382,9 +384,9 @@ func (s Services) previewBody() string {
 	var body string
 	switch {
 	case name == "":
-		body = faintSty.Render("select a unit…")
+		body = faintSty.Render("select a unit..")
 	case s.detailText == "" || (s.fetching && name != s.detailUnit):
-		body = faintSty.Render("loading status…")
+		body = faintSty.Render("loading status..")
 	default:
 		body = lipgloss.NewStyle().Width(maxInt(prevW-2, 10)).
 			Render(strings.TrimSpace(s.detailText))

@@ -3,6 +3,8 @@
 package ui
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -123,5 +125,21 @@ func Truncate(s string, w int) string {
 	if lipgloss.Width(s) <= w {
 		return s
 	}
-	return ansi.Truncate(s, w, "…")
+	return ansi.Truncate(s, w, "..")
 }
+
+// ambiguousReplacer maps East-Asian-Ambiguous glyphs — which tmux and
+// some locales render double-width, shifting every following column —
+// to ASCII equivalents. Applied to provider text we do not control
+// (e.g. systemctl output). See ADR-0010.
+var ambiguousReplacer = strings.NewReplacer(
+	"●", "*", "○", "o", "◐", "~", "◕", "~", "◉", "*",
+	"✕", "x", "✗", "x", "✔", "+",
+	"▸", ">", "◂", "<", "▴", "^", "▾", "v",
+	"◈", "o", "◇", "o", "◆", "*",
+	"…", "..", "›", "/", "·", "-",
+)
+
+// Narrow replaces ambiguous-width glyphs with ASCII lookalikes so
+// rendered columns stay aligned in every terminal.
+func Narrow(s string) string { return ambiguousReplacer.Replace(s) }
