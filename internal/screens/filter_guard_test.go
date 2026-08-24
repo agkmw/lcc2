@@ -49,7 +49,7 @@ func TestFilterModeSwallowsActionKeysOnFiles(t *testing.T) {
 	if !f.tbl.Filtering() {
 		t.Fatal("filter mode lost")
 	}
-	if f.prompt != nil || f.confirm != nil || f.meta != nil {
+	if f.prompt != nil || f.permEdit != nil || f.stager.Len() > 0 {
 		t.Fatal("action fired during filtering")
 	}
 	if f.showHidden {
@@ -65,9 +65,9 @@ func TestFilterEnterCommitsNotNavigatesOnFiles(t *testing.T) {
 	f = typeQuery(t, f, "zz").(Files)
 	f = feed(f, tea.KeyMsg{Type: tea.KeyEnter}).(Files)
 
-	if f.tbl.Filtering() || f.meta != nil {
-		t.Fatalf("enter did not commit filter: filtering=%v meta=%v",
-			f.tbl.Filtering(), f.meta != nil)
+	if f.tbl.Filtering() || f.stager.Len() > 0 {
+		t.Fatalf("enter did not commit filter: filtering=%v staged=%d",
+			f.tbl.Filtering(), f.stager.Len())
 	}
 	if f.tbl.FilterString() != "zz" {
 		t.Fatalf("committed filter wrong: %q", f.tbl.FilterString())

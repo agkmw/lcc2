@@ -25,6 +25,7 @@ type Entry struct {
 	UID     uint32
 	GID     uint32
 	ModTime time.Time
+	Link    string // symlink target, when the entry is a link
 }
 
 var (
@@ -73,6 +74,11 @@ func List(dir string, showHidden bool) ([]Entry, error) {
 		}
 		path := filepath.Join(dir, de.Name())
 		e := Entry{Name: de.Name(), Path: path, IsDir: de.IsDir()}
+		if de.Type()&os.ModeSymlink != 0 {
+			if tgt, err := os.Readlink(path); err == nil {
+				e.Link = tgt
+			}
+		}
 		if info, err := de.Info(); err == nil {
 			e.Size = info.Size()
 			e.Mode = info.Mode().Perm()
@@ -126,15 +132,18 @@ func Mkdir(parent, name string) error {
 	return os.Mkdir(filepath.Join(parent, name), 0755)
 }
 
-// nestingErr reports when dstDir lies inside src (or equals it).
+// nestingErr reports when dstDir lies inside src (or equals it) —
+// copying a directory into its own subtree would recurse unbounded.
 func nestingErr(src, dstDir string) error {
 	cleanSrc := filepath.Clean(src)
 	rel, err := filepath.Rel(cleanSrc, filepath.Clean(dstDir))
-	if err != nil || rel == "." || rel == ".." ||
-		strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return nil // not nested
+	if err != nil {
+		return nil // unrelated trees; the primitives re-check anyway
 	}
-	return fmt.Errorf("cannot copy %s into itself", filepath.Base(cleanSrc))
+	if rel == "." || rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("cannot copy %s into itself", filepath.Base(cleanSrc))
+	}
+	return nil
 }
 
 // Copy recursively copies src into dstDir keeping its base name.

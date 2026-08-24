@@ -70,8 +70,8 @@ func TestFilesBusyGuard(t *testing.T) {
 	}
 	sc, _ = f.Update(keyRunes("d"))
 	f = sc.(Files)
-	if f.confirm != nil {
-		t.Fatal("delete dialog opened while busy")
+	if f.stager.Len() != 0 {
+		t.Fatal("delete staged while busy")
 	}
 	f.opCount.Store(0)
 	sc, _ = f.Update(keyRunes("a"))
