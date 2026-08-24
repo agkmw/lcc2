@@ -46,3 +46,10 @@ type Screen interface {
 type ContextSource interface {
 	ContextHint() string
 }
+
+// BadgeSource is an optional Screen extension: a short status string
+// rendered next to the section's tab title, e.g. a pending-change
+// count. Return "" when there is nothing to report.
+type BadgeSource interface {
+	Badge() string
+}

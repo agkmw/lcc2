@@ -9,11 +9,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"lcc2/internal/ui"
 )
-
-const sidebarWidth = 18
 
 type section struct {
 	id    string
@@ -36,23 +35,19 @@ var (
 
 // Root is the top-level tea.Model.
 type Root struct {
-	screens   map[string]ui.Screen
-	order     []string
-	active    int
-	width     int
-	height    int
-	notes     ui.NotifyStack
-	helpOpen  bool
-	quitting  bool
-	sidebarOn bool
+	screens  map[string]ui.Screen
+	order    []string
+	active   int
+	width    int
+	height   int
+	notes    ui.NotifyStack
+	helpOpen bool
+	quitting bool
 }
 
 // New creates the root model with the given screens (order matters).
 func New(screens ...ui.Screen) Root {
-	r := Root{
-		screens:   map[string]ui.Screen{},
-		sidebarOn: true,
-	}
+	r := Root{screens: map[string]ui.Screen{}}
 	for _, s := range screens {
 		r.screens[s.ID()] = s
 		r.order = append(r.order, s.ID())
@@ -70,12 +65,20 @@ func (r Root) Init() tea.Cmd {
 
 func (r Root) current() ui.Screen { return r.screens[r.order[r.active]] }
 
+// switchTo activates section i, lazily starting (or restarting) it.
+func (r *Root) switchTo(i int) tea.Cmd {
+	if i < 0 || i >= len(r.order) || i == r.active {
+		return nil
+	}
+	r.active = i
+	return tea.Batch(r.current().Init(), r.sendSize())
+}
+
 // Update handles global events and delegates to the active screen.
 func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m := msg.(type) {
 	case tea.WindowSizeMsg:
 		r.width, r.height = m.Width, m.Height
-		r.sidebarOn = m.Width >= 84
 		var cmds []tea.Cmd
 		for _, s := range r.order {
 			sc, c := r.screens[s].Update(m)
@@ -128,14 +131,13 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "?":
 				r.helpOpen = true
 				return r, nil
+			case "tab":
+				return r, r.switchTo((r.active + 1) % len(r.order))
+			case "shift+tab":
+				return r, r.switchTo((r.active - 1 + len(r.order)) % len(r.order))
 			case "1", "2", "3", "4", "5", "6":
 				n := int(m.String()[0] - '1')
-				if n < len(r.order) && n != r.active {
-					r.active = n
-					// Lazily start (or restart) the newly active section.
-					return r, tea.Batch(r.current().Init(), r.sendSize())
-				}
-				return r, nil
+				return r, r.switchTo(n)
 			}
 		}
 	}
@@ -156,14 +158,10 @@ func (r Root) sendSize() tea.Cmd {
 }
 
 // contentArea returns the space available to the active screen after
-// subtracting the nav/status bars, sidebar rail and page margins.
+// subtracting the tab strip, status bar and page margins.
 func (r Root) contentArea() (int, int) {
-	w := r.width
-	if r.sidebarOn {
-		w -= sidebarWidth + 1 // rail + its border column
-	}
-	w -= 4            // page margins
-	h := r.height - 5 // nav bar(2) + status bar(2) + one blank row
+	w := r.width - 4 // page margins
+	h := r.height - 4
 	if w < 10 {
 		w = 10
 	}
@@ -173,27 +171,28 @@ func (r Root) contentArea() (int, int) {
 	return w, h
 }
 
-func (r Root) bodyH() int { return maxInt(r.height-4, 1) }
-
-// View renders the full application frame: nav bar, body, status bar.
+// View renders the full application frame: tab strip, body, status
+// bar — then paints everything onto the app's own opaque canvas.
 func (r Root) View() string {
 	if r.quitting || r.width == 0 {
 		return ""
 	}
 	cur := r.current()
+	w, h := r.contentArea()
 
-	var mid string
-	if r.sidebarOn {
-		mid = lipgloss.JoinHorizontal(lipgloss.Top,
-			r.viewSidebar(r.bodyH()), r.viewPage(cur))
-	} else {
-		mid = r.viewPage(cur)
+	body := ui.ClipBlock(cur.View(), w)
+	lines := strings.Split("  "+strings.ReplaceAll(body, "\n", "\n  "), "\n")
+	for len(lines) < h {
+		lines = append(lines, "")
+	}
+	if len(lines) > h {
+		lines = lines[:h]
 	}
 
-	frame := r.viewNavBar() + "\n" + mid + "\n" + r.viewStatusBar(cur)
-	// One wide line would make Style.Render pad every line to its
-	// width — clip the whole frame to the terminal first.
-	out := ui.Base().Render(ui.ClipBlock(frame, r.width))
+	frame := r.viewTabStrip() + "\n" +
+		strings.Join(lines, "\n") + "\n" +
+		r.viewStatusBar(cur)
+	out := ui.Canvas(frame, r.width, r.height)
 	if r.helpOpen {
 		out = r.overlay(out, r.helpPanel())
 	}
@@ -205,146 +204,144 @@ var sectionGlyph = map[string]string{
 	"files": "▸", "services": "✦", "users": "◍",
 }
 
-// viewNavBar renders the top bar: plain logo, section links, clock,
-// closed by a full-width square rule.
-func (r Root) viewNavBar() string {
+// viewTabStrip renders the nvim-bufferline-style top bar: logo, one
+// segment per screen with faint index digits, dividers between.
+func (r Root) viewTabStrip() string {
 	logo := lipgloss.NewStyle().Bold(true).Render("lcc2")
-	links := make([]string, 0, len(r.order))
+	segs := []string{logo}
+	div := faintSty.Render("│")
 	for i, id := range r.order {
 		s := lookupSection(id)
-		label := strconv.Itoa(i+1) + "  " + s.label
+		label := sectionGlyph[s.id] + " " + s.label
+		if bs, ok := r.screens[id].(ui.BadgeSource); ok {
+			if b := bs.Badge(); b != "" {
+				label += " " + lipgloss.NewStyle().Bold(true).
+					Foreground(ui.Accent(id)).Render(b)
+			}
+		}
+		idx := faintSty.Render(strconv.Itoa(i+1))
 		if i == r.active {
-			links = append(links, lipgloss.NewStyle().Bold(true).
-				Foreground(ui.Accent(id)).Underline(true).Render(label))
+			segs = append(segs, idx+" "+lipgloss.NewStyle().
+				Bold(true).Foreground(ui.Accent(id)).Render(label))
 		} else {
-			links = append(links, mutedSty.Render(label))
+			segs = append(segs, idx+" "+mutedSty.Render(label))
 		}
 	}
-	left := logo + "   " + strings.Join(links, "   ")
-	clock := faintSty.Render(time.Now().Format("15:04"))
-	inner := maxInt(r.width-2, 12)
-	left = ui.Truncate(left, maxInt(inner-lipgloss.Width(clock)-1, 8))
-	gap := inner - lipgloss.Width(left) - lipgloss.Width(clock)
-	if gap < 1 {
-		gap = 1
-	}
-	row := " " + left + strings.Repeat(" ", gap) + clock + " "
-	border := lipgloss.NewStyle().Foreground(ui.Palette.Surface).
-		Render(strings.Repeat("─", maxInt(r.width, 1)))
-	return row + "\n" + border
+	row := " " + strings.Join(segs, " "+div+" ")
+	return row + "\n" + rule(r.width)
 }
 
-// viewSidebar renders the nav rail with a right border column, padded
-// to exactly bodyH lines.
-func (r Root) viewSidebar(bodyH int) string {
-	var lines []string
-	lines = append(lines, "")
-	for i, id := range r.order {
-		s := lookupSection(id)
-		glyph := faintSty.Render(sectionGlyph[s.id])
-		if i == r.active {
-			mark := lipgloss.NewStyle().Foreground(ui.Accent(id)).Render("▍")
-			lbl := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent(id)).
-				Render(s.label)
-			lines = append(lines, mark+" "+glyph+" "+lbl, "")
-		} else {
-			lines = append(lines, " "+glyph+" "+mutedSty.Render(s.label), "")
-		}
-	}
-	borderCh := lipgloss.NewStyle().Foreground(ui.Palette.Surface).Render("│")
-	out := make([]string, bodyH)
-	for i := 0; i < bodyH; i++ {
-		l := ""
-		if i < len(lines) {
-			l = lines[i]
-		}
-		out[i] = ui.ClipBlock(l, sidebarWidth-1) + borderCh
-	}
-	return strings.Join(out, "\n")
-}
-
-// viewPage renders the active screen inside the page margins.
-func (r Root) viewPage(cur ui.Screen) string {
-	w, _ := r.contentArea()
-	body := ui.ClipBlock(cur.View(), w)
-	lines := strings.Split("  "+strings.ReplaceAll(body, "\n", "\n  "), "\n")
-	h := r.bodyH()
-	return lipgloss.NewStyle().Height(h).MaxHeight(h).
-		Render(strings.Join(lines, "\n"))
+func rule(w int) string {
+	return lipgloss.NewStyle().Foreground(ui.Palette.Surface).
+		Render(strings.Repeat("─", maxInt(w, 1)))
 }
 
 // viewStatusBar renders the bottom bar: square rule, hints left,
-// context slot right.
+// context slot and clock right.
 func (r Root) viewStatusBar(cur ui.Screen) string {
-	border := lipgloss.NewStyle().Foreground(ui.Palette.Surface).
-		Render(strings.Repeat("─", maxInt(r.width, 1)))
 	hints := ""
 	for _, kb := range cur.Hints() {
 		if !kb.Enabled() {
 			continue
 		}
-		hints += ui.KeyBadge(cur.ID(), kb.Help().Key) +
-			faintSty.Render(" "+kb.Help().Desc+"  ")
+		hints += keycap(kb.Help().Key) + faintSty.Render(" "+kb.Help().Desc+"  ")
 	}
-	hints += ui.KeyBadge(cur.ID(), "?") + faintSty.Render(" help  ") +
-		ui.KeyBadge(cur.ID(), "q") + faintSty.Render(" quit")
+	hints += keycap("?") + faintSty.Render(" help  ") +
+		keycap("q") + faintSty.Render(" quit")
+
 	right := ""
-	if cs, ok := cur.(ui.ContextSource); ok {
-		right = faintSty.Render(cs.ContextHint())
+	if cs, ok := cur.(ui.ContextSource); ok && cs.ContextHint() != "" {
+		right = cs.ContextHint() + faintSty.Render(" · ")
 	}
-	budget := r.width - 2
-	if right != "" {
-		budget -= lipgloss.Width(right) + 3
-	}
+	right += faintSty.Render(time.Now().Format("15:04"))
+
+	budget := r.width - 2 - lipgloss.Width(right) - 1
 	hints = ui.Truncate(hints, maxInt(budget, 8))
-	gap := budget - lipgloss.Width(hints)
+	gap := r.width - 2 - lipgloss.Width(hints) - lipgloss.Width(right)
 	if gap < 1 {
 		gap = 1
 	}
-	row := " " + hints + strings.Repeat(" ", gap) + right + " "
-	return border + "\n" + row
+	return rule(r.width) + "\n" +
+		" " + hints + strings.Repeat(" ", gap) + right + " "
 }
 
+func keycap(k string) string {
+	return lipgloss.NewStyle().Bold(true).
+		Foreground(ui.Palette.Text).Render("[" + k + "]")
+}
+
+// helpPanel renders the keyboard reference as a solid surface block.
 func (r Root) helpPanel() string {
-	chip := func(k string) string {
-		return lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Blue).
-			Render("[" + k + "]")
+	chip := keycap
+	head := lipgloss.NewStyle().Bold(true).
+		Foreground(ui.Palette.Blue).Render("Keys") + "\n\n"
+	rows := func(pairs ...[2]string) string {
+		var b strings.Builder
+		for _, p := range pairs {
+			b.WriteString("  " + chip(p[0]) + faintSty.Render(" "+p[1]) + "\n")
+		}
+		return b.String()
 	}
-	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).
-		Foreground(ui.Palette.Blue).Render("Keyboard reference") + "\n\n")
-	globals := []struct{ k, d string }{
-		{"1-6", "jump to section"}, {"j/k", "down / up"},
-		{"h/l", "back / open"}, {"enter", "select"},
-		{"/", "filter list"}, {"esc", "cancel / back"},
-		{"r", "refresh"}, {"?", "help"}, {"q", "quit"},
-	}
-	for _, g := range globals {
-		b.WriteString("  " + chip(g.k) + faintSty.Render(" "+g.d) + "\n")
-	}
-	b.WriteString("\n" + lipgloss.NewStyle().Bold(true).
-		Render("Section keys") + "\n\n")
-	for _, kb := range r.current().Hints() {
-		if kb.Enabled() {
-			b.WriteString("  " + chip(kb.Help().Key) +
-				faintSty.Render(" "+kb.Help().Desc) + "\n")
+	body := head +
+		rows(
+			[2]string{"tab / shift+tab", "next / previous screen"},
+			[2]string{"1-6", "jump to screen"},
+			[2]string{"j/k", "move selection"},
+			[2]string{"/", "filter list"},
+			[2]string{"enter", "select / open"},
+			[2]string{"esc", "back / cancel"},
+			[2]string{"?", "help"},
+			[2]string{"q", "quit"},
+		) +
+		"\n" + lipgloss.NewStyle().Bold(true).
+		Render(lookupSection(r.order[r.active]).label+" keys") + "\n\n" +
+		func() string {
+			var b strings.Builder
+			for _, kb := range r.current().Hints() {
+				if kb.Enabled() {
+					b.WriteString("  " + chip(kb.Help().Key) +
+						faintSty.Render(" "+kb.Help().Desc) + "\n")
+				}
+			}
+			return b.String()
+		}()
+
+	pw := 0
+	for _, l := range strings.Split(body, "\n") {
+		if w := lipgloss.Width(l); w > pw {
+			pw = w
 		}
 	}
-	return ui.Panel().Padding(1, 3).Render(b.String())
+	return ui.PaintBlock(body, pw+4, ui.Palette.Surface)
 }
 
-// overlay centers a panel on top of the base frame.
+// overlay centers a filled panel on top of the base frame without
+// moving any other byte of it.
 func (r Root) overlay(base, panel string) string {
-	return lipgloss.Place(r.width, lipgloss.Height(base),
-		lipgloss.Center, lipgloss.Center, panel,
-		lipgloss.WithWhitespaceForeground(ui.Palette.Faint))
-}
-
-func pad(s string, w int) string {
-	for lipgloss.Width(s) < w {
-		s += " "
+	bl := strings.Split(base, "\n")
+	pl := strings.Split(panel, "\n")
+	y := (len(bl) - len(pl)) / 2
+	x := (r.width - lipgloss.Width(panel)) / 2
+	if y < 0 {
+		y = 0
 	}
-	return s
+	if x < 0 {
+		x = 0
+	}
+	for i, src := range pl {
+		row := y + i
+		if row >= len(bl) {
+			break
+		}
+		line := bl[row]
+		if lw := lipgloss.Width(line); lw > x {
+			line = ansi.Truncate(line, x, "")
+		} else if lw < x {
+			line += strings.Repeat(" ", x-lw)
+		}
+		bl[row] = line + src
+	}
+	return strings.Join(bl, "\n")
 }
 
 func maxInt(a, b int) int {

@@ -134,10 +134,11 @@ func KeyBadge(sectionID, key string) string {
 		Render("[" + key + "]")
 }
 
-// SelectedRow is the full-line highlight for the focused list row.
+// SelectedRow styles the focused list row: bold foreground only.
+// Background fills are reserved for intentional surfaces (dialogs,
+// toasts, help) — never scattered per-widget backgrounds.
 func SelectedRow() lipgloss.Style {
-	return lipgloss.NewStyle().Bold(true).
-		Background(Palette.Surface).Foreground(Palette.Text)
+	return lipgloss.NewStyle().Bold(true).Foreground(Palette.Text)
 }
 
 // StateColor maps a 0-100 percentage onto threshold colors.
@@ -155,11 +156,6 @@ func StateColor(pct float64) lipgloss.Color {
 // Danger styles destructive text such as delete prompts.
 func Danger() lipgloss.Style {
 	return lipgloss.NewStyle().Bold(true).Foreground(Palette.Red)
-}
-
-// KeyHint renders a key cap like "j".
-func KeyHint(k string) string {
-	return lipgloss.NewStyle().Bold(true).Foreground(accent("overview")).Render(k)
 }
 
 // Truncate clips s to w cells appending an ellipsis when needed,

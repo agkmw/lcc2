@@ -332,10 +332,3 @@ func clampInt(v, lo, hi int) int {
 	}
 	return v
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

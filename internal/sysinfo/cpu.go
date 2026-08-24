@@ -35,13 +35,3 @@ func SampleCPU(interval time.Duration) (CPUSample, error) {
 		Total:   t,
 	}, nil
 }
-
-// Counts returns physical and logical core counts.
-func Counts() (physical, logical int, err error) {
-	logical, err = cpu.Counts(true)
-	if err != nil {
-		return 0, 0, err
-	}
-	physical, err = cpu.Counts(false)
-	return physical, logical, err
-}

@@ -51,12 +51,3 @@ func ReadLoad() Load {
 	}
 	return Load{One: l.Load1, Five: l.Load5, Fifteen: l.Load15}
 }
-
-// CoreCount returns the number of logical CPU cores (0 on error).
-func CoreCount() int {
-	_, logical, err := Counts()
-	if err != nil {
-		return 0
-	}
-	return logical
-}

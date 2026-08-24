@@ -124,7 +124,9 @@ func noteWindow(it Notification) []string {
 		BorderForeground(color).
 		Padding(0, 1).
 		Render(content)
-	return strings.Split(panel, "\n")
+	// Solid fill: the window must read as a layer above the canvas,
+	// not punch through to the terminal background.
+	return strings.Split(PaintBlock(panel, lipgloss.Width(panel), Palette.Surface), "\n")
 }
 
 func max(a, b int) int {

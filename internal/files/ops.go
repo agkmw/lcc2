@@ -212,24 +212,3 @@ func copyFile(src, dst string, mode os.FileMode) error {
 func Chmod(path string, mode os.FileMode) error {
 	return os.Chmod(path, mode)
 }
-
-// Stat returns metadata for a single path.
-func Stat(path string) (*Entry, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, err
-	}
-	e := &Entry{
-		Name:    filepath.Base(path),
-		Path:    path,
-		IsDir:   info.IsDir(),
-		Size:    info.Size(),
-		Mode:    info.Mode().Perm(),
-		ModTime: info.ModTime(),
-	}
-	if st, ok := info.Sys().(*syscall.Stat_t); ok {
-		e.UID = st.Uid
-		e.GID = st.Gid
-	}
-	return e, nil
-}
