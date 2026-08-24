@@ -275,8 +275,12 @@ func (r Root) viewTabStrip() string {
 				label = faintSty.Render(strconv.Itoa(i+1)) + " " + label
 			}
 			if i == r.active {
+				// Inverted chip marks the current section at a glance;
+				// the SGR-state canvas keeps the fill intact.
 				segs = append(segs, lipgloss.NewStyle().
-					Bold(true).Foreground(ui.Accent(ti.id)).Render(label))
+					Bold(true).Foreground(ui.Accent(ti.id)).
+					Background(ui.Palette.Surface).
+					Render(" "+label+" "))
 			} else {
 				segs = append(segs, mutedSty.Render(label))
 			}
