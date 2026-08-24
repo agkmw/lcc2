@@ -352,50 +352,45 @@ func keycap(k string) string {
 		Foreground(ui.Palette.Text).Render("[" + k + "]")
 }
 
-// helpPanel renders the keyboard reference as plain lines — the dimmed
-// canvas behind it is the only backdrop (ADR-0010).
+// helpPanel renders the keyboard reference as a bordered card floating
+// on the dimmed canvas (ADR-0011 supersedes the no-card clause for
+// help): a visible boundary is the cue that a modal layer is open.
 func (r Root) helpPanel() string {
 	chip := keycap
-	head := lipgloss.NewStyle().Bold(true).
-		Foreground(ui.Palette.Blue).Render("Keys") + "\n\n"
-	rows := func(pairs ...[2]string) string {
-		var b strings.Builder
+	rows := func(pairs ...[2]string) []string {
+		out := make([]string, 0, len(pairs))
 		for _, p := range pairs {
-			b.WriteString("  " + chip(p[0]) + faintSty.Render(" "+p[1]) + "\n")
+			out = append(out, "  "+chip(p[0])+faintSty.Render(" "+p[1]))
 		}
-		return b.String()
+		return out
 	}
-	body := head +
-		rows(
-			[2]string{"tab / shift+tab", "next / previous screen"},
-			[2]string{"1-6", "jump to screen"},
-			[2]string{"j/k", "move selection"},
-			[2]string{"/", "filter list"},
-			[2]string{"enter", "select / open"},
-			[2]string{"esc", "back / cancel"},
-			[2]string{"?", "help"},
-			[2]string{"q", "quit"},
-		) +
-		"\n" + lipgloss.NewStyle().Bold(true).
-		Render(lookupSection(r.order[r.active]).label+" keys") + "\n\n" +
-		func() string {
-			var b strings.Builder
-			for _, kb := range r.current().Hints() {
-				if kb.Enabled() {
-					b.WriteString("  " + chip(kb.Help().Key) +
-						faintSty.Render(" "+kb.Help().Desc) + "\n")
-				}
-			}
-			return b.String()
-		}()
-
-	pw := 0
-	for _, l := range strings.Split(body, "\n") {
-		if w := lipgloss.Width(l); w > pw {
-			pw = w
+	section := lookupSection(r.order[r.active]).label
+	lines := []string{
+		lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Blue).
+			Render("Keys") + faintSty.Render("  "+section),
+		"",
+	}
+	lines = append(lines, rows(
+		[2]string{"tab / shift+tab", "next / previous screen"},
+		[2]string{"1-6", "jump to screen"},
+		[2]string{"j/k", "move selection"},
+		[2]string{"/", "filter list"},
+		[2]string{"enter", "select / open"},
+		[2]string{"esc", "back / cancel"},
+		[2]string{"?", "help"},
+		[2]string{"q", "quit"},
+	)...)
+	lines = append(lines, "")
+	for _, kb := range r.current().Hints() {
+		if kb.Enabled() {
+			lines = append(lines, "  "+chip(kb.Help().Key)+
+				faintSty.Render(" "+kb.Help().Desc))
 		}
 	}
-	return ui.ClipBlock(body, pw+4)
+	return ui.Panel().
+		BorderForeground(ui.Palette.Surface).
+		Padding(0, 1).
+		Render(strings.Join(lines, "\n"))
 }
 
 // overlay centers a filled panel on top of the base frame without
