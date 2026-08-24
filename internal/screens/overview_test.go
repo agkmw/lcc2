@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"lcc2/internal/disk"
 	"lcc2/internal/sysinfo"
 	"lcc2/internal/ui"
@@ -111,5 +113,49 @@ func TestOverviewNetHistoryPlotted(t *testing.T) {
 	}
 	if nonZero < histMax/2 {
 		t.Fatalf("history plot mostly flat: %d/%d non-zero", nonZero, histMax)
+	}
+}
+
+// Net charts must share the cpu chart's exact geometry: full interior
+// width, no label gutter — direction labels live on their own lines.
+func TestNetBoxAlignedLikeCpu(t *testing.T) {
+	o := overviewFixture()
+	for i := 0; i < 40; i++ {
+		o.observe(snapshot{net: sysinfo.NetRates{
+			RecvPerSec: float64(i) * (1 << 15), SentPerSec: float64(i) * (1 << 14),
+		}})
+	}
+	box := o.netBox(80, 3)
+	lines := strings.Split(box, "\n")
+	if len(lines) != 3*2+2+1+2 { // netH*2 charts + 2 labels + totals + borders
+		t.Fatalf("net box has %d lines", len(lines))
+	}
+	labels, charts := 0, 0
+	for _, l := range lines {
+		s := stripANSI(l)
+		switch {
+		case strings.HasPrefix(s, "┌") || strings.HasPrefix(s, "└"):
+			continue
+		case strings.Contains(s, "total"):
+			continue
+		case strings.HasPrefix(s, "│ down") || strings.HasPrefix(s, "│ up"):
+			labels++
+			continue
+		}
+		charts++
+		// Between the side borders: pad + full-width chart (76) + pad.
+		body := strings.TrimSuffix(strings.TrimPrefix(s, "│"), "│")
+		if lipgloss.Width(body) != 78 {
+			t.Errorf("chart row interior %d cells, want 78", lipgloss.Width(body))
+		}
+	}
+	if labels != 2 || charts != 6 {
+		t.Errorf("labels=%d charts=%d, want 2 and 6", labels, charts)
+	}
+	// The rx chart reaches the right edge: rising history ends non-zero
+	// in the final plot column.
+	rxLast := strings.TrimSuffix(strings.TrimPrefix(stripANSI(lines[4]), "│"), "│")
+	if rxLast[76] == ' ' {
+		t.Errorf("rx chart does not span the full interior: %q", rxLast)
 	}
 }

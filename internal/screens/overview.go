@@ -221,10 +221,10 @@ func (o Overview) View() string {
 	head := pageHead("Overview",
 		o.snap.host.Hostname+" - up "+sysinfo.FormatUptime(o.snap.host.Uptime), w)
 
-	// Budget: head(1) + borders(8) + ram+swap(2) + net totals(1) plus
-	// graphs and rows must land exactly on h.
+	// Budget: head(1) + borders(8) + ram+swap(2) + net labels(2) +
+	// net totals(1) plus graphs and rows must land exactly on h.
 	cRows := o.coreRows(w - 4)
-	rem := h - 12 - cRows
+	rem := h - 14 - cRows
 	graphH := clampInt(rem*2/5, 3, 12)
 	rest := maxInt(rem-graphH, 0)
 	netH := clampInt(rest/3, 1, 6)
@@ -358,40 +358,29 @@ func memLine(label, bar, usage, stats string, w int) string {
 func (o Overview) netBox(w, netH int) string {
 	n := o.snap.net
 	scale := snapScale(o.netPeak)
-
 	iw := w - 4
-	const labelW = 6 // "down " / "up   "
-	rxRate := faintSty.Render(sysinfo.FormatRate(n.RecvPerSec))
-	txRate := faintSty.Render(sysinfo.FormatRate(n.SentPerSec))
-	suffix := lipgloss.Width(rxRate)
-	if s := lipgloss.Width(txRate); s > suffix {
-		suffix = s
-	}
-	gw := clampInt(iw-labelW-2-suffix, 10, iw)
 
-	// Plot the recorded history (absolute bytes/s), normalized against
-	// the current scale — the whole line breathes together instead of
-	// a lone point per tick.
-	rxRows := strings.Split(o.chart(scaleHist(o.rxHist, scale), gw, netH, ui.Palette.Teal), "\n")
-	txRows := strings.Split(o.chart(scaleHist(o.txHist, scale), gw, netH, ui.Palette.Peach), "\n")
-	downLbl := mutedSty.Render(padTo("down", labelW-1))
-	upLbl := mutedSty.Render(padTo("up", labelW-1))
+	// Full-width blocks with the exact geometry of the cpu chart: the
+	// direction label sits on its own line (rate right-aligned) and the
+	// braille plot spans the whole interior — same left/right edges.
+	rxRows := strings.Split(o.chart(scaleHist(o.rxHist, scale), iw, netH, ui.Palette.Teal), "\n")
+	txRows := strings.Split(o.chart(scaleHist(o.txHist, scale), iw, netH, ui.Palette.Peach), "\n")
+
+	dirLine := func(name string, c lipgloss.Color, rate float64) string {
+		lbl := lipgloss.NewStyle().Bold(true).Foreground(c).Render(name)
+		r := sysinfo.FormatRate(rate)
+		gap := iw - lipgloss.Width(lbl) - lipgloss.Width(r)
+		if gap < 1 {
+			gap = 1
+		}
+		return ui.ClipBlock(lbl+strings.Repeat(" ", gap)+faintSty.Render(r), iw)
+	}
 
 	var body []string
-	for i := 0; i < netH; i++ {
-		if i == 0 {
-			body = append(body, downLbl+rxRows[i]+"  "+rxRate)
-		} else {
-			body = append(body, strings.Repeat(" ", labelW)+rxRows[i])
-		}
-	}
-	for i := 0; i < netH; i++ {
-		if i == 0 {
-			body = append(body, upLbl+txRows[i]+"  "+txRate)
-		} else {
-			body = append(body, strings.Repeat(" ", labelW)+txRows[i])
-		}
-	}
+	body = append(body, dirLine("down", ui.Palette.Teal, n.RecvPerSec))
+	body = append(body, rxRows...)
+	body = append(body, dirLine("up", ui.Palette.Peach, n.SentPerSec))
+	body = append(body, txRows...)
 	body = append(body, faintSty.Render(fmt.Sprintf("down total %s   up total %s",
 		sysinfo.FormatBytes(float64(n.RecvTotal)),
 		sysinfo.FormatBytes(float64(n.SentTotal)))))
