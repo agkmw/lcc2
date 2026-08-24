@@ -149,7 +149,7 @@ func TestPreviewFollowsSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f = feed(f, filePreviewMsg{path: path, p: content}).(Files)
+	f = feed(f, filePreviewMsg{path: path, key: path, p: content}).(Files)
 	if !strings.Contains(f.previewContent(), "alpha") {
 		t.Fatalf("preview missing content: %q", f.previewContent())
 	}

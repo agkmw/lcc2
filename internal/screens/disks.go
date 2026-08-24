@@ -344,7 +344,7 @@ func (d Disks) previewBody() string {
 	if d.mode == "fs" {
 		idx, ok := d.fsTbl.Selected()
 		if !ok || idx >= len(d.fss) {
-			return faintSty.Render("select a filesystem..")
+			return ""
 		}
 		f := d.fss[idx]
 		bar := ui.Gauge(f.UsedPercent, clampInt(pw-14, 16, 44), colorPtr(ui.StateColor(f.UsedPercent)))
@@ -364,7 +364,7 @@ func (d Disks) previewBody() string {
 
 	idx, ok := d.dirTbl.Selected()
 	if !ok || d.items == nil || idx >= len(d.items.Items) {
-		return faintSty.Render("select an entry..")
+		return ""
 	}
 	it := d.items.Items[idx]
 	total := float64(d.items.TotalSize)
@@ -398,20 +398,18 @@ func (d Disks) previewTitle() string {
 	return "entry"
 }
 
-// crumbMeta renders a path as breadcrumb text for the page-head meta
-// slot: current segment bold accent, separators faint.
+// crumbMeta renders a path for the page-head meta slot: faint head,
+// bold-accent final segment. Absolute paths render with one leading
+// slash ("/tmp/x" -> "/tmp/" + "x").
 func crumbMeta(path string) string {
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	out := mutedSty.Render("/")
-	for i, p := range parts {
-		if p == "" {
-			continue
-		}
-		sty := mutedSty
-		if i == len(parts)-1 {
-			sty = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FAB387"))
-		}
-		out += faintSty.Render(" / ") + sty.Render(p)
+	if path == "" {
+		return mutedSty.Render("/")
 	}
-	return out
+	i := strings.LastIndexByte(path, '/')
+	head, last := path[:i+1], path[i+1:]
+	if last == "" { // path ends in "/": root
+		return mutedSty.Render(head)
+	}
+	return mutedSty.Render(head) +
+		lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Peach).Render(last)
 }

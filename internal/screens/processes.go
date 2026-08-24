@@ -43,7 +43,6 @@ type Processes struct {
 
 	insp    *proc.Details // preview of the selected process
 	inspPID int32         // pid currently inspected (0 = none)
-	inspErr string
 
 	scanning *atomic.Int32  // guards against overlapping full scans
 	epoch    *atomic.Uint64 // tick-chain generation; stale chains die
@@ -155,11 +154,11 @@ func (p Processes) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			return p, nil // stale inspection of a since-moved cursor
 		}
 		if m.err != nil {
-			p.insp, p.inspPID, p.inspErr = nil, m.pid, "process exited or unreadable"
+			p.insp, p.inspPID = nil, 0 // list row keeps the pane filled
 			break
 		}
 		d := m.d
-		p.insp, p.inspPID, p.inspErr = &d, m.pid, ""
+		p.insp, p.inspPID = &d, m.pid
 
 	case procTickMsg:
 		if m.gen != p.epoch.Load() {
@@ -234,11 +233,19 @@ func (p Processes) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 
 // selectedPID returns the PID under the cursor (0 = none).
 func (p Processes) selectedPID() int32 {
-	idx, ok := p.tbl.Selected()
-	if !ok || idx >= len(p.all) {
+	pr, ok := p.selectedProc()
+	if !ok {
 		return 0
 	}
-	return p.all[idx].PID
+	return pr.PID
+}
+
+func (p Processes) selectedProc() (proc.Process, bool) {
+	idx, ok := p.tbl.Selected()
+	if !ok || idx >= len(p.all) {
+		return proc.Process{}, false
+	}
+	return p.all[idx], true
 }
 
 func (p Processes) askSignal(sig syscall.Signal) (ui.Screen, tea.Cmd) {
@@ -359,55 +366,71 @@ func (p Processes) View() string {
 	for len(lines) < p.h {
 		lines = append(lines, "")
 	}
+	view := strings.Join(lines, "\n")
 	if p.confirm != nil {
-		return lipgloss.Place(p.w, p.h, lipgloss.Center, lipgloss.Center, p.confirm.View())
+		return overlayCenter(view, p.confirm.View(), p.w)
 	}
-	return strings.Join(lines, "\n")
+	return view
 }
 
 // previewBody renders the right-hand pane for the selected process.
+// It draws straight from the list row so the pane is never empty
+// while the async inspection is in flight.
 func (p Processes) previewBody() string {
 	_, _, prevW := splitGeom(p.w)
-	title, meta := "process", ""
-	if d := p.insp; d != nil {
-		title, meta = d.Name, "pid "+itoa(int(d.PID))
-	}
-	var body string
+	pr, ok := p.selectedProc()
+	var title, meta, body string
 	switch {
-	case p.inspErr != "" && p.insp == nil:
-		body = mutedSty.Render(p.inspErr)
-	case p.insp == nil:
-		body = faintSty.Render("select a process..")
+	case !ok:
+		// nothing selected: blank pane
+	case p.insp != nil && p.inspPID == pr.PID:
+		title = truncCell(p.insp.Name, maxInt(prevW-4, 6))
+		meta = "pid " + itoa(int(p.insp.PID))
+		body = processCard(p.insp.Process, p.insp, prevW)
 	default:
-		body = p.inspectCard(*p.insp, prevW)
+		title = truncCell(pr.Name, maxInt(prevW-4, 6))
+		meta = "pid " + itoa(int(pr.PID))
+		body = processCard(pr, nil, prevW)
 	}
-	return renderPreview("proc", truncCell(title, maxInt(prevW-4, 6)), meta, body, prevW, p.h-1)
+	return renderPreview("proc", title, meta, body, prevW, p.h-1)
 }
 
-func (p Processes) inspectCard(d proc.Details, w int) string {
+// processCard renders key/value lines from the list row, enriched
+// when full details are available.
+func processCard(d proc.Process, insp *proc.Details, w int) string {
 	kv := func(k, v string) string {
 		return mutedSty.Render(padTo(k, 9)) + faintSty.Render(ui.Truncate(v, maxInt(w-11, 4)))
 	}
-	lines := []string{
-		lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("proc")).
-			Render(truncCell(d.Name, maxInt(w-2, 6))),
-		"",
+	head := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("proc")).
+		Render(truncCell(d.Name, maxInt(w-2, 6)))
+	lines := []string{head, "",
 		kv("pid", itoa(int(d.PID))),
-		kv("parent", itoa(int(d.PPID))),
 		kv("user", d.User),
 		kv("state", stateName(d.State)),
 		kv("cpu", f1(d.CPUPercent)+"%"),
 		kv("memory", f1(d.MemPercent)+"% ("+sysinfo.FormatBytes(float64(d.RSS))+")"),
-		kv("threads", itoa(int(d.Threads))),
-		kv("fds", itoa(int(d.FDs))),
-		kv("nice", itoa(int(d.Nice))),
-		kv("started", proc.FormatAge(d.StartedUnix)),
 	}
-	if d.Executable != "" {
-		lines = append(lines, kv("exe", d.Executable))
-	}
-	if d.CWD != "" {
-		lines = append(lines, kv("cwd", d.CWD))
+	if insp != nil {
+		set := func(k, v string) {
+			for i, l := range lines {
+				if strings.HasPrefix(l, padTo(k, 9)) {
+					lines[i] = kv(k, v)
+					return
+				}
+			}
+			lines = append(lines, kv(k, v))
+		}
+		set("parent", itoa(int(insp.PPID)))
+		set("threads", itoa(int(insp.Threads)))
+		set("fds", itoa(int(insp.FDs)))
+		set("nice", itoa(int(insp.Nice)))
+		set("started", proc.FormatAge(insp.StartedUnix))
+		if insp.Executable != "" {
+			lines = append(lines, kv("exe", insp.Executable))
+		}
+		if insp.CWD != "" {
+			lines = append(lines, kv("cwd", insp.CWD))
+		}
 	}
 	lines = append(lines, "", faintSty.Render("cmdline"))
 	lines = append(lines, strings.Split(wordWrap(d.Command, maxInt(w-2, 10)), "\n")...)

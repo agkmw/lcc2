@@ -102,9 +102,10 @@ func TestPreviewAlignsWithTableTop(t *testing.T) {
 	p = feed(p, ui.SizeMsg{Width: 100, Height: 30},
 		procListMsg([]proc.Process{{PID: 42, Name: "demo", User: "u", State: "S"}})).(Processes)
 	lines := strings.Split(p.View(), "\n")
-	// The preview title sits on the same line as the top of the table
-	// body (line 1, right after the page head), its rule on line 2.
-	if !strings.Contains(lines[1], "process") {
+	// The preview pane renders instantly from the list row: its title
+	// (the process name) shares line 1 with the top of the table body,
+	// its rule sits on line 2 beside the table header.
+	if !strings.Contains(lines[1], "demo") || !strings.Contains(lines[1], "42") {
 		t.Fatalf("preview title not aligned with table top:\n%s",
 			strings.Join(lines[:4], "\n"))
 	}

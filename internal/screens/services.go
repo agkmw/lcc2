@@ -299,12 +299,10 @@ func (s Services) askAction(action string) (ui.Screen, tea.Cmd) {
 		return s, nil
 	}
 	dangerous := action == "stop" || action == "disable" || action == "restart"
-	body := strings.ToUpper(action[:1]) + action[1:] + " " + u + "?"
-	dlg := ui.NewConfirm(strings.ToUpper(action[:1])+action[1:]+" service", body, "")
+	verb := strings.ToUpper(action[:1]) + action[1:]
+	dlg := ui.NewConfirm(verb+" service", verb+" "+u+"?", "")
+	dlg.Danger = dangerous
 	dlg.SetWidth(clampInt(s.w-8, 44, 70))
-	if !dangerous {
-		dlg.Title = action
-	}
 	s.confirm = &dlg
 	s.pendingOp = [2]string{u, action}
 	return s, nil
@@ -359,10 +357,11 @@ func (s Services) View() string {
 	if len(lines) > s.h {
 		lines = lines[:s.h]
 	}
+	view := strings.Join(lines, "\n")
 	if s.confirm != nil {
-		return lipgloss.Place(s.w, s.h, lipgloss.Center, lipgloss.Center, s.confirm.View())
+		return overlayCenter(view, s.confirm.View(), s.w)
 	}
-	return strings.Join(lines, "\n")
+	return view
 }
 
 // previewBody renders the right-hand pane for the selected unit.
@@ -384,7 +383,7 @@ func (s Services) previewBody() string {
 	var body string
 	switch {
 	case name == "":
-		body = faintSty.Render("select a unit..")
+		// blank pane until a unit is selected
 	case s.detailText == "" || (s.fetching && name != s.detailUnit):
 		body = faintSty.Render("loading status..")
 	default:

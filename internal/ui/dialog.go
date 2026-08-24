@@ -13,12 +13,16 @@ type ConfirmDialog struct {
 	Body    string
 	Details string // optional technical detail shown with "d"
 	ShowDet bool
-	width   int
+	// Danger styles the dialog with the red destructive band; neutral
+	// surface otherwise (start/enable are not destructive).
+	Danger bool
+	width  int
 }
 
-// NewConfirm builds a confirmation dialog.
+// NewConfirm builds a confirmation dialog; dangerous actions keep the
+// default red band, benign ones should clear Danger.
 func NewConfirm(title, body, details string) ConfirmDialog {
-	return ConfirmDialog{Title: title, Body: body, Details: details, width: 60}
+	return ConfirmDialog{Title: title, Body: body, Details: details, Danger: true, width: 60}
 }
 
 // SetWidth sets dialog width.
@@ -42,11 +46,15 @@ func (c *ConfirmDialog) Update(msg tea.Msg) (ConfirmDialog, bool, bool) {
 	return *c, false, false
 }
 
-// View renders the dialog with a danger band and a button row.
+// View renders the dialog with a band and a button row.
 func (c ConfirmDialog) View() string {
 	inner := c.width - 4
+	bandC, borderC := Palette.Red, Palette.Red
+	if !c.Danger {
+		bandC, borderC = Palette.Surface, Palette.Surface
+	}
 	band := lipgloss.NewStyle().Bold(true).
-		Background(Palette.Red).
+		Background(bandC).
 		Foreground(lipgloss.Color("#11111B")).
 		Width(inner).
 		Render(" " + c.Title)
@@ -68,7 +76,7 @@ func (c ConfirmDialog) View() string {
 		b.WriteString(faintSty.Render(Truncate(c.Details, inner)))
 	}
 	return Panel().
-		BorderForeground(Palette.Red).
+		BorderForeground(borderC).
 		Width(c.width).
 		Padding(1, 2).
 		Render(b.String())

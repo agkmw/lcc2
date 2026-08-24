@@ -3,6 +3,7 @@
 package app
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -55,13 +56,21 @@ func New(screens ...ui.Screen) Root {
 	return r
 }
 
-// Init starts the active screen.
+// Init starts the active screen plus the status-bar clock.
 func (r Root) Init() tea.Cmd {
-	if len(r.order) == 0 {
-		return nil
+	var cmds []tea.Cmd
+	if len(r.order) > 0 {
+		cmds = append(cmds, r.screens[r.order[0]].Init())
 	}
-	return r.screens[r.order[0]].Init()
+	cmds = append(cmds, tickClock())
+	return tea.Batch(cmds...)
 }
+
+func tickClock() tea.Cmd {
+	return tea.Tick(time.Minute, func(time.Time) tea.Msg { return clockTickMsg{} })
+}
+
+type clockTickMsg struct{}
 
 func (r Root) current() ui.Screen { return r.screens[r.order[r.active]] }
 
@@ -74,19 +83,28 @@ func (r *Root) switchTo(i int) tea.Cmd {
 	return tea.Batch(r.current().Init(), r.sendSize())
 }
 
+// Minimum terminal geometry the UI stays coherent at; below it a
+// friendly notice renders instead of broken layouts.
+const (
+	MinW = 64
+	MinH = 16
+)
+
 // Update handles global events and delegates to the active screen.
 func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m := msg.(type) {
 	case tea.WindowSizeMsg:
 		resized := r.width != m.Width || r.height != m.Height
 		r.width, r.height = m.Width, m.Height
+		w, h := r.contentArea()
 		var cmds []tea.Cmd
+		// Broadcast fresh geometry to every screen so inactive tabs
+		// never carry stale layouts into their next visit.
 		for _, s := range r.order {
-			sc, c := r.screens[s].Update(m)
+			sc, c := r.screens[s].Update(ui.SizeMsg{Width: w, Height: h})
 			r.screens[s] = sc
 			cmds = append(cmds, c)
 		}
-		cmds = append(cmds, r.sendSize())
 		if resized {
 			// tmux split/zoom leaves stale cells outside bubbletea's
 			// diff expectations; force a full repaint.
@@ -103,6 +121,9 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case noteExpiryMsg:
 		r.notes.Dismiss(m.id)
 		return r, nil
+
+	case clockTickMsg:
+		return r, tickClock() // keep the status-bar clock honest
 
 	case ui.ToastMsg:
 		n := r.notes.Push(m.Kind, m.Text)
@@ -183,6 +204,9 @@ func (r Root) View() string {
 	if r.quitting || r.width == 0 {
 		return ""
 	}
+	if r.width < MinW || r.height < MinH {
+		return ui.CanvasWith(r.tooSmallBody(), r.width, r.height, ui.BG())
+	}
 	cur := r.current()
 	w, h := r.contentArea()
 
@@ -216,29 +240,77 @@ func (r Root) View() string {
 // numbered segment per screen, dividers between. No decorative glyphs:
 // East-Asian-Ambiguous shapes render double-width in tmux/locales and
 // shift every following column (ADR-0010).
+//
+// Narrow terminals degrade by priority instead of clipping mid-tab
+// (backlog L9): drop badges, then numbers, then shrink all labels.
 func (r Root) viewTabStrip() string {
 	logo := lipgloss.NewStyle().Bold(true).Render("lcc2")
-	segs := []string{logo}
-	div := faintSty.Render("│")
-	for i, id := range r.order {
-		s := lookupSection(id)
-		label := s.label
+
+	type tabInfo struct {
+		id    string
+		label string
+		badge string
+	}
+	tabs := make([]tabInfo, 0, len(r.order))
+	for _, id := range r.order {
+		ti := tabInfo{id: id, label: lookupSection(id).label}
 		if bs, ok := r.screens[id].(ui.BadgeSource); ok {
-			if b := bs.Badge(); b != "" {
+			ti.badge = bs.Badge()
+		}
+		tabs = append(tabs, ti)
+	}
+
+	render := func(numbers, badges bool, maxLabel int) string {
+		segs := []string{logo}
+		for i, ti := range tabs {
+			label := ti.label
+			if badges && ti.badge != "" {
 				label += " " + lipgloss.NewStyle().Bold(true).
-					Foreground(ui.Accent(id)).Render(b)
+					Foreground(ui.Accent(ti.id)).Render(ti.badge)
+			}
+			if i != r.active { // the active label degrades last
+				label = clipPlain(label, maxLabel)
+			}
+			if numbers {
+				label = faintSty.Render(strconv.Itoa(i+1)) + " " + label
+			}
+			if i == r.active {
+				segs = append(segs, lipgloss.NewStyle().
+					Bold(true).Foreground(ui.Accent(ti.id)).Render(label))
+			} else {
+				segs = append(segs, mutedSty.Render(label))
 			}
 		}
-		idx := faintSty.Render(strconv.Itoa(i+1))
-		if i == r.active {
-			segs = append(segs, idx+" "+lipgloss.NewStyle().
-				Bold(true).Foreground(ui.Accent(id)).Render(label))
-		} else {
-			segs = append(segs, idx+" "+mutedSty.Render(label))
+		return " " + strings.Join(segs, " "+faintSty.Render("│")+" ")
+	}
+
+	degradations := []struct {
+		nums, badges bool
+		maxLabel     int
+	}{
+		{true, true, 64}, {true, false, 64}, {false, false, 64},
+		{false, false, 14}, {false, false, 8}, {false, false, 3},
+	}
+	row := ""
+	for _, d := range degradations {
+		row = render(d.nums, d.badges, d.maxLabel)
+		if lipgloss.Width(row) <= r.width {
+			return row + "\n" + rule(r.width)
 		}
 	}
-	row := " " + strings.Join(segs, " "+div+" ")
-	return row + "\n" + rule(r.width)
+	return ui.ClipBlock(row, r.width) + "\n" + rule(r.width)
+}
+
+// clipPlain shortens an unstyled label to n cells with an ellipsis.
+func clipPlain(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	if n < 3 {
+		return string(r[:n])
+	}
+	return string(r[:n-2]) + ".."
 }
 
 func rule(w int) string {
@@ -353,6 +425,30 @@ func (r Root) overlay(base, panel string) string {
 		bl[row] = line + src
 	}
 	return strings.Join(bl, "\n")
+}
+
+// tooSmallBody builds the below-floor notice: centered dims message
+// on an otherwise empty frame. Kept to short lines so even absurdly
+// narrow terminals show every fact.
+func (r Root) tooSmallBody() string {
+	bold := lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Yellow)
+	body := lipgloss.JoinVertical(lipgloss.Center,
+		bold.Render("terminal too small"),
+		faintSty.Render(fmt.Sprintf("need >= %dx%d", MinW, MinH)),
+		faintSty.Render(fmt.Sprintf("have %dx%d", r.width, r.height)),
+		"",
+		faintSty.Render("resize the terminal"),
+		faintSty.Render("to continue"),
+	)
+	lines := strings.Split(lipgloss.PlaceHorizontal(
+		maxInt(r.width, 1), lipgloss.Center, body), "\n")
+	for len(lines) < maxInt(r.height, 1) {
+		lines = append(lines, "")
+	}
+	if len(lines) > r.height {
+		lines = lines[:r.height]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func maxInt(a, b int) int {

@@ -81,7 +81,7 @@ func List(dir string, showHidden bool) ([]Entry, error) {
 		}
 		if info, err := de.Info(); err == nil {
 			e.Size = info.Size()
-			e.Mode = info.Mode().Perm()
+			e.Mode = info.Mode() // keep type bits: d/l prefixes in the UI
 			e.ModTime = info.ModTime()
 			if st, ok := info.Sys().(*syscall.Stat_t); ok {
 				e.UID = st.Uid
@@ -91,7 +91,7 @@ func List(dir string, showHidden bool) ([]Entry, error) {
 			if tgt, err := os.Stat(path); err == nil { // follow for metadata
 				e.IsDir = tgt.IsDir()
 				e.Size = tgt.Size()
-				e.Mode = tgt.Mode().Perm()
+				e.Mode = tgt.Mode()
 			}
 		}
 		out = append(out, e)

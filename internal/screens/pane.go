@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"lcc2/internal/ui"
 )
@@ -81,4 +82,34 @@ func joinPanesWide(wide bool, main, preview string, mainW, total int) string {
 	rule := lipgloss.NewStyle().Foreground(ui.Palette.Surface).
 		Render(strings.Repeat("-", maxInt(total, 1)))
 	return main + "\n" + rule + "\n" + preview
+}
+
+// overlayCenter splices a centered panel over a rendered body without
+// moving any other byte of it: dialogs float, the content behind them
+// stays visible and in place.
+func overlayCenter(base, panel string, w int) string {
+	bl := strings.Split(base, "\n")
+	pl := strings.Split(panel, "\n")
+	y := (len(bl) - len(pl)) / 2
+	x := (w - lipgloss.Width(panel)) / 2
+	if y < 0 {
+		y = 0
+	}
+	if x < 0 {
+		x = 0
+	}
+	for i, src := range pl {
+		row := y + i
+		if row >= len(bl) {
+			break
+		}
+		line := bl[row]
+		if lw := lipgloss.Width(line); lw > x {
+			line = ansi.Truncate(line, x, "")
+		} else if lw < x {
+			line += strings.Repeat(" ", x-lw)
+		}
+		bl[row] = line + src
+	}
+	return strings.Join(bl, "\n")
 }

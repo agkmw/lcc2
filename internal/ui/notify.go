@@ -117,7 +117,7 @@ func noteWindow(it Notification) []string {
 		body = Truncate(body, inner)
 	}
 	pad := inner - lipgloss.Width(body)
-	content := strings.Repeat(" ", max(0, inner-6)) + caption + "\n" +
+	content := strings.Repeat(" ", max(0, inner-lipgloss.Width(caption))) + caption + "\n" +
 		body + strings.Repeat(" ", max(0, pad))
 	panel := lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).

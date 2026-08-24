@@ -29,6 +29,14 @@ type Files struct {
 	tbl        ui.FilterTable
 	showHidden bool
 
+	mode      string // "list", "find" (fd) or "grep" (rg)
+	auxInput  textinput.Model
+	auxGen    *atomic.Uint64 // debounce/spawn generation
+	findRes   []files.Entry  // latest fd results
+	grepRes   []files.Match  // latest rg results
+	findTbl   ui.FilterTable
+	grepTbl   ui.FilterTable
+
 	stager *files.Stager // shared across value copies: closures stage into it
 	marked map[string]bool // marked paths (multi-select)
 
@@ -48,6 +56,7 @@ type Files struct {
 	prevBody  string // rendered body lines
 	prevTitle string
 	prevMeta  string
+	prevHit   int // highlighted line number in the preview (0 = none)
 	fetching  bool
 
 	saving   bool
@@ -64,13 +73,16 @@ type dirListMsg struct {
 }
 
 type filePreviewMsg struct {
-	path string
+	path string // file the preview belongs to
+	key  string // fetch identity used for staleness checks
 	p    files.Preview
 	err  error
+	hit  int // highlight this line when the preview came from a grep hit
 }
 
 type dirPreviewMsg struct {
 	path string
+	key  string
 	list []files.Entry
 }
 
@@ -90,11 +102,20 @@ func NewFiles() Files {
 		{Title: "owner", Width: 10},
 	}
 	return Files{
-		cwd:     files.Home(),
-		marked:  map[string]bool{},
-		stager:  files.NewStager(),
-		tbl:     ui.NewFilterTable(cols, 80, 20),
-		opCount: &atomic.Int32{},
+		cwd:      files.Home(),
+		marked:   map[string]bool{},
+		stager:   files.NewStager(),
+		tbl:      ui.NewFilterTable(cols, 80, 20),
+		opCount:  &atomic.Int32{},
+		mode:     "list",
+		auxGen:   &atomic.Uint64{},
+		auxInput: newAuxInput(),
+		findTbl: ui.NewFilterTable([]table.Column{
+			{Title: "name", Width: 30}, {Title: "dir", Width: 40}, {Title: "size", Width: 8},
+		}, 80, 18),
+		grepTbl: ui.NewFilterTable([]table.Column{
+			{Title: "loc", Width: 30}, {Title: "text", Width: 60},
+		}, 80, 18),
 	}
 }
 
@@ -106,14 +127,24 @@ func (f Files) Title() string { return "Files" }
 
 // Hints implements ui.Screen.
 func (f Files) Hints() []key.Binding {
+	if f.mode != "list" { // aux search: the query bar owns everything
+		return []key.Binding{
+			key.NewBinding(key.WithKeys("j/k"), key.WithHelp("j/k", "results")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "reveal dir")),
+			key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "exit search")),
+		}
+	}
 	h := []key.Binding{
 		ui.Keys.Filter,
+		key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "find")),
+		key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "grep")),
 		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "mark")),
 		key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "hidden")),
 		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
 		key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mkdir")),
 		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "rename")),
 		key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy")),
+		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "cut")),
 		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "paste")),
 	}
 	if n := f.stager.Len(); n > 0 {
@@ -127,14 +158,15 @@ func (f Files) Hints() []key.Binding {
 // Badge implements ui.BadgeSource: pending-change count for the tab strip.
 func (f Files) Badge() string {
 	if n := f.stager.Len(); n > 0 {
-		return "●" + itoa(n)
+		return "*" + itoa(n)
 	}
 	return ""
 }
 
 // CapturingInput implements ui.Screen.
 func (f Files) CapturingInput() bool {
-	return f.tbl.Filtering() || f.prompt != nil || f.permEdit != nil
+	return f.tbl.Filtering() || f.prompt != nil || f.permEdit != nil ||
+		f.mode != "list"
 }
 
 // Init loads the starting directory.
@@ -170,20 +202,27 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 
 	case filePreviewMsg:
 		f.fetching = false
-		if m.path != f.selectedPath() { // stale: cursor moved on
-			break
+		if m.key != f.expectKey() {
+			break // stale: the cursor moved on to something else
 		}
 		e, _ := f.entryByPath(m.path)
 		f.prevPath = m.path
+		f.prevHit = m.hit
 		switch {
 		case m.err == nil && !m.p.Binary:
-			f.prevTitle = e.Name
+			if e != nil {
+				f.prevTitle = e.Name
+			} else {
+				f.prevTitle = filepathBase(m.path)
+			}
+			f.prevMeta = sysinfo.FormatBytes(float64(m.p.Size))
 			if e != nil {
 				f.prevMeta = entryMetaLine(*e)
-			} else {
-				f.prevMeta = sysinfo.FormatBytes(float64(m.p.Size))
 			}
-			body := numberLines(m.p.Lines)
+			if m.hit > 0 {
+				f.prevMeta += " - line " + itoa(m.hit)
+			}
+			body := numberLines(m.p.Lines, m.p.First, m.hit)
 			if m.p.Truncated {
 				body += "\n" + faintSty.Render(".. truncated")
 			}
@@ -203,7 +242,7 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 
 	case dirPreviewMsg:
 		f.fetching = false
-		if m.path != f.selectedPath() {
+		if m.key != f.expectKey() {
 			break
 		}
 		e, _ := f.entryByPath(m.path)
@@ -218,6 +257,35 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 
 	case stageStepMsg:
 		return f.stageStep(m)
+
+	case auxDebounceMsg:
+		if f.mode != "list" {
+			return f, f.auxDebounced(m)
+		}
+
+	case findResultMsg:
+		f.findRes = nil
+		if m.gen != f.auxGen.Load() {
+			return f, nil // stale search
+		}
+		if m.err != nil {
+			return f, ui.ErrToast(m.err.Error())
+		}
+		f.findRes = m.entries
+		f.syncAuxTables()
+		return f, f.auxFollow()
+
+	case grepResultMsg:
+		f.grepRes = nil
+		if m.gen != f.auxGen.Load() {
+			return f, nil // stale search
+		}
+		if m.err != nil {
+			return f, ui.ErrToast(m.err.Error())
+		}
+		f.grepRes = m.matches
+		f.syncAuxTables()
+		return f, f.auxFollow()
 
 	case tea.KeyMsg:
 		return f.handleKey(m)
@@ -350,9 +418,9 @@ func (f *Files) syncTable() {
 		if f.marked[e.Path] {
 			mark = lipgloss.NewStyle().Foreground(ui.Palette.Mauve).Render("* ")
 		}
-		glyph := stagedGlyph(stagedAt[e.Path])
-		if glyph != "" {
-			glyph += " "
+		glyph := ""
+		if k, ok := stagedAt[e.Path]; ok {
+			glyph = stagedGlyph(k) + " "
 		}
 		name := e.Name
 		if e.IsDir {
@@ -443,6 +511,9 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	if f.opCount.Load() > 0 { // operation in flight: input stays locked
 		return f, nil
 	}
+	if f.mode != "list" { // find/grep: the query bar owns the keyboard
+		return f.handleAuxKey(m)
+	}
 	if f.tbl.Filtering() {
 		var cmd tea.Cmd
 		f.tbl, cmd = f.tbl.Update(m)
@@ -450,6 +521,10 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	}
 
 	switch m.String() {
+	case "f":
+		return f, f.startAux("find")
+	case "F":
+		return f, f.startAux("grep")
 	case "enter", "l":
 		if e, ok := f.selected(); ok && e.IsDir {
 			f.clearMarks()
@@ -694,7 +769,12 @@ func (f *Files) layout() {
 	if wide {
 		tw = mainW
 	}
-	f.tbl.SetSize(tw, clampInt(f.h-1, 5, f.h))
+	// Two chrome rows live above the table: the page head and the
+	// main pane's own breadcrumb header.
+	f.tbl.SetSize(tw, clampInt(f.h-2, 5, f.h))
+	// Aux search adds one more: the query bar.
+	f.findTbl.SetSize(tw, clampInt(f.h-3, 5, f.h))
+	f.grepTbl.SetSize(tw, clampInt(f.h-3, 5, f.h))
 }
 
 func (f Files) paneW() int {
@@ -709,38 +789,48 @@ func (f Files) View() string {
 		return ""
 	}
 	var meta string
-	if f.showHidden {
+	if f.mode != "list" {
+		meta = fmt.Sprintf("%s %q - %d results - enter reveals dir",
+			f.mode, f.auxInput.Value(), f.auxCount())
+	}
+	if meta == "" && f.showHidden {
 		meta = "hidden on"
 	}
-	if n := f.stager.Len(); n > 0 {
-		if meta != "" {
-			meta += " - "
+	if f.mode == "list" {
+		if n := f.stager.Len(); n > 0 {
+			if meta != "" {
+				meta += " - "
+			}
+			meta += fmt.Sprintf("%d pending", n)
 		}
-		meta += fmt.Sprintf("%d pending", n)
-	}
-	if f.saving {
-		meta += fmt.Sprintf(" - saving %d/%d", f.saveDone, len(f.saveOps))
-	} else if f.opCount.Load() > 0 {
-		meta += " - working.."
+		if f.saving {
+			meta += fmt.Sprintf(" - saving %d/%d", f.saveDone, len(f.saveOps))
+		} else if f.opCount.Load() > 0 {
+			meta += " - working.."
+		}
 	}
 	head := pageHead("Files", meta, f.w)
 
-	extra := mainExtraLines(f)
-	main := f.mainHeader() + "\n" + f.tbl.View()
-	if extra > 1 {
-		main += "\n" + faintSty.Render(
-			"staged: + create  - delete  > rename  ~ chmod   w save  u undo  U discard")
+	var main string
+	if f.mode != "list" {
+		main = f.auxBar() + "\n" + f.auxTable().View()
+	} else {
+		main = f.mainHeader() + "\n" + f.tbl.View()
 	}
-
-	prev := renderPreview("preview", f.previewTitle(), f.previewMeta(),
-		f.previewContent(), f.paneW(), f.h-1-extra)
 	wide, mainW, _ := splitGeom(f.w)
-	if !wide {
-		keep := clampInt(f.h-8, 6, f.h-4)
+	var prev string
+	if wide {
+		prev = renderPreview("preview", f.previewTitle(), f.previewMeta(),
+			f.previewContent(), f.paneW(), f.h-1)
+	} else { // stacked: split the body between list, rule and preview
+		avail := f.h - 2 // head + rule
+		keep := clampInt(avail*3/5, 4, avail-1)
 		lines := strings.Split(ui.ClipBlock(main, mainW), "\n")
 		if len(lines) > keep {
 			main = strings.Join(lines[:keep], "\n")
 		}
+		prev = renderPreview("preview", f.previewTitle(), f.previewMeta(),
+			f.previewContent(), f.paneW(), avail-keep-1)
 	}
 	body := joinPanesWide(wide, main, prev, mainW, f.w)
 
@@ -753,26 +843,16 @@ func (f Files) View() string {
 		lines = lines[:f.h]
 	}
 
+	view := strings.Join(lines, "\n")
 	if f.permEdit != nil {
-		return lipgloss.Place(f.w, f.h, lipgloss.Center, lipgloss.Center,
-			f.permEditorView(), lipgloss.WithWhitespaceForeground(ui.Palette.Faint))
+		return overlayCenter(view, f.permEditorView(), f.w)
 	}
 	if f.prompt != nil {
 		box := ui.Panel().BorderForeground(ui.Accent("files")).Width(clampInt(f.w/2, 40, 60)).
 			Padding(0, 1).Render(f.promptLbl + f.prompt.View())
-		return lipgloss.Place(f.w, f.h, lipgloss.Center, lipgloss.Center, box)
+		return overlayCenter(view, box, f.w)
 	}
-	return strings.Join(lines, "\n")
-}
-
-// mainExtraLines reports how many rows the main pane adds above the
-// table body (header + optional staged legend).
-func mainExtraLines(f Files) int {
-	n := 1 // header
-	if f.stager.Len() > 0 {
-		n++
-	}
-	return n
+	return view
 }
 
 // paneMainW returns the main column width for the current geometry.
@@ -805,34 +885,46 @@ func entryMetaLine(e files.Entry) string {
 func fetchPreview(e *files.Entry) tea.Cmd { return fetchPreviewCmd(*e) }
 
 func fetchPreviewCmd(e files.Entry) tea.Cmd {
+	key := e.Path
 	if e.IsDir {
 		return func() tea.Msg {
 			l, err := files.List(e.Path, false)
 			if err != nil {
-				return filePreviewMsg{path: e.Path, err: err}
+				return filePreviewMsg{path: e.Path, key: key, err: err}
 			}
 			const capEntries = 40
 			if len(l) > capEntries {
 				l = l[:capEntries]
 			}
-			return dirPreviewMsg{path: e.Path, list: l}
+			return dirPreviewMsg{path: e.Path, key: key, list: l}
 		}
 	}
 	return func() tea.Msg {
 		p, err := files.ReadPreview(e.Path, 60, 16<<10)
-		return filePreviewMsg{path: e.Path, p: p, err: err}
+		return filePreviewMsg{path: e.Path, key: key, p: p, err: err}
 	}
 }
 
-// numberLines prefixes faint line numbers, gutter-aligned to the block.
-func numberLines(lines []string) string {
-	gutter := len([]rune(itoa(len(lines))))
+// numberLines prefixes faint line numbers gutter-aligned to the block;
+// hit (when non-zero) is highlighted as an accent line.
+func numberLines(lines []string, first, hit int) string {
+	gutter := len([]rune(itoa(first + len(lines))))
 	if gutter < 2 {
 		gutter = 2
 	}
+	hitSty := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("files"))
 	var b strings.Builder
 	for i, l := range lines {
-		b.WriteString(faintSty.Render(padLeft(itoa(i+1), gutter)+"  ") + l + "\n")
+		n := first + i
+		prefix := faintSty.Render(padLeft(itoa(n), gutter)+"  ")
+		line := prefix + l
+		if n == hit {
+			b.WriteString(hitSty.Render(padLeft(itoa(n), gutter)) + "  " +
+				hitSty.Render(l))
+		} else {
+			b.WriteString(line)
+		}
+		b.WriteString("\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")
 }
@@ -887,7 +979,10 @@ func (f Files) previewContent() string {
 	if f.prevBody != "" {
 		return f.prevBody
 	}
-	return faintSty.Render("j/k move - enter open dir\nspace mark - d/m/R stage ops")
+	if f.fetching {
+		return faintSty.Render("loading..")
+	}
+	return "" // nothing to show yet: leave the pane blank
 }
 
 // permEditorView draws the interactive rwx matrix with a live octal readout.

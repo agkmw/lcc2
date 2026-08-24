@@ -71,7 +71,7 @@ func (u UsersGroups) Title() string { return "Users & Groups" }
 func (u UsersGroups) Hints() []key.Binding {
 	return []key.Binding{
 		ui.Keys.Filter,
-		key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch to "+otherTab(u.tab))),
+		key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "switch to "+otherTab(u.tab))),
 		ui.Keys.Refresh,
 	}
 }
@@ -169,7 +169,7 @@ func (u UsersGroups) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	}
 
 	switch m.String() {
-	case "tab":
+	case "s":
 		u.tab = otherTab(u.tab)
 		return u, nil
 	case "r":
@@ -228,7 +228,7 @@ func (u UsersGroups) View() string {
 		tabLabel = "Groups"
 	}
 	head := pageHead(tabLabel,
-		fmt.Sprintf("tab switches - %d entries - system accounts dimmed", count), u.w)
+		fmt.Sprintf("s switches lists - %d entries - system accounts dimmed", count), u.w)
 
 	wide, mainW, prevW := splitGeom(u.w)
 	prev := renderPreview("users", u.previewTitle(), "", u.previewBody(), prevW, u.h-1)
@@ -275,7 +275,7 @@ func (u UsersGroups) previewBody() string {
 	if u.tab == "users" {
 		idx, ok := u.uTbl.Selected()
 		if !ok || idx >= len(u.users) {
-			return faintSty.Render("select a user..")
+			return ""
 		}
 		usr := u.users[idx]
 		memberships := accounts.GroupsOf(usr.Name, usr.GID, u.groups)
@@ -302,7 +302,7 @@ func (u UsersGroups) previewBody() string {
 
 	idx, ok := u.gTbl.Selected()
 	if !ok || idx >= len(u.groups) {
-		return faintSty.Render("select a group..")
+		return ""
 	}
 	g := u.groups[idx]
 	members := accounts.MembersOf(g, u.users)
