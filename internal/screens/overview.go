@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"lcc2/internal/disk"
+	"lcc2/internal/proc"
 	"lcc2/internal/sysinfo"
 	"lcc2/internal/ui"
 )
@@ -30,12 +31,13 @@ type overviewTickMsg struct{ gen uint64 }
 
 // snapshot bundles one round of measurements.
 type snapshot struct {
-	host sysinfo.Host
-	load sysinfo.Load
-	cpu  sysinfo.CPUSample
-	mem  sysinfo.Memory
-	net  sysinfo.NetRates
-	fss  []disk.Filesystem
+	host   sysinfo.Host
+	load   sysinfo.Load
+	cpu    sysinfo.CPUSample
+	mem    sysinfo.Memory
+	net    sysinfo.NetRates
+	fss    []disk.Filesystem
+	counts proc.Counts
 }
 
 // collect gathers a full snapshot in one background command. CPU uses
@@ -52,6 +54,7 @@ func collect(mon *sysinfo.NetMonitor) tea.Cmd {
 		}
 		s.net = mon.Rates()
 		s.fss = disk.ListFilesystems()
+		s.counts = proc.ReadCounts()
 		return s
 	}
 }
@@ -217,14 +220,19 @@ func (o Overview) View() string {
 			ui.EmptyState("", "Gathering system information..", "", o.w))
 	}
 	w, h := o.w, o.h
+	wide := w > 80 // extras only earn their space on wide terminals
 
-	head := pageHead("Overview",
-		o.snap.host.Hostname+" - up "+sysinfo.FormatUptime(o.snap.host.Uptime), w)
+	head := pageHead("Overview", o.headMeta(wide), w)
 
 	// Budget: head(1) + borders(8) + ram+swap(2) + net labels(2) +
-	// net totals(1) plus graphs and rows must land exactly on h.
+	// net totals(1) + optional procs strip plus graphs and rows must
+	// land exactly on h.
 	cRows := o.coreRows(w - 4)
-	rem := h - 14 - cRows
+	strip := 0
+	if wide {
+		strip = 1 // procs/threads/running strip under the core grid
+	}
+	rem := h - 14 - cRows - strip
 	graphH := clampInt(rem*2/5, 3, 12)
 	rest := maxInt(rem-graphH, 0)
 	netH := clampInt(rest/3, 1, 6)
@@ -232,7 +240,7 @@ func (o Overview) View() string {
 
 	var b strings.Builder
 	b.WriteString(head + "\n")
-	b.WriteString(o.cpuBox(w, graphH, cRows) + "\n")
+	b.WriteString(o.cpuBox(w, graphH, cRows, wide) + "\n")
 	b.WriteString(o.memBox(w) + "\n")
 	b.WriteString(o.netBox(w, netH) + "\n")
 	b.WriteString(o.diskBox(w, fsRows))
@@ -261,27 +269,64 @@ func scaleHist(hist []float64, scale float64) []float64 {
 	return out
 }
 
-func (o Overview) cpuBox(w, graphH, cRows int) string {
+// headMeta composes the page-head right slot: plain hostname+uptime
+// when narrow, platform and kernel added when there is room.
+func (o Overview) headMeta(wide bool) string {
+	meta := o.snap.host.Hostname
+	if wide {
+		h := o.snap.host
+		if h.Platform != "" {
+			meta += " - " + strings.TrimSpace(h.Platform+" "+h.PlatformVersion)
+		}
+		if h.KernelVersion != "" {
+			meta += " - kernel " + h.KernelVersion
+		}
+	}
+	return meta + " - up " + sysinfo.FormatUptime(o.snap.host.Uptime)
+}
+
+func (o Overview) cpuBox(w, graphH, cRows int, wide bool) string {
 	c := o.snap.cpu
 	right := fmt.Sprintf("%s%% - load %s %s %s - %d cores",
 		f1(c.Total), f1(o.snap.load.One), f1(o.snap.load.Five),
 		f1(o.snap.load.Fifteen), c.Cores)
 	iw := w - 4
 	body := o.chart(o.cpuHist, iw, graphH, ui.Palette.Blue)
-	if grid := strings.TrimRight(o.coreGrid(iw), "\n"); grid != "" {
+	if grid := strings.TrimRight(o.coreGrid(iw, wide), "\n"); grid != "" {
 		body += "\n" + grid
 	}
-	return ui.Section("overview", "cpu", right, w, graphH+cRows+2, body)
+	extra := 0
+	if wide && o.snap.counts.Processes > 0 {
+		body += "\n" + procStrip(o.snap.counts)
+		extra = 1
+	}
+	return ui.Section("overview", "cpu", right, w, graphH+cRows+2+extra, body)
 }
 
-// coreGrid renders per-core sparkline cells, as many columns as fit.
-func (o Overview) coreGrid(w int) string {
+// procStrip renders the wide-layout activity tally under the cores.
+func procStrip(c proc.Counts) string {
+	kv := func(k string, v int) string {
+		return faintSty.Render(k) + mutedSty.Render(" "+itoa(v))
+	}
+	return kv("procs", c.Processes) + faintSty.Render("  -  ") +
+		kv("threads", c.Threads) + faintSty.Render("  -  ") +
+		kv("running", c.Running)
+}
+
+const coreCellW = 16 // label(4) + spark(8) + pct(4)
+
+// perCoreCols reports how many core cells fit one row at width w.
+func perCoreCols(w int) int { return maxInt(w/coreCellW, 1) }
+
+// coreGrid renders per-core sparkline cells; on wide terminals the
+// columns justify across the full width instead of clustering left.
+func (o Overview) coreGrid(w int, wide bool) string {
 	shown := min(len(o.snap.cpu.PerCore), 32)
 	if shown == 0 {
 		return ""
 	}
-	const cellW = 17
-	perRow := maxInt(w/cellW, 1)
+	perRow := perCoreCols(w)
+	seps := o.coreSeps(w, perRow, wide)
 	var out []string
 	for start := 0; start < shown; start += perRow {
 		end := min(start+perRow, shown)
@@ -300,9 +345,46 @@ func (o Overview) coreGrid(w int) string {
 				ui.Spark(o.coreHist[i], 8, ui.StateColor(v))+
 				mutedSty.Render(pct))
 		}
-		out = append(out, strings.Join(cells, " "))
+		var row strings.Builder
+		for j, cell := range cells {
+			if j > 0 {
+				row.WriteString(strings.Repeat(" ", seps[j-1]))
+			}
+			row.WriteString(cell)
+		}
+		out = append(out, row.String())
 	}
 	return strings.Join(out, "\n")
+}
+
+// coreSeps distributes leftover width across the gaps between cells;
+// narrow layouts keep the classic single-space join.
+func (o Overview) coreSeps(w, perRow int, wide bool) []int {
+	gaps := perRow - 1
+	if gaps <= 0 {
+		return nil
+	}
+	seps := make([]int, gaps)
+	if !wide {
+		for i := range seps {
+			seps[i] = 1
+		}
+		return seps
+	}
+	extra := w - perRow*coreCellW
+	base := extra / gaps
+	if base < 1 {
+		base = 1
+	}
+	rem := extra - base*gaps
+	for i := range seps {
+		s := base
+		if i < rem {
+			s++
+		}
+		seps[i] = s
+	}
+	return seps
 }
 
 // coreRows reports how many lines coreGrid emits at width w.
@@ -311,12 +393,13 @@ func (o Overview) coreRows(w int) int {
 	if shown == 0 {
 		return 0
 	}
-	perRow := maxInt(w/17, 1)
+	perRow := perCoreCols(w)
 	return (shown + perRow - 1) / perRow
 }
 
 func (o Overview) memBox(w int) string {
 	m := o.snap.mem
+	wide := w > 80
 	cachePct := 0.0
 	if m.Total > 0 {
 		cachePct = float64(m.Cached) / float64(m.Total) * 100
@@ -326,18 +409,26 @@ func (o Overview) memBox(w int) string {
 	ramBar := ui.SegGauge(m.UsedPercent, cachePct, barW,
 		ui.StateColor(m.UsedPercent), ui.Palette.Mauve) +
 		mutedSty.Render(" "+padLeft(itoa(int(m.UsedPercent+0.5)), 3)+"%")
+	usage := sysinfo.FormatBytes(float64(m.Used)) + " / " + sysinfo.FormatBytes(float64(m.Total))
 	ramStats := "used " + sysinfo.FormatBytes(float64(m.Used)) +
 		" - cache " + sysinfo.FormatBytes(float64(m.Cached)) +
 		" - free " + sysinfo.FormatBytes(float64(m.Total)-float64(m.Used))
+	if wide { // the second column earns its keep: lead with available
+		ramStats = "avail " + sysinfo.FormatBytes(float64(m.Available)) +
+			" - cache " + sysinfo.FormatBytes(float64(m.Cached)) +
+			" - free " + sysinfo.FormatBytes(float64(m.Total)-float64(m.Used))
+	}
 
-	line := memLine("ram ", ramBar,
-		sysinfo.FormatBytes(float64(m.Used))+" / "+sysinfo.FormatBytes(float64(m.Total)),
-		ramStats, w-4)
+	line := memLine("ram ", ramBar, usage, ramStats, w-4)
+	swapStats := ""
+	if wide && m.SwapTotal > 0 {
+		swapStats = "free " + sysinfo.FormatBytes(float64(m.SwapTotal-m.SwapUsed))
+	}
 	if m.SwapTotal > 0 {
 		swapBar := ui.Gauge(m.SwapPercent, barW, nil)
 		line += "\n" + memLine("swap", swapBar,
 			sysinfo.FormatBytes(float64(m.SwapUsed))+" / "+
-				sysinfo.FormatBytes(float64(m.SwapTotal)), "", w-4)
+				sysinfo.FormatBytes(float64(m.SwapTotal)), swapStats, w-4)
 	} else {
 		line += "\n" + mutedSty.Render("swap none")
 	}

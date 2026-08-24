@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"lcc2/internal/disk"
+	"lcc2/internal/proc"
 	"lcc2/internal/sysinfo"
 	"lcc2/internal/ui"
 )
@@ -157,5 +158,30 @@ func TestNetBoxAlignedLikeCpu(t *testing.T) {
 	rxLast := strings.TrimSuffix(strings.TrimPrefix(stripANSI(lines[4]), "│"), "│")
 	if rxLast[76] == ' ' {
 		t.Errorf("rx chart does not span the full interior: %q", rxLast)
+	}
+}
+
+// Wide terminals earn the density extras: available-memory stat in the
+// mem rows and the procs/threads/running strip in the cpu box. Narrow
+// layouts keep the compact form.
+func TestOverviewWideExtrasGate(t *testing.T) {
+	o := overviewFixture()
+	o.snap.host.Platform = "ubuntu"
+	o.snap.host.PlatformVersion = "24.04"
+	o.snap.host.KernelVersion = "6.8.0-49-generic"
+	o.snap.counts = proc.Counts{Processes: 412, Threads: 1834, Running: 3}
+
+	wide := feed(o, ui.SizeMsg{Width: 150, Height: 40}).(Overview).View()
+	if !strings.Contains(wide, "avail ") || !strings.Contains(wide, "procs") ||
+		!strings.Contains(wide, "kernel 6.8.0-49-generic") {
+		t.Error("wide layout missing extras")
+	}
+
+	narrow := feed(overviewFixture(), ui.SizeMsg{Width: 70, Height: 26}).(Overview)
+	narrow.snap = o.snap // same data, small terminal
+	nv := narrow.View()
+	if strings.Contains(nv, "avail ") || strings.Contains(nv, "procs 412") ||
+		strings.Contains(nv, "kernel") {
+		t.Error("narrow layout must stay compact")
 	}
 }
