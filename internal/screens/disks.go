@@ -27,7 +27,7 @@ type scanDoneMsg struct {
 }
 
 // Disks is the storage screen: filesystem overview plus interactive
-// directory usage analysis with drill-down navigation.
+// directory usage analysis, both with a live preview pane.
 type Disks struct {
 	w, h   int
 	spin   spinner.Model
@@ -57,11 +57,9 @@ func NewDisks() Disks {
 func fsCols() []table.Column {
 	return []table.Column{
 		{Title: "mount", Width: 16},
-		{Title: "device", Width: 20},
+		{Title: "device", Width: 18},
 		{Title: "type", Width: 7},
 		{Title: "size", Width: 9},
-		{Title: "used", Width: 9},
-		{Title: "free", Width: 9},
 		{Title: "use%", Width: 6},
 	}
 }
@@ -84,16 +82,16 @@ func (d Disks) Title() string { return "Disks" }
 func (d Disks) Hints() []key.Binding {
 	if d.mode == "fs" {
 		return []key.Binding{
+			ui.Keys.Filter,
 			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "analyze")),
 			ui.Keys.Refresh,
-			ui.Keys.Filter,
 		}
 	}
 	return []key.Binding{
-		ui.Keys.Back,
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "drill down")),
-		ui.Keys.Refresh,
 		ui.Keys.Filter,
+		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "drill down")),
+		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+		ui.Keys.Refresh,
 	}
 }
 
@@ -119,12 +117,10 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		rows := make([]table.Row, len(m))
 		keys := make([]string, len(m))
 		for i, f := range m {
-			pct := itoa(int(f.UsedPercent))
+			pct := itoa(int(f.UsedPercent)) + "%"
 			rows[i] = table.Row{
 				f.Mountpoint, f.Device, f.FSType,
 				sysinfo.FormatBytes(float64(f.Total)),
-				sysinfo.FormatBytes(float64(f.Used)),
-				sysinfo.FormatBytes(float64(f.Free)),
 				lipgloss.NewStyle().Foreground(ui.StateColor(f.UsedPercent)).Render(pct),
 			}
 			keys[i] = f.Mountpoint
@@ -204,13 +200,12 @@ func (d Disks) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		}
 	}
 
+	tbl := &d.dirTbl
 	if d.mode == "fs" {
-		var cmd tea.Cmd
-		d.fsTbl, cmd = d.fsTbl.Update(m)
-		return d, cmd
+		tbl = &d.fsTbl
 	}
 	var cmd tea.Cmd
-	d.dirTbl, cmd = d.dirTbl.Update(m)
+	*tbl, cmd = tbl.Update(m)
 	return d, cmd
 }
 
@@ -252,10 +247,6 @@ func (d Disks) startScan(root string) (ui.Screen, tea.Cmd) {
 	)
 }
 
-func isChildDir(child, parent string) bool {
-	rel, err := filepath.Rel(parent, child)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != "."
-}
 
 func (d *Disks) syncItems() {
 	if d.items == nil {
@@ -287,36 +278,125 @@ func (d *Disks) syncItems() {
 func colorPtr(c lipgloss.Color) *lipgloss.Color { return &c }
 
 func (d *Disks) layout() {
-	th := clampInt(d.h-4, 5, d.h)
-	d.fsTbl.SetSize(clampInt(d.w-2, 40, d.w), th)
-	d.dirTbl.SetSize(clampInt(d.w-2, 40, d.w), clampInt(th-1, 4, th))
+	wide, mainW, _ := splitGeom(d.w)
+	tw := clampInt(d.w-2, 40, d.w)
+	if wide {
+		tw = mainW
+	}
+	th := clampInt(d.h-1, 5, d.h)
+	d.fsTbl.SetSize(tw, th)
+	d.dirTbl.SetSize(tw, th)
 }
 
-// View renders the filesystem list or the directory analysis view.
+// View renders the filesystem list or analysis view with its preview.
 func (d Disks) View() string {
 	if d.w == 0 {
 		return ""
 	}
+	wide, mainW, prevW := splitGeom(d.w)
+
+	var head, main string
 	if d.mode == "fs" {
-		return pageHead("Disks",
-			fmt.Sprintf("%d mounted filesystems", len(d.fss)), d.w) + "\n" + d.fsTbl.View()
+		head = pageHead("Disks",
+			fmt.Sprintf("%d mounted filesystems", len(d.fss)), d.w)
+		main = d.fsTbl.View()
+	} else {
+		head = pageHead("Directory usage", crumbMeta(d.path), d.w)
+		main = d.dirTbl.View()
+		if d.busy {
+			main += "\n" + lipgloss.NewStyle().Foreground(ui.Accent("disk")).
+				Render(d.spin.View()+" analyzing ") +
+				faintSty.Render(ui.Truncate(d.path, clampInt(d.w-16, 10, d.w))) +
+				faintSty.Render("  ·  esc to cancel")
+		} else if d.err != "" {
+			main += "\n" + badSty.Render(d.err)
+		} else if d.items != nil {
+			main += faintSty.Render("\n"+itoa(len(d.items.Items))+" entries · "+
+				sysinfo.FormatBytes(float64(d.items.TotalSize))+" · scanned in "+
+				d.items.Duration.Round(100*time.Millisecond).String())
+		}
 	}
 
-	head := pageHead("Directory usage", crumbMeta(d.path), d.w)
-	status := ""
-	if d.busy {
-		status = "\n" + lipgloss.NewStyle().Foreground(ui.Accent("disk")).
-			Render(d.spin.View()+" analyzing ") +
-			faintSty.Render(ui.Truncate(d.path, clampInt(d.w-16, 10, d.w))) +
-			faintSty.Render("  ·  esc to cancel")
-	} else if d.err != "" {
-		status = "\n" + badSty.Render(d.err)
-	} else if d.items != nil {
-		status = faintSty.Render("\n" + itoa(len(d.items.Items)) + " entries · " +
-			sysinfo.FormatBytes(float64(d.items.TotalSize)) + " · scanned in " +
-			d.items.Duration.Round(100*time.Millisecond).String())
+	prev := renderPreview("disk", d.previewTitle(), "", d.previewBody(), prevW, d.h-1)
+
+	if !wide { // stacked: clip list height so the preview fits below
+		keep := clampInt(d.h-8, 6, d.h-4)
+		lines := strings.Split(ui.ClipBlock(main, mainW), "\n")
+		if len(lines) > keep {
+			main = strings.Join(lines[:keep], "\n")
+		}
 	}
-	return head + status + "\n" + d.dirTbl.View()
+	body := joinPanesWide(wide, main, prev, mainW, d.w)
+
+	out := head + "\n" + body
+	lines := strings.Split(out, "\n")
+	for len(lines) < d.h {
+		lines = append(lines, "")
+	}
+	if len(lines) > d.h {
+		lines = lines[:d.h]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// previewBody renders the right-hand pane for either mode.
+func (d Disks) previewBody() string {
+	_, _, pw := splitGeom(d.w)
+	if d.mode == "fs" {
+		idx, ok := d.fsTbl.Selected()
+		if !ok || idx >= len(d.fss) {
+			return faintSty.Render("select a filesystem…")
+		}
+		f := d.fss[idx]
+		bar := ui.Gauge(f.UsedPercent, clampInt(pw-14, 16, 44), colorPtr(ui.StateColor(f.UsedPercent)))
+		kv := func(k, v string) string {
+			return mutedSty.Render(padTo(k, 8)) + faintSty.Render(ui.Truncate(v, maxInt(pw-10, 4)))
+		}
+		return strings.Join([]string{
+			bar,
+			"",
+			kv("device", f.Device),
+			kv("type", f.FSType),
+			kv("total", sysinfo.FormatBytes(float64(f.Total))),
+			kv("used", sysinfo.FormatBytes(float64(f.Used))),
+			kv("free", sysinfo.FormatBytes(float64(f.Free))),
+		}, "\n")
+	}
+
+	idx, ok := d.dirTbl.Selected()
+	if !ok || d.items == nil || idx >= len(d.items.Items) {
+		return faintSty.Render("select an entry…")
+	}
+	it := d.items.Items[idx]
+	total := float64(d.items.TotalSize)
+	share := 0.0
+	if total > 0 {
+		share = float64(it.Size) / total * 100
+	}
+	kv := func(k, v string) string {
+		return mutedSty.Render(padTo(k, 8)) + faintSty.Render(ui.Truncate(v, maxInt(pw-10, 4)))
+	}
+	return strings.Join([]string{
+		ui.Gauge(share, clampInt(pw-14, 16, 44), colorPtr(ui.Accent("disk"))),
+		"",
+		kv("kind", dirFileWord(it.IsDir)),
+		kv("size", sysinfo.FormatBytes(float64(it.Size))),
+		kv("share", f1(share)+"% of scanned"),
+		kv("path", it.Path),
+	}, "\n")
+}
+
+func (d Disks) previewTitle() string {
+	if d.mode == "fs" {
+		if k, ok := d.fsTbl.SelectedKey(); ok {
+			return truncCell(k, 24)
+		}
+		return "filesystem"
+	}
+	if k, ok := d.dirTbl.SelectedKey(); ok {
+		return truncCell(filepathBase(k), 24)
+	}
+	return "entry"
 }
 
 // crumbMeta renders a path as breadcrumb text for the page-head meta

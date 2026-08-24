@@ -19,8 +19,9 @@ type accountsMsg struct {
 	err    error
 }
 
-// UsersGroups is the combined users & groups section. The `tab` key
-// switches between the two lists; enter opens a detail pane.
+// UsersGroups is the combined users & groups section: list left, a
+// detail preview always visible right. The `tab` key switches lists.
+// System accounts (uid/gid < 1000, except root) render dimmed.
 type UsersGroups struct {
 	w, h   int
 	users  []accounts.User
@@ -28,10 +29,6 @@ type UsersGroups struct {
 	uTbl   ui.FilterTable
 	gTbl   ui.FilterTable
 	tab    string // "users" or "groups"
-
-	detailOpen bool
-	detail     string // rendered detail body
-	detailName string
 
 	loaded bool
 	err    string
@@ -49,18 +46,18 @@ func NewUsersGroups() UsersGroups {
 func userCols() []table.Column {
 	return []table.Column{
 		{Title: "user", Width: 18},
-		{Title: "uid", Width: 8},
-		{Title: "gid", Width: 8},
-		{Title: "home", Width: 24},
-		{Title: "shell", Width: 22},
+		{Title: "uid", Width: 7},
+		{Title: "gid", Width: 7},
+		{Title: "home", Width: 22},
+		{Title: "shell", Width: 20},
 	}
 }
 
 func groupCols() []table.Column {
 	return []table.Column{
-		{Title: "group", Width: 20},
-		{Title: "gid", Width: 8},
-		{Title: "members", Width: 52},
+		{Title: "group", Width: 18},
+		{Title: "gid", Width: 7},
+		{Title: "members", Width: 30},
 	}
 }
 
@@ -72,12 +69,11 @@ func (u UsersGroups) Title() string { return "Users & Groups" }
 
 // Hints implements ui.Screen.
 func (u UsersGroups) Hints() []key.Binding {
-	hints := []key.Binding{
+	return []key.Binding{
 		ui.Keys.Filter,
 		key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch to "+otherTab(u.tab))),
-		ui.Keys.Select,
+		ui.Keys.Refresh,
 	}
-	return hints
 }
 
 func otherTab(cur string) string {
@@ -126,8 +122,8 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		ukeys := make([]string, len(m.users))
 		for i, usr := range m.users {
 			urows[i] = table.Row{
-				usr.Name, itoa(usr.UID), itoa(usr.GID),
-				ui.Truncate(usr.Home, 24), usr.Shell,
+				userCell(usr), itoa(usr.UID), itoa(usr.GID),
+				ui.Truncate(usr.Home, 22), usr.Shell,
 			}
 			ukeys[i] = usr.Name
 		}
@@ -139,7 +135,7 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			if members == "" {
 				members = "-"
 			}
-			grows[i] = table.Row{g.Name, itoa(g.GID), ui.Truncate(members, 52)}
+			grows[i] = table.Row{g.Name, itoa(g.GID), ui.Truncate(members, 30)}
 			gkeys[i] = g.Name
 		}
 		u.gTbl.SetRowsTracked(grows, gkeys)
@@ -148,6 +144,16 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		return u.handleKey(m)
 	}
 	return u, nil
+}
+
+// isSystemAccount reports non-human accounts; root stays highlighted.
+func isSystemAccount(uid int) bool { return uid != 0 && uid < 1000 }
+
+func userCell(usr accounts.User) string {
+	if isSystemAccount(usr.UID) {
+		return mutedSty.Render(usr.Name)
+	}
+	return lipgloss.NewStyle().Foreground(ui.Palette.Text).Render(usr.Name)
 }
 
 func (u UsersGroups) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
@@ -165,36 +171,16 @@ func (u UsersGroups) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	switch m.String() {
 	case "tab":
 		u.tab = otherTab(u.tab)
-		u.detailOpen = false
-		u.layout()
 		return u, nil
-	case "enter":
-		if u.tab == "users" {
-			if idx, ok := u.uTbl.Selected(); ok && idx < len(u.users) {
-				sel := u.users[idx]
-				u.detailName = sel.Name
-				u.detail = u.renderUser(sel)
-				u.detailOpen = true
-				u.layout()
-			}
-		} else {
-			if idx, ok := u.gTbl.Selected(); ok && idx < len(u.groups) {
-				sel := u.groups[idx]
-				u.detailName = sel.Name
-				u.detail = u.renderGroup(sel)
-				u.detailOpen = true
-				u.layout()
-			}
-		}
-		return u, nil
-	case "esc":
-		if u.detailOpen {
-			u.detailOpen = false
-			u.layout()
-			return u, nil
-		}
+	case "r":
+		return u, u.Init()
 	}
 
+	moved := false
+	switch m.String() {
+	case "up", "down", "j", "k", "g", "G", "home", "end", "pgup", "pgdown":
+		moved = true
+	}
 	if u.tab == "users" {
 		var cmd tea.Cmd
 		u.uTbl, cmd = u.uTbl.Update(m)
@@ -202,65 +188,22 @@ func (u UsersGroups) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	u.gTbl, cmd = u.gTbl.Update(m)
+	_ = moved // preview renders synchronously from loaded slices
 	return u, cmd
 }
 
 func (u *UsersGroups) layout() {
-	th := clampInt(u.h-5, 4, u.h)
-	w := u.w - 2
-	if u.detailOpen && u.w >= 100 {
-		w = u.w - clampInt(u.w*2/5, 32, 52) - 3
+	wide, mainW, _ := splitGeom(u.w)
+	tw := clampInt(u.w-2, 30, u.w)
+	if wide {
+		tw = mainW
 	}
-	u.uTbl.SetSize(clampInt(w, 30, u.w), th)
-	u.gTbl.SetSize(clampInt(w, 30, u.w), th)
+	th := clampInt(u.h-1, 5, u.h)
+	u.uTbl.SetSize(tw, th)
+	u.gTbl.SetSize(tw, th)
 }
 
-func (u UsersGroups) renderUser(usr accounts.User) string {
-	allGroups, _ := accounts.Groups()
-	memberships := accounts.GroupsOf(usr.Name, usr.GID, allGroups)
-	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).
-		Foreground(ui.Accent("users")).Render(usr.Name) + "\n\n")
-	kv := func(k, v string) {
-		b.WriteString(mutedSty.Render(padTo(k, 9)) + faintSty.Render(v) + "\n")
-	}
-	kv("uid", itoa(usr.UID))
-	kv("gid", itoa(usr.GID))
-	kv("home", usr.Home)
-	kv("shell", usr.Shell)
-	if usr.Shell != "/usr/sbin/nologin" && usr.Shell != "/bin/false" &&
-		!strings.Contains(usr.Shell, "nologin") {
-		kv("login", "allowed")
-	} else {
-		kv("login", "no shell")
-	}
-	if len(memberships) > 0 {
-		kv("groups", strings.Join(memberships, ", "))
-	}
-	return b.String()
-}
-
-func (u UsersGroups) renderGroup(g accounts.Group) string {
-	members := accounts.MembersOf(g, u.users)
-	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Bold(true).
-		Foreground(ui.Accent("users")).Render(g.Name) + "\n\n")
-	kv := func(k, v string) {
-		b.WriteString(mutedSty.Render(padTo(k, 9)) + faintSty.Render(v) + "\n")
-	}
-	kv("gid", itoa(g.GID))
-	if len(members) == 0 {
-		kv("members", "-")
-	} else {
-		b.WriteString("\n" + mutedSty.Render("members") + "\n")
-		for _, mem := range members {
-			b.WriteString(faintSty.Render("  • "+mem) + "\n")
-		}
-	}
-	return b.String()
-}
-
-// View renders the active list plus optional detail pane.
+// View renders the active list with the detail preview beside it.
 func (u UsersGroups) View() string {
 	if u.w == 0 {
 		return ""
@@ -285,30 +228,92 @@ func (u UsersGroups) View() string {
 		tabLabel = "Groups"
 	}
 	head := pageHead(tabLabel,
-		fmt.Sprintf("%s · tab switches · %d entries", otherTab(u.tab), count), u.w)
-	body := head + "\n\n" + tblView
+		fmt.Sprintf("tab switches · %d entries · system accounts dimmed", count), u.w)
 
-	if u.detailOpen {
-		wide := u.w >= 100
-		inner := clampInt(u.w*2/5, 32, 52)
-		if !wide {
-			inner = u.w - 2
-		}
-		tbl := u.uTbl.Width()
-		if u.tab == "groups" {
-			tbl = u.gTbl.Width()
-		}
-		title := u.detailName
-		if title == "" {
-			title = u.tab
-		}
-		pane := ui.TitledBox("users", truncCell(title, maxInt(inner-6, 8)),
-			ui.ClipBlock(u.detail, maxInt(inner-4, 10)), inner)
-		if wide {
-			body = ui.Split(body, pane, tbl, u.w)
-		} else {
-			body += "\n" + pane
+	wide, mainW, prevW := splitGeom(u.w)
+	prev := renderPreview("users", u.previewTitle(), "", u.previewBody(), prevW, u.h-1)
+	if !wide {
+		keep := clampInt(u.h-8, 6, u.h-4)
+		lines := strings.Split(ui.ClipBlock(tblView, mainW), "\n")
+		if len(lines) > keep {
+			tblView = strings.Join(lines[:keep], "\n")
 		}
 	}
-	return body
+	body := joinPanesWide(wide, tblView, prev, mainW, u.w)
+
+	out := head + "\n" + body
+	lines := strings.Split(out, "\n")
+	for len(lines) < u.h {
+		lines = append(lines, "")
+	}
+	if len(lines) > u.h {
+		lines = lines[:u.h]
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (u UsersGroups) previewTitle() string {
+	if u.tab == "users" {
+		if idx, ok := u.uTbl.Selected(); ok && idx < len(u.users) {
+			return truncCell(u.users[idx].Name, 24)
+		}
+		return "user"
+	}
+	if idx, ok := u.gTbl.Selected(); ok && idx < len(u.groups) {
+		return truncCell(u.groups[idx].Name, 24)
+	}
+	return "group"
+}
+
+// previewBody renders the selected user/group card from the already
+// loaded slices — no blocking reads on the UI path.
+func (u UsersGroups) previewBody() string {
+	_, _, pw := splitGeom(u.w)
+	kv := func(k, v string) string {
+		return mutedSty.Render(padTo(k, 8)) + faintSty.Render(ui.Truncate(v, maxInt(pw-10, 4)))
+	}
+	if u.tab == "users" {
+		idx, ok := u.uTbl.Selected()
+		if !ok || idx >= len(u.users) {
+			return faintSty.Render("select a user…")
+		}
+		usr := u.users[idx]
+		memberships := accounts.GroupsOf(usr.Name, usr.GID, u.groups)
+		lines := []string{
+			kv("uid", itoa(usr.UID)),
+			kv("gid", itoa(usr.GID)),
+			kv("home", usr.Home),
+			kv("shell", usr.Shell),
+		}
+		if isSystemAccount(usr.UID) {
+			lines = append(lines, kv("class", "system account"))
+		} else if usr.Shell != "" && !strings.Contains(usr.Shell, "nologin") &&
+			usr.Shell != "/bin/false" {
+			lines = append(lines, kv("class", "human · login allowed"))
+		} else {
+			lines = append(lines, kv("class", "no login shell"))
+		}
+		if len(memberships) > 0 {
+			lines = append(lines, "", mutedSty.Render("groups"),
+				faintSty.Render(ui.Truncate(strings.Join(memberships, ", "), pw-2)))
+		}
+		return strings.Join(lines, "\n")
+	}
+
+	idx, ok := u.gTbl.Selected()
+	if !ok || idx >= len(u.groups) {
+		return faintSty.Render("select a group…")
+	}
+	g := u.groups[idx]
+	members := accounts.MembersOf(g, u.users)
+	lines := []string{kv("gid", itoa(g.GID))}
+	if len(members) == 0 {
+		lines = append(lines, kv("members", "-"))
+		return strings.Join(lines, "\n")
+	}
+	lines = append(lines, "", mutedSty.Render("members"))
+	for _, mem := range members {
+		lines = append(lines, faintSty.Render("  • "+mem))
+	}
+	return strings.Join(lines, "\n")
 }
