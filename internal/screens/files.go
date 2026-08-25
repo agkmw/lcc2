@@ -243,11 +243,8 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			if m.hit > 0 {
 				f.prevMeta += " - line " + itoa(m.hit)
 			}
-			body := numberLines(m.p.Lines, m.p.First, m.hit)
-			if m.p.Truncated {
-				body += "\n" + faintSty.Render(".. truncated")
-			}
-			f.prevBody = body
+			name := f.prevTitle
+			f.prevBody = previewBodyForFile(name, m.p.Lines, m.p.First, m.hit, m.p.Truncated)
 		case m.err != nil:
 			f.prevTitle = filepathBase(m.path)
 			f.prevMeta = ""
