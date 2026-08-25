@@ -36,6 +36,7 @@ type snapshot struct {
 	cpu    sysinfo.CPUSample
 	mem    sysinfo.Memory
 	net    sysinfo.NetRates
+	io     sysinfo.DiskIO
 	fss    []disk.Filesystem
 	counts proc.Counts
 }
@@ -43,7 +44,7 @@ type snapshot struct {
 // collect gathers a full snapshot in one background command. CPU uses
 // a zero interval — diff since the previous call — so the tick never
 // blocks and 1 s really means 1 s.
-func collect(mon *sysinfo.NetMonitor) tea.Cmd {
+func collect(mon *sysinfo.NetMonitor, iom *sysinfo.IOMonitor) tea.Cmd {
 	return func() tea.Msg {
 		s := snapshot{mem: sysinfo.ReadMemory(), load: sysinfo.ReadLoad()}
 		if h, err := sysinfo.ReadHost(); err == nil {
@@ -53,6 +54,7 @@ func collect(mon *sysinfo.NetMonitor) tea.Cmd {
 			s.cpu = c
 		}
 		s.net = mon.Rates()
+		s.io = iom.Rates()
 		s.fss = disk.ListFilesystems()
 		s.counts = proc.ReadCounts()
 		return s
@@ -64,6 +66,7 @@ func collect(mon *sysinfo.NetMonitor) tea.Cmd {
 type Overview struct {
 	w, h       int
 	mon        *sysinfo.NetMonitor
+	iom        *sysinfo.IOMonitor
 	snap       snapshot
 	cpuHist    []float64
 	coreHist   [][]float64
@@ -84,7 +87,7 @@ func NewOverview() Overview {
 		style = "braille" // default and anything unknown
 	}
 	return Overview{
-		mon: &sysinfo.NetMonitor{}, graphStyle: style,
+		mon: &sysinfo.NetMonitor{}, iom: &sysinfo.IOMonitor{}, graphStyle: style,
 		epoch: &atomic.Uint64{},
 	}
 }
@@ -120,7 +123,7 @@ func (o Overview) Init() tea.Cmd {
 }
 
 func (o Overview) tick(gen uint64) tea.Cmd {
-	return tea.Batch(collect(o.mon), tea.Tick(overviewInterval, func(time.Time) tea.Msg {
+	return tea.Batch(collect(o.mon, o.iom), tea.Tick(overviewInterval, func(time.Time) tea.Msg {
 		return overviewTickMsg{gen: gen}
 	}))
 }
@@ -527,7 +530,13 @@ func (o Overview) diskBox(w, rows int) string {
 	if len(lines) == 0 {
 		lines = append(lines, mutedSty.Render("no mounts"))
 	}
-	return ui.Section("proc", "disk", itoa(len(fss))+" mounts",
+	title := itoa(len(fss)) + " mounts"
+	if o.snap.io.ReadPerSec > 0 || o.snap.io.WritePerSec > 0 {
+		title += fmt.Sprintf(" - r %s - w %s",
+			sysinfo.FormatRate(o.snap.io.ReadPerSec),
+			sysinfo.FormatRate(o.snap.io.WritePerSec))
+	}
+	return ui.Section("proc", "disk", title,
 		w, len(lines)+2, strings.Join(lines, "\n"))
 }
 
