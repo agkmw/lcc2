@@ -4,29 +4,20 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-Polish batch landed (2026-08-25, 9 commits): files sort cycling,
-session memory across runs, $EDITOR/$PAGER opening (files+services),
-clipboard path copy (wl-copy/xclip/OSC52), trash-instead-of-delete
-with permanent-fallback labeling, dashboard disk I/O rates, mouse
-support (clicks/wheel/tabs), and chroma syntax-highlighted previews
-(new dep). CLI gained --version/--help + NO_COLOR. Gate green.
+v2 migration landed (ADR-0012): bubbletea/lipgloss/bubbles at
+charm.land v2 paths, colorprofile replacing termenv, declarative View
+fields (altscreen/mouse), native clipboard fallback, own Column/Row
+types. All gauntlets recalibrated and green on the new renderer.
 
 ## In progress
+
+Nothing — awaiting user's live pass on the v2 build.
 
 Nothing — awaiting user's live pass on this batch.
 
 ## Next action
 
-User exercises the new surface: sorts, editor open, clipboard over
-ssh/tmux, trash-then-undo, mouse gestures, highlighted previews.
-THEN: dedicated bubbletea/lipgloss/bubbles v2 migration session (own
-ADR — module paths, color types, termenv→colorprofile rework of
-canvas/painter/profile tests, ghosting recalibration; swap clipboard
-to native tea.SetClipboard).
-
-## Next action
-
-User verifies: net graph shape/scale feel, cursor highlight and tab
-chip on real hardware colors, ctrl+o/ctrl+i traversal while browsing,
-F content search from a scoped directory. Then candidates: T6
-(replace bubbles table), L3 symlink metadata consistency, mouse (L6).
+User runs the v2 binary for a real session: confirm mouse gestures,
+clipboard over ssh/tmux, resize behavior (decide whether the
+ClearScreen-on-resize workaround can be dropped), and general frame
+stability. Then: procfs time.Tick leak (last L6 remnant).

@@ -199,10 +199,18 @@ Ptr: `internal/ui/theme.go`, `internal/ui/canvas.go`.
 Network graphs auto-scale to the session peak with a 64 KiB/s floor;
 scale label rendered in section title. Ptr: `internal/screens/overview.go`.
 
-### L6 · partial (polish batch 2026-08-25)
+### L6 · partial (v2 migration)
 --version/--help shipped (cmd/lcc2 flag package). Mouse support
 shipped (P7 below). Still open: time.Tick leak in procfs.
 Ptrs: `cmd/lcc2/main.go`, `internal/proc/procfs.go:170`.
+
+### V1 · closed — v2 migration (ADR-0012)
+Whole stack moved to charm.land v2 modules; termenv/bubbles-v1 out of
+go.mod; clipboard final channel is native tea.SetClipboard; profile
+detection via colorprofile with test override hook
+(ui.SetProfileOverride). Gauntlets recalibrated to v2 emission
+(bare \x1b[m resets). ClearScreen-on-resize retained pending live
+review. See docs/decisions/adr-0012-bubbletea-v2-migration.md.
 
 ## 2026-08-25 polish batch (user-selected menu)
 
