@@ -4,11 +4,11 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-Fourth pass landed (2026-08-25): preview panes on processes, users and
-services tone their values with the same stylers as the table rows —
-state/cpu/mem colored, ids/homes/shells class-aware (missing homes
-red), member names toned, systemctl bodies token-highlighted by a
-width-neutral scanner. Gate green.
+Fifth pass landed (2026-08-25): services details pane is a structured
+kv card from `systemctl show` (state/boot/since/pid/memory/cpu/
+restarts), with a red FAILED banner, journal tail on every selection,
+amber restart badge in the meta line and the raw highlighted dump as
+fallback for not-found units. Gate green.
 
 ## In progress
 

@@ -434,6 +434,23 @@ Tests: `TestHighlightSvcStatusPreservesText`,
 Ptrs: processes.go processCard, users.go previewBody,
 services.go previewBody/highlightSvcStatus.
 
+## 2026-08-25 fifth pass (services details page)
+
+### S5 · closed
+Services details pane dumped raw systemctl status prose: long lines
+wrapped mid-word at pane width, key facts buried under Loaded:/Drop-In:/
+Invocation:/Docs noise, cgroup trees ate the space. Now a structured
+kv card from one `systemctl show -p ...` call (`services.Show` +
+Detail parser tolerating [not set]/unset), relative `since` + dimmed
+absolute `at`, unit-dimmed memory, humanized cpu, restarts row when
+>0 with amber meta badge, red FAILED banner chip for failed units,
+and the last 4 journal lines (journalctl -o cat) under every
+selection. Raw highlighted dump remains the fallback when show fails
+or the unit is not found. Tests: parse fixtures, unset tolerance,
+relSince buckets, card content assertions.
+Ptrs: services/detail.go, screens/services.go previewBody/
+detailCard/relSince.
+
 ## Open items carried from earlier
 
 ### L3 · open
