@@ -38,6 +38,8 @@ type Files struct {
 	findTbl   ui.FilterTable
 	grepTbl   ui.FilterTable
 
+	sort      fileSort // listing order; s cycles, S reverses
+
 	backStack []string // visited dirs; ctrl+o pops
 	fwdStack  []string // forward history; ctrl+i pops
 
@@ -140,6 +142,8 @@ func (f Files) Hints() []key.Binding {
 	}
 	h := []key.Binding{
 		ui.Keys.Filter,
+		key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "sort: "+f.sort.label())),
+		key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "reverse")),
 		key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "find")),
 		key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "grep")),
 		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "mark")),
@@ -204,6 +208,7 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 		f.cwd = m.dir
 		f.entries = m.list
+		sortEntries(f.entries, f.sort)
 		f.pruneMarks()
 		f.syncTable()
 		if e, ok := f.selected(); ok && e.Path != f.prevPath && !f.fetching {
@@ -616,6 +621,16 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return f, f.startAux("find")
 	case "F":
 		return f, f.startAux("grep")
+	case "s":
+		f.sort = f.sort.next()
+		sortEntries(f.entries, f.sort)
+		f.syncTable()
+		return f, nil
+	case "S":
+		f.sort.desc = !f.sort.desc
+		sortEntries(f.entries, f.sort)
+		f.syncTable()
+		return f, nil
 	case "ctrl+o":
 		return f, f.goBack()
 	case "ctrl+i":
