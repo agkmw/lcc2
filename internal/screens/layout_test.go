@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"lcc2/internal/accounts"
 	"lcc2/internal/disk"
@@ -62,7 +62,7 @@ func TestScreensFitAllSizes(t *testing.T) {
 		p := NewProcesses()
 		p = feed(p, size, pl).(Processes)
 		assertFits(t, "processes", p.View(), w)
-		p = feed(p, tea.KeyMsg{Type: tea.KeyEnter}).(Processes)
+		p = feed(p, tea.KeyPressMsg{Code: tea.KeyEnter}).(Processes)
 		assertFits(t, "processes+detail", p.View(), w)
 
 		d := NewDisks()

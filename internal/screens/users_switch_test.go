@@ -3,7 +3,7 @@ package screens
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // Regression: "tab" is pinned globally to screen cycling (root
@@ -14,7 +14,7 @@ func TestUsersSwitchKeySwapsLists(t *testing.T) {
 	if u.tab != "users" {
 		t.Fatalf("initial tab = %q", u.tab)
 	}
-	sKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}}
+	sKey := tea.KeyPressMsg{Code: 115, Text: "s"}
 	u = feed(u, sKey).(UsersGroups)
 	if u.tab != "groups" {
 		t.Fatalf("s did not switch lists, tab = %q", u.tab)

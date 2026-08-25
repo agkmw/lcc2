@@ -5,15 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 func newTestTable() FilterTable {
-	cols := []table.Column{{Title: "name", Width: 20}}
+	cols := []Column{{Title: "name", Width: 20}}
 	ft := NewFilterTable(cols, 30, 5)
-	ft.SetRows([]table.Row{
+	ft.SetRows([]Row{
 		{"alpha"}, {"beta"}, {"alphabet"}, {"gamma"},
 	})
 	return ft
@@ -60,13 +59,13 @@ func stripSeq(s string) string {
 
 func typeString(ft *FilterTable, s string) {
 	for _, r := range s {
-		*ft, _ = ft.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		*ft, _ = ft.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 }
 
 func backspaces(ft *FilterTable, n int) {
 	for i := 0; i < n; i++ {
-		*ft, _ = ft.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+		*ft, _ = ft.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	}
 }
 
@@ -98,8 +97,8 @@ func TestFilterEmptyResultThenRecover(t *testing.T) {
 	}
 
 	// enter (accept) and enter (open) must be safe in every state
-	ft, _ = ft.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	ft, _ = ft.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	ft, _ = ft.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	ft, _ = ft.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// narrow to a real match and select it end-to-end
 	ft, _ = ft.Update(keyMsg("/"))
@@ -107,7 +106,7 @@ func TestFilterEmptyResultThenRecover(t *testing.T) {
 	if ft.Len() != 2 {
 		t.Fatalf("query 'alp' should match 2 rows, got %d", ft.Len())
 	}
-	ft, _ = ft.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	ft, _ = ft.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	idx, ok = ft.Selected()
 	if !ok || (ft.Rows()[idx][0] != "alpha" && ft.Rows()[idx][0] != "alphabet") {
 		t.Fatalf("selection after narrowed filter wrong: idx=%d ok=%v", idx, ok)
@@ -119,7 +118,7 @@ func TestFilterAcceptEmptyThenEscape(t *testing.T) {
 	ft := newTestTable()
 	ft, _ = ft.Update(keyMsg("/"))
 	typeString(&ft, "qq")
-	ft, _ = ft.Update(tea.KeyMsg{Type: tea.KeyEnter}) // commit empty result
+	ft, _ = ft.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // commit empty result
 	if ft.Len() != 0 {
 		t.Fatalf("committed query should stay empty, got %d", ft.Len())
 	}
@@ -134,7 +133,7 @@ func TestFilterAcceptEmptyThenEscape(t *testing.T) {
 
 func TestSelectedRejectsNegativeCursor(t *testing.T) {
 	ft := newTestTable()
-	ft.SetRows([]table.Row{}) // forces bubbles' cursor clamp to -1
+	ft.SetRows([]Row{}) // forces bubbles' cursor clamp to -1
 	if _, ok := ft.Selected(); ok {
 		t.Fatal("negative cursor must not yield a selection")
 	}
@@ -146,7 +145,7 @@ func TestSelectedRejectsNegativeCursor(t *testing.T) {
 // BACKLOG-T1: the cursor must follow the same logical item across
 // row rebuilds (refresh churn, deletions, sort changes) and filters.
 func TestTrackingFollowsItemThroughDelete(t *testing.T) {
-	ft := NewFilterTable([]table.Column{{Title: "name", Width: 20}}, 30, 5)
+	ft := NewFilterTable([]Column{{Title: "name", Width: 20}}, 30, 5)
 	ft.SetRowsTracked(rows5(), []string{"a", "b", "c", "d", "e"})
 	ft.SetCursor(2)
 	if k, _ := ft.SelectedKey(); k != "c" {
@@ -154,14 +153,14 @@ func TestTrackingFollowsItemThroughDelete(t *testing.T) {
 	}
 
 	// delete an item BEFORE the selection: index shifts, identity holds
-	ft.SetRowsTracked([]table.Row{{"alpha"}, {"gamma"}, {"delta"}, {"echo"}},
+	ft.SetRowsTracked([]Row{{"alpha"}, {"gamma"}, {"delta"}, {"echo"}},
 		[]string{"a", "c", "d", "e"})
 	if k, ok := ft.SelectedKey(); !ok || k != "c" {
 		t.Fatalf("selection lost after delete-shift: %q %v", k, ok)
 	}
 
 	// delete the tracked item itself: cursor lands on nearest survivor
-	ft.SetRowsTracked([]table.Row{{"alpha"}, {"delta"}, {"echo"}},
+	ft.SetRowsTracked([]Row{{"alpha"}, {"delta"}, {"echo"}},
 		[]string{"a", "d", "e"})
 	if _, ok := ft.SelectedKey(); !ok {
 		t.Fatal("no selection after tracking target vanished")
@@ -169,13 +168,13 @@ func TestTrackingFollowsItemThroughDelete(t *testing.T) {
 }
 
 func TestTrackingThroughFilterNarrowAndWiden(t *testing.T) {
-	ft := NewFilterTable([]table.Column{{Title: "name", Width: 20}}, 30, 8)
+	ft := NewFilterTable([]Column{{Title: "name", Width: 20}}, 30, 8)
 	ft.SetRowsTracked(rows5(), []string{"a", "b", "c", "d", "e"})
 	ft.SetCursor(3) // delta
 
 	ft, _ = ft.Update(keyMsg("/"))
 	typeString(&ft, "del")
-	ft, _ = ft.Update(tea.KeyMsg{Type: tea.KeyEnter}) // commit filter
+	ft, _ = ft.Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // commit filter
 	if k, _ := ft.SelectedKey(); k != "d" {
 		t.Fatalf("filter lost selection: %q", k)
 	}
@@ -189,8 +188,8 @@ func TestTrackingThroughFilterNarrowAndWiden(t *testing.T) {
 	}
 }
 
-func rows5() []table.Row {
-	return []table.Row{
+func rows5() []Row {
+	return []Row{
 		{"alpha"}, {"beta"}, {"gamma"}, {"delta"}, {"echo"},
 	}
 }
@@ -201,9 +200,9 @@ func rows5() []table.Row {
 // renderer must keep styled cells intact at every width.
 func TestStyledCellsKeepColorAtAnyWidth(t *testing.T) {
 	forceTrueColor(t)
-	cols := []table.Column{{Title: "name", Width: 30}, {Title: "pct", Width: 6}}
+	cols := []Column{{Title: "name", Width: 30}, {Title: "pct", Width: 6}}
 	styled := lipgloss.NewStyle().Bold(true).Foreground(Palette.Red)
-	rows := []table.Row{
+	rows := []Row{
 		{styled.Render("a-very-long-directory-name-indeed/"), styled.Render("99%")},
 		{"plain-but-long-plaintext-name-here.txt", "0.0"},
 	}
@@ -229,17 +228,17 @@ func TestStyledCellsKeepColorAtAnyWidth(t *testing.T) {
 // The built-in scroller keeps the cursor row visible through moves,
 // page jumps and list shrinks.
 func TestTableViewportKeepsCursorVisible(t *testing.T) {
-	cols := []table.Column{{Title: "name", Width: 20}}
-	rows := make([]table.Row, 30)
+	cols := []Column{{Title: "name", Width: 20}}
+	rows := make([]Row, 30)
 	keys := make([]string, 30)
 	for i := range rows {
-		rows[i] = table.Row{fmt.Sprintf("row%02d", i)}
+		rows[i] = Row{fmt.Sprintf("row%02d", i)}
 		keys[i] = fmt.Sprintf("k%02d", i)
 	}
 	ft := NewFilterTable(cols, 24, 9) // bodyH = 9-3 = 6
 	ft.SetRowsTracked(rows, keys)
 
-	down := tea.KeyMsg{Type: tea.KeyDown}
+	down := tea.KeyPressMsg{Code: tea.KeyDown}
 	for i := 0; i < 10; i++ { // walk past the window edge
 		ft, _ = ft.Update(down)
 	}
@@ -250,14 +249,14 @@ func TestTableViewportKeepsCursorVisible(t *testing.T) {
 		t.Error("cursor row scrolled out of view")
 	}
 
-	end := tea.KeyMsg{Type: tea.KeyEnd}
+	end := tea.KeyPressMsg{Code: tea.KeyEnd}
 	ft, _ = ft.Update(end)
 	v := ft.View()
 	if ft.cursor != 29 || !strings.Contains(v, "row29") {
 		t.Errorf("goto-bottom failed: cursor=%d view=%q", ft.cursor, v)
 	}
 
-	home := tea.KeyMsg{Type: tea.KeyHome}
+	home := tea.KeyPressMsg{Code: tea.KeyHome}
 	ft, _ = ft.Update(home)
 	if ft.cursor != 0 || !strings.Contains(ft.View(), "row00") {
 		t.Error("goto-top failed")
@@ -296,17 +295,17 @@ func balancedEscapes(s string) bool {
 // Mouse: wheel moves the cursor, clicks select, RowAt accounts for
 // the scroll offset.
 func TestTableMouse(t *testing.T) {
-	cols := []table.Column{{Title: "name", Width: 12}}
-	rows := make([]table.Row, 20)
+	cols := []Column{{Title: "name", Width: 12}}
+	rows := make([]Row, 20)
 	keys := make([]string, 20)
 	for i := range rows {
-		rows[i] = table.Row{fmt.Sprintf("row%02d", i)}
+		rows[i] = Row{fmt.Sprintf("row%02d", i)}
 		keys[i] = fmt.Sprintf("k%02d", i)
 	}
 	ft := NewFilterTable(cols, 16, 9) // bodyH = 6
 	ft.SetRowsTracked(rows, keys)
 
-	wheel := tea.MouseMsg{Type: tea.MouseWheelDown}
+	wheel := tea.MouseWheelMsg{Button: tea.MouseWheelDown}
 	for i := 0; i < 8; i++ {
 		ft.Mouse(wheel, 0)
 	}
@@ -318,7 +317,7 @@ func TestTableMouse(t *testing.T) {
 	}
 
 	// Click on the third visible row: abs y = header(2) + (row - yOff).
-	click := tea.MouseMsg{Type: tea.MouseLeft, Y: 2 + 2} // vis row 5
+	click := tea.MouseClickMsg{Button: tea.MouseLeft, X: 5, Y: 2 + 2} // vis row 5
 	moved, dbl := ft.Mouse(click, 0)
 	if !moved || ft.Cursor() != 5 {
 		t.Fatalf("click moved=%v cursor=%d", moved, ft.Cursor())

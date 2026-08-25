@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/colorprofile"
+
+	"lcc2/internal/ui"
 
 	"lcc2/internal/proc"
 	"lcc2/internal/services"
@@ -15,9 +16,8 @@ import (
 
 func forceTrueColorScreens(t *testing.T) {
 	t.Helper()
-	old := lipgloss.DefaultRenderer().ColorProfile()
-	lipgloss.DefaultRenderer().SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.DefaultRenderer().SetColorProfile(old) })
+	restore := ui.SetProfileOverride(colorprofile.TrueColor)
+	t.Cleanup(restore)
 }
 
 // highlightSvcStatus wraps known tokens without moving any other byte:

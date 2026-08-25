@@ -6,9 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/colorprofile"
 
 	"lcc2/internal/files"
 	"lcc2/internal/ui"
@@ -78,8 +76,6 @@ func TestDirModeShowsD(t *testing.T) {
 	}
 }
 
-var _ = tea.KeyRunes // keep tea import if feeds change
-
 func minInt(a, b int) int {
 	if a < b {
 		return a
@@ -108,9 +104,8 @@ func TestSymlinkNameGetsAtTail(t *testing.T) {
 // narrow — the first-party renderer no longer strips styled cells
 // (H8). Asserts on raw bytes since stripANSI would hide the win.
 func TestMainPaneRowsKeepColor(t *testing.T) {
-	old := lipgloss.DefaultRenderer().ColorProfile()
-	lipgloss.DefaultRenderer().SetColorProfile(termenv.TrueColor)
-	defer lipgloss.DefaultRenderer().SetColorProfile(old)
+	restore := ui.SetProfileOverride(colorprofile.TrueColor)
+	defer restore()
 
 	dir := t.TempDir()
 	files.Mkdir(dir, "projects")

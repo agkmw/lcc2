@@ -1,10 +1,11 @@
 package ui
 
 import (
+	"image/color"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // ConfirmDialog asks for yes/no before a potentially destructive action.
@@ -55,7 +56,7 @@ func (c ConfirmDialog) View() string {
 	}
 	band := lipgloss.NewStyle().Bold(true).
 		Background(bandC).
-		Foreground(lipgloss.Color("#11111B")).
+		Foreground(C("#11111B")).
 		Width(inner).
 		Render(" " + c.Title)
 	var b strings.Builder
@@ -83,6 +84,6 @@ func (c ConfirmDialog) View() string {
 }
 
 // KeyBadgeStyle renders "[k]" chips where no section accent applies.
-func KeyBadgeStyle(c lipgloss.Color) lipgloss.Style {
+func KeyBadgeStyle(c color.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Bold(true).Foreground(c)
 }

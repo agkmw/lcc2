@@ -7,11 +7,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/bubbles/v2/key"
 
 	"lcc2/internal/services"
 	"lcc2/internal/sysinfo"
@@ -69,7 +68,7 @@ type Services struct {
 
 // NewServices builds the services screen.
 func NewServices() Services {
-	cols := []table.Column{
+	cols := []ui.Column{
 		{Title: "unit", Width: 28},
 		{Title: "active", Width: 10},
 		{Title: "sub", Width: 12},
@@ -114,7 +113,7 @@ func (s Services) Init() tea.Cmd {
 	gen := s.epoch.Add(1)
 	return tea.Batch(
 		func() tea.Msg { u, err := services.List(); return svcListMsg{units: u, err: err} },
-		s.spin.Tick,
+		func() tea.Msg { return s.spin.Tick() },
 		s.tick(gen),
 	)
 }
@@ -165,10 +164,10 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 		s.loadErr = ""
 		s.units = m.units
-		rows := make([]table.Row, len(m.units))
+		rows := make([]ui.Row, len(m.units))
 		keys := make([]string, len(m.units))
 		for i, u := range m.units {
-			rows[i] = table.Row{
+			rows[i] = ui.Row{
 				unitCell(u), stateStyled(u.Active), subStyled(u.Sub),
 				bootStyled(u.Enabled),
 				mutedSty.Render(ui.Truncate(u.Description, 40)),
@@ -250,7 +249,7 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		return s, tea.Batch(ui.OkToast(m.action+" "+m.unit),
 			refreshSvcCmd(), fetchDetailCmd(m.unit))
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return s.handleKey(m)
 	}
 	return s, nil
@@ -578,7 +577,7 @@ func detailCard(d services.Detail, pw int) string {
 	if d.Active == "failed" { // banner first: the fact that matters
 		banner := lipgloss.NewStyle().Bold(true).
 			Background(badSty.GetForeground()).
-			Foreground(lipgloss.Color("#11111B")).
+			Foreground(ui.C("#11111B")).
 			Render(" FAILED ")
 		out = banner + "\n" + out
 	}

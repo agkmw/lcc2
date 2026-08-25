@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbletea"
+	"charm.land/bubbletea/v2"
 
 	"lcc2/internal/files"
 	"lcc2/internal/ui"
@@ -29,7 +29,7 @@ func auxScreen(t *testing.T) Files {
 // Find mode: entry, synthetic results render, esc returns to listing.
 func TestAuxFindMode(t *testing.T) {
 	f := auxScreen(t)
-	f = feed(f, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}}).(Files)
+	f = feed(f, tea.KeyPressMsg{Code: 102, Text: "f"}).(Files)
 	if f.mode != "find" || !f.CapturingInput() {
 		t.Fatalf("find mode not entered: %q capturing=%v", f.mode, f.CapturingInput())
 	}
@@ -47,7 +47,7 @@ func TestAuxFindMode(t *testing.T) {
 		t.Fatalf("view missing query bar or results:\n%s", v[:minInt(len(v), 400)])
 	}
 
-	f = feed(f, tea.KeyMsg{Type: tea.KeyEsc}).(Files)
+	f = feed(f, tea.KeyPressMsg{Code: tea.KeyEsc}).(Files)
 	if f.mode != "list" {
 		t.Fatalf("esc did not exit find mode: %q", f.mode)
 	}
@@ -57,7 +57,7 @@ func TestAuxFindMode(t *testing.T) {
 // the cursor highlights its line.
 func TestAuxGrepMode(t *testing.T) {
 	f := auxScreen(t)
-	f = feed(f, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'F'}}).(Files)
+	f = feed(f, tea.KeyPressMsg{Code: 70, Text: "F"}).(Files)
 	if f.mode != "grep" {
 		t.Fatalf("grep mode not entered: %q", f.mode)
 	}
@@ -65,7 +65,7 @@ func TestAuxGrepMode(t *testing.T) {
 	hit := filepath.Join(f.cwd, "haystack.txt")
 	f.grepRes = []files.Match{{Path: hit, Line: 2, Col: 6, Text: "beta NEEDLE gamma"}}
 	f.syncAuxTables()
-	f = feed(f, tea.KeyMsg{Type: tea.KeyDown}).(Files) // steer cursor, kicks preview
+	f = feed(f, tea.KeyPressMsg{Code: tea.KeyDown}).(Files) // steer cursor, kicks preview
 
 	pv, err := files.ReadPreviewAt(hit, 2, 10, 1<<10)
 	if err != nil {
@@ -87,9 +87,9 @@ func TestAuxGrepMode(t *testing.T) {
 // query characters — only arrows steer results.
 func TestAuxModeSwallowsActionKeys(t *testing.T) {
 	f := auxScreen(t)
-	f = feed(f, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}}).(Files)
+	f = feed(f, tea.KeyPressMsg{Code: 102, Text: "f"}).(Files)
 	for _, k := range "djkmy" {
-		f = feed(f, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{k}}).(Files)
+		f = feed(f, tea.KeyPressMsg{Code: k, Text: string(k)}).(Files)
 	}
 	if f.stager.Len() != 0 {
 		t.Fatalf("aux mode leaked %d staged ops", f.stager.Len())
@@ -102,7 +102,7 @@ func TestAuxModeSwallowsActionKeys(t *testing.T) {
 // Arrow keys move the results cursor without touching the query.
 func TestAuxArrowsSteerResults(t *testing.T) {
 	f := auxScreen(t)
-	f = feed(f, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'f'}}).(Files)
+	f = feed(f, tea.KeyPressMsg{Code: 102, Text: "f"}).(Files)
 	dir := f.cwd
 	f.findRes = []files.Entry{
 		{Name: "a.txt", Path: filepath.Join(dir, "a.txt")},
@@ -110,7 +110,7 @@ func TestAuxArrowsSteerResults(t *testing.T) {
 	}
 	f.syncAuxTables()
 	f.fetching = false
-	f = feed(f, tea.KeyMsg{Type: tea.KeyDown}).(Files)
+	f = feed(f, tea.KeyPressMsg{Code: tea.KeyDown}).(Files)
 	if got := f.findTbl.Cursor(); got != 1 {
 		t.Fatalf("cursor = %d, want 1", got)
 	}
@@ -143,20 +143,20 @@ func TestDirectoryBackForwardHistory(t *testing.T) {
 		t.Fatalf("enter did not navigate+push: cwd=%q back=%v", f.cwd, f.backStack)
 	}
 
-	f = feed(f, tea.KeyMsg{Type: tea.KeyCtrlO}).(Files)
+	f = feed(f, tea.KeyPressMsg{Code: 'o', Mod: tea.ModCtrl}).(Files)
 	f = feed(f, dirListMsg{dir: root, list: lst}).(Files)
 	if f.cwd != root || len(f.fwdStack) == 0 {
 		t.Fatalf("ctrl+o did not go back: cwd=%q fwd=%v", f.cwd, f.fwdStack)
 	}
 
-	f = feed(f, tea.KeyMsg{Type: tea.KeyCtrlI}).(Files)
+	f = feed(f, tea.KeyPressMsg{Code: 'i', Mod: tea.ModCtrl}).(Files)
 	f = feed(f, dirListMsg{dir: sub, list: mustList(t, sub)}).(Files)
 	if f.cwd != sub {
 		t.Fatalf("ctrl+i did not go forward: cwd=%q", f.cwd)
 	}
 }
 
-func keyEnter() tea.Msg { return tea.KeyMsg{Type: tea.KeyEnter} }
+func keyEnter() tea.Msg { return tea.KeyPressMsg{Code: tea.KeyEnter} }
 
 func mustList(t *testing.T, dir string) []files.Entry {
 	t.Helper()

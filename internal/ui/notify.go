@@ -1,9 +1,10 @@
 package ui
 
 import (
+	"image/color"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -102,7 +103,7 @@ func CompositeNotes(base string, s NotifyStack) string {
 }
 
 func noteWindow(it Notification) []string {
-	var color lipgloss.Color
+	var color color.Color
 	icon, kind := "*", "info"
 	switch it.Kind {
 	case "ok":

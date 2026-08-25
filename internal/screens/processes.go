@@ -2,15 +2,15 @@ package screens
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/bubbles/v2/key"
 
 	"lcc2/internal/proc"
 	"lcc2/internal/sysinfo"
@@ -57,7 +57,7 @@ type Processes struct {
 
 // NewProcesses builds the process screen.
 func NewProcesses() Processes {
-	cols := []table.Column{
+	cols := []ui.Column{
 		{Title: "pid", Width: 8},
 		{Title: "user", Width: 11},
 		{Title: "cpu%", Width: 6},
@@ -187,7 +187,7 @@ func (p Processes) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 		return p, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return p.handleKey(m)
 	}
 	return p, nil
@@ -302,10 +302,10 @@ func (p *Processes) layout() {
 
 // syncTable rebuilds visible rows; the cursor follows its PID.
 func (p *Processes) syncTable() {
-	rows := make([]table.Row, len(p.all))
+	rows := make([]ui.Row, len(p.all))
 	keys := make([]string, len(p.all))
 	for i, pr := range p.all {
-		rows[i] = table.Row{
+		rows[i] = ui.Row{
 			faintSty.Render(itoa(int(pr.PID))),
 			userCell(pr.User),
 			pctCell(pr.CPUPercent),
@@ -329,8 +329,8 @@ func memPctCell(v float64) string {
 	return lipgloss.NewStyle().Foreground(memColor(v)).Render(f1(v))
 }
 
-func cpuColor(v float64) lipgloss.Color      { return ui.StateColor(v) }
-func memColor(v float64) lipgloss.Color {
+func cpuColor(v float64) color.Color { return ui.StateColor(v) }
+func memColor(v float64) color.Color {
 	switch {
 	case v >= 70:
 		return ui.Palette.Red
@@ -365,7 +365,7 @@ func cmdCell(pr proc.Process) string {
 }
 
 func stateCell(s string) string {
-	var c lipgloss.TerminalColor
+	var c color.Color
 	switch s {
 	case "R":
 		c = goodSty.GetForeground()

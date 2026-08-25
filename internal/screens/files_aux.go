@@ -8,10 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"lcc2/internal/files"
 	"lcc2/internal/ui"
@@ -48,8 +47,12 @@ func newAuxInput() textinput.Model {
 	ti := textinput.New()
 	ti.Prompt = "/"
 	ti.Placeholder = "type to search"
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(ui.Accent("files"))
-	ti.TextStyle = lipgloss.NewStyle().Foreground(ui.Palette.Text)
+	st := textinput.DefaultStyles(true)
+	st.Focused.Prompt = lipgloss.NewStyle().Foreground(ui.Accent("files"))
+	st.Blurred.Prompt = st.Focused.Prompt
+	st.Focused.Text = lipgloss.NewStyle().Foreground(ui.Palette.Text)
+	st.Blurred.Text = st.Focused.Text
+	ti.SetStyles(st)
 	return ti
 }
 
@@ -58,8 +61,7 @@ func (f *Files) startAux(mode string) tea.Cmd {
 	f.mode = mode
 	f.prevHit = 0
 	f.auxInput.SetValue("")
-	f.auxInput.Focus()
-	return textinput.Blink
+	return f.auxInput.Focus()
 }
 
 func (f *Files) exitAux() tea.Cmd {
@@ -103,10 +105,10 @@ func (f Files) auxDebounced(m auxDebounceMsg) tea.Cmd {
 // the results cursor while every other key feeds the query input —
 // including letters like j/k, which are legitimate query characters.
 func (f Files) handleAuxKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
-	steer := func(key tea.KeyType) tea.Cmd {
+	steer := func(code rune) tea.Cmd {
 		tbl := f.auxTable()
 		var cmd tea.Cmd
-		*tbl, cmd = tbl.Update(tea.KeyMsg{Type: key})
+		*tbl, cmd = tbl.Update(tea.KeyPressMsg{Code: code})
 		return tea.Batch(cmd, f.auxFollow())
 	}
 	switch m.String() {
@@ -219,7 +221,7 @@ func (f *Files) auxTable() *ui.FilterTable {
 
 // syncAuxTables rebuilds result rows from the latest response.
 func (f *Files) syncAuxTables() {
-	rows := make([]table.Row, len(f.findRes))
+	rows := make([]ui.Row, len(f.findRes))
 	keys := make([]string, len(f.findRes))
 	for i, e := range f.findRes {
 		name := e.Name
@@ -227,16 +229,16 @@ func (f *Files) syncAuxTables() {
 			name = lipgloss.NewStyle().Bold(true).
 				Foreground(ui.Accent("files")).Render(name + "/")
 		}
-		rows[i] = table.Row{name, ui.Truncate(filepath.Dir(e.Path), 46), sizeOrDash(e)}
+		rows[i] = ui.Row{name, ui.Truncate(filepath.Dir(e.Path), 46), sizeOrDash(e)}
 		keys[i] = e.Path
 	}
 	f.findTbl.SetRowsTracked(rows, keys)
 
-	rows2 := make([]table.Row, len(f.grepRes))
+	rows2 := make([]ui.Row, len(f.grepRes))
 	keys2 := make([]string, len(f.grepRes))
 	for i, m := range f.grepRes {
 		loc := filepath.Base(m.Path) + ":" + strconv.Itoa(m.Line)
-		rows2[i] = table.Row{
+		rows2[i] = ui.Row{
 			lipgloss.NewStyle().Foreground(ui.Accent("files")).Render(loc),
 			ui.Truncate(strings.TrimSpace(m.Text), 60),
 		}

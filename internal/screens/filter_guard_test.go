@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"lcc2/internal/accounts"
 	"lcc2/internal/files"
@@ -18,7 +18,8 @@ import (
 // screen-level action keys must never fire; every key goes to the input.
 
 func keyRunes(s string) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
+	r := []rune(s)
+	return tea.KeyPressMsg{Code: r[len(r)-1], Text: s}
 }
 
 func typeQuery(t *testing.T, s ui.Screen, q string) ui.Screen {
@@ -63,7 +64,7 @@ func TestFilterModeSwallowsActionKeysOnFiles(t *testing.T) {
 func TestFilterEnterCommitsNotNavigatesOnFiles(t *testing.T) {
 	f := seededFiles(t)
 	f = typeQuery(t, f, "zz").(Files)
-	f = feed(f, tea.KeyMsg{Type: tea.KeyEnter}).(Files)
+	f = feed(f, tea.KeyPressMsg{Code: tea.KeyEnter}).(Files)
 
 	if f.tbl.Filtering() || f.stager.Len() > 0 {
 		t.Fatalf("enter did not commit filter: filtering=%v staged=%d",
@@ -133,7 +134,7 @@ func TestFilterModeGuardsOnDisksAndUsers(t *testing.T) {
 	d := NewDisks()
 	d = feed(d, ui.SizeMsg{Width: 100, Height: 30}).(Disks)
 	d = typeQuery(t, d, "re").(Disks)
-	d = feed(d, tea.KeyMsg{Type: tea.KeyEnter}).(Disks)
+	d = feed(d, tea.KeyPressMsg{Code: tea.KeyEnter}).(Disks)
 	if d.mode != "fs" || d.busy || d.fsTbl.Filtering() {
 		t.Fatalf("disks: enter mishandled mode=%s busy=%v filtering=%v",
 			d.mode, d.busy, d.fsTbl.Filtering())
@@ -153,7 +154,7 @@ func TestFilterModeGuardsOnDisksAndUsers(t *testing.T) {
 	}
 	ug = feed(ug, ui.SizeMsg{Width: 100, Height: 30}, accountsMsg{users: us, groups: gs}).(UsersGroups)
 	ug = typeQuery(t, ug, "te").(UsersGroups)
-	ug = feed(ug, tea.KeyMsg{Type: tea.KeyTab}).(UsersGroups)
+	ug = feed(ug, tea.KeyPressMsg{Code: tea.KeyTab}).(UsersGroups)
 	if ug.tab != "users" {
 		t.Fatalf("users: tab leaked through filter tab=%s", ug.tab)
 	}

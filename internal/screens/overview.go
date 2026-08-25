@@ -5,6 +5,7 @@ package screens
 
 import (
 	"fmt"
+	"image/color"
 	"os"
 	"sort"
 	"strconv"
@@ -12,9 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/bubbles/v2/key"
 
 	"lcc2/internal/disk"
 	"lcc2/internal/proc"
@@ -23,8 +24,8 @@ import (
 )
 
 const overviewInterval = time.Second
-const histMax = 120   // samples kept per ring (1 s apart)
-const peakWin = 60    // samples feeding the net auto-scale (rolling, L8)
+const histMax = 120       // samples kept per ring (1 s apart)
+const peakWin = 60        // samples feeding the net auto-scale (rolling, L8)
 const minScale = 64 << 10 // net auto-scale floor, bytes/s
 
 type overviewTickMsg struct{ gen uint64 }
@@ -110,7 +111,7 @@ func (o Overview) Hints() []key.Binding {
 func (o Overview) CapturingInput() bool { return false }
 
 // chart renders a time-series with the active style.
-func (o Overview) chart(hist []float64, w, h int, c lipgloss.Color) string {
+func (o Overview) chart(hist []float64, w, h int, c color.Color) string {
 	if o.graphStyle == "block" {
 		return ui.Graph(hist, w, h, c)
 	}
@@ -145,7 +146,7 @@ func (o Overview) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			return o, nil // stale chain from a previous Init
 		}
 		return o, o.tick(m.gen)
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.String() == "r" {
 			o.loaded = false
 			return o, o.tick(o.epoch.Load())
@@ -460,7 +461,7 @@ func (o Overview) netBox(w, netH int) string {
 	rxRows := strings.Split(o.chart(scaleHist(o.rxHist, scale), iw, netH, ui.Palette.Teal), "\n")
 	txRows := strings.Split(o.chart(scaleHist(o.txHist, scale), iw, netH, ui.Palette.Peach), "\n")
 
-	dirLine := func(name string, c lipgloss.Color, rate float64) string {
+	dirLine := func(name string, c color.Color, rate float64) string {
 		lbl := lipgloss.NewStyle().Bold(true).Foreground(c).Render(name)
 		r := sysinfo.FormatRate(rate)
 		gap := iw - lipgloss.Width(lbl) - lipgloss.Width(r)
@@ -525,7 +526,7 @@ func (o Overview) diskBox(w, rows int) string {
 	}
 	if len(fss) > shown {
 		lines = append(lines, faintSty.Render(
-			".. +" + itoa(len(fss)-shown) + " more - see Disks"))
+			".. +"+itoa(len(fss)-shown)+" more - see Disks"))
 	}
 	if len(lines) == 0 {
 		lines = append(lines, mutedSty.Render("no mounts"))

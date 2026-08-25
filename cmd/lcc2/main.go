@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	tea "charm.land/bubbletea/v2"
 
 	"lcc2/internal/app"
 	"lcc2/internal/screens"
@@ -34,12 +32,8 @@ func main() {
 		return
 	}
 
-	if os.Getenv("NO_COLOR") != "" {
-		// Honor the standard: strip all styling before any model runs.
-		lipgloss.DefaultRenderer().SetColorProfile(termenv.Ascii)
-	}
-
 	// Restore the last session: previous screen and Files prefs.
+	// (NO_COLOR/CLICOLOR are honored natively by colorprofile.)
 	st := session.Load()
 	filesScr := screens.NewFiles()
 	filesScr.Hydrate(st.Cwd, st.Hidden, st.SortKey, st.SortDesc)
@@ -52,7 +46,7 @@ func main() {
 		screens.NewServices(),
 		screens.NewUsersGroups(),
 	)
-	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(m) // v2: altscreen + mouse are View/renderer-owned
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "lcc2:", err)
 		os.Exit(1)

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"lcc2/internal/session"
@@ -183,19 +183,20 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return noteExpiryMsg{id: n.ID}
 		})
 
-	case tea.MouseMsg:
+	case tea.MouseClickMsg:
 		if r.helpOpen {
 			return r, nil
 		}
-		if m.Y == 0 { // tab strip
-			if idx, ok := r.stripHit(m.X); ok {
+		ev := m.Mouse()
+		if ev.Y == 0 { // tab strip
+			if idx, ok := r.stripHit(ev.X); ok {
 				return r, r.switchTo(idx)
 			}
-			return r, nil
 		}
-		// Everything else belongs to the active screen (fall through).
+		// Everything else belongs to the active screen.
+		return r.delegate(m)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if r.helpOpen {
 			switch m.String() {
 			case "?", "esc":
@@ -230,6 +231,11 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	return r.delegate(msg)
+}
+
+// delegate forwards a message to the active screen.
+func (r Root) delegate(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cur := r.current()
 	sc, cmd := cur.Update(msg)
 	r.screens[r.order[r.active]] = sc
@@ -261,7 +267,8 @@ func (r Root) contentArea() (int, int) {
 
 // View renders the full application frame: tab strip, body, status
 // bar — then paints everything onto the app's own opaque canvas.
-func (r Root) View() string {
+// viewString renders the full frame as a string (pre-v2 style).
+func (r Root) viewString() string {
 	if r.quitting || r.width == 0 {
 		return ""
 	}
@@ -345,7 +352,7 @@ func (r Root) viewTabStrip() string {
 				seg = lipgloss.NewStyle().
 					Bold(true).Foreground(ui.Accent(ti.id)).
 					Background(ui.Palette.Surface).
-					Render(" "+label+" ")
+					Render(" " + label + " ")
 			} else {
 				seg = mutedSty.Render(label)
 			}
@@ -427,6 +434,15 @@ func (r Root) viewStatusBar(cur ui.Screen) string {
 func keycap(k string) string {
 	return lipgloss.NewStyle().Bold(true).
 		Foreground(ui.Palette.Text).Render("[" + k + "]")
+}
+
+// View implements tea.Model: wraps the string frame in a tea.View
+// with the alternate screen enabled.
+func (r Root) View() tea.View {
+	v := tea.NewView(r.viewString())
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
 }
 
 // helpPanel renders the keyboard reference as a bordered card floating

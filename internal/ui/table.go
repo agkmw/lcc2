@@ -5,11 +5,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/table" // Column struct: shared API type
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
+
+// Column is one table column definition.
+type Column struct {
+	Title string
+	Width int
+}
+
+// Row is one table row of cell strings.
+type Row = []string
 
 // FilterTable is a first-party filtered table: "/" substring filter,
 // vim-style jumps, cursor tracking and a consistent look across the
@@ -18,19 +26,19 @@ import (
 // count, which slices escape sequences and once forced us to strip
 // every color from the main panes.
 type FilterTable struct {
-	cols      []table.Column
-	baseCols  []table.Column // pristine widths used by fitColumns
-	rows      []table.Row    // all rows
-	keys      []string       // keys[i] identifies rows[i]; empty = untracked
-	origIdx   []int          // origIdx[visible] = index into rows
-	lastKey   string         // selection to restore on rebuild
+	cols      []Column
+	baseCols  []Column // pristine widths used by fitColumns
+	rows      []Row    // all rows
+	keys      []string // keys[i] identifies rows[i]; empty = untracked
+	origIdx   []int    // origIdx[visible] = index into rows
+	lastKey   string   // selection to restore on rebuild
 	filtering bool
 	filterStr string
 	input     textinput.Model
 
-	vis    []table.Row // visible (filtered) rows
-	cursor int         // index into vis
-	yOff   int         // first visible body row
+	vis    []Row // visible (filtered) rows
+	cursor int   // index into vis
+	yOff   int   // first visible body row
 
 	lastClickRow int
 	lastClickAt  time.Time
@@ -56,12 +64,16 @@ var headerStyle = func() lipgloss.Style {
 }()
 
 // NewFilterTable creates a table with the given columns and dimensions.
-func NewFilterTable(cols []table.Column, width, height int) FilterTable {
+func NewFilterTable(cols []Column, width, height int) FilterTable {
 	ti := textinput.New()
 	ti.Placeholder = "type to filter"
 	ti.Prompt = "/"
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(Palette.Blue)
-	ti.TextStyle = lipgloss.NewStyle().Foreground(Palette.Text)
+	styles := textinput.DefaultStyles(true) // dark background app
+	styles.Focused.Prompt = lipgloss.NewStyle().Foreground(Palette.Blue)
+	styles.Blurred.Prompt = styles.Focused.Prompt
+	styles.Focused.Text = lipgloss.NewStyle().Foreground(Palette.Text)
+	styles.Blurred.Text = styles.Focused.Text
+	ti.SetStyles(styles)
 	ft := FilterTable{cols: cols, baseCols: cols, input: ti, headerSty: headerStyle}
 	ft.SetSize(width, height)
 	return ft
@@ -91,7 +103,7 @@ func (f *FilterTable) SetSize(w, h int) {
 // exceeds the table width. Without this, wide layouts wrap at the
 // terminal edge and corrupt the whole screen.
 func (f *FilterTable) fitColumns(w int) {
-	cols := append([]table.Column(nil), f.baseCols...)
+	cols := append([]Column(nil), f.baseCols...)
 	budget := w - 2*len(cols)
 	if budget < len(cols)*3 {
 		budget = len(cols) * 3 // degenerate terminal; stay usable
@@ -122,14 +134,14 @@ func (f *FilterTable) fitColumns(w int) {
 }
 
 // SetColumns replaces the column definitions.
-func (f *FilterTable) SetColumns(cols []table.Column) {
+func (f *FilterTable) SetColumns(cols []Column) {
 	f.cols = cols
 	f.baseCols = cols
 	f.fitColumns(f.Width())
 }
 
 // SetRows replaces all rows, preserving the current filter.
-func (f *FilterTable) SetRows(rows []table.Row) {
+func (f *FilterTable) SetRows(rows []Row) {
 	f.rows = clipCells(rows, f.cols)
 	f.keys = nil
 	f.applyFilter()
@@ -137,7 +149,7 @@ func (f *FilterTable) SetRows(rows []table.Row) {
 
 // SetRowsTracked replaces all rows with stable identity keys; the
 // cursor follows its row across rebuilds, sorts and filter changes.
-func (f *FilterTable) SetRowsTracked(rows []table.Row, keys []string) {
+func (f *FilterTable) SetRowsTracked(rows []Row, keys []string) {
 	if len(keys) != len(rows) {
 		panic("SetRowsTracked: keys/rows length mismatch")
 	}
@@ -151,13 +163,13 @@ func (f *FilterTable) SetRowsTracked(rows []table.Row, keys []string) {
 // Truncation is display-cell aware and ANSI-preserving; nothing in
 // this renderer ever truncates by rune count, so styled cells keep
 // their escapes intact at any width.
-func clipCells(rows []table.Row, cols []table.Column) []table.Row {
+func clipCells(rows []Row, cols []Column) []Row {
 	if len(cols) == 0 {
 		return rows
 	}
-	out := make([]table.Row, len(rows))
+	out := make([]Row, len(rows))
 	for i, r := range rows {
-		c := make(table.Row, len(r))
+		c := make(Row, len(r))
 		for j, cell := range r {
 			if j < len(cols) {
 				cell = Truncate(cell, cols[j].Width)
@@ -179,7 +191,7 @@ func (f *FilterTable) SelectedKey() (string, bool) {
 }
 
 // Rows returns all rows currently set on the table.
-func (f *FilterTable) Rows() []table.Row { return f.rows }
+func (f *FilterTable) Rows() []Row { return f.rows }
 
 // Len returns the number of visible (filtered) rows.
 func (f *FilterTable) Len() int { return len(f.origIdx) }
@@ -202,9 +214,9 @@ func (f *FilterTable) Filtering() bool { return f.filtering }
 // StartFilter activates the filter input.
 func (f *FilterTable) StartFilter() tea.Cmd {
 	f.filtering = true
-	f.input.Focus()
+	cmd := f.input.Focus()
 	f.input.SetValue(f.filterStr)
-	return textinput.Blink
+	return cmd
 }
 
 // CancelFilter exits filter mode without applying changes.
@@ -256,7 +268,7 @@ func (f *FilterTable) applyFilterWith(want string) {
 			f.origIdx = append(f.origIdx, i)
 		}
 	}
-	f.vis = make([]table.Row, len(f.origIdx))
+	f.vis = make([]Row, len(f.origIdx))
 	for vi, oi := range f.origIdx {
 		f.vis[vi] = f.rows[oi]
 	}
@@ -297,7 +309,7 @@ func (f *FilterTable) selKey() (string, bool) {
 	return f.keys[oi], true
 }
 
-func containsFold(r table.Row, q string) bool {
+func containsFold(r Row, q string) bool {
 	for _, c := range r {
 		if strings.Contains(strings.ToLower(c), q) {
 			return true
@@ -435,7 +447,7 @@ func (f *FilterTable) Update(msg tea.Msg) (FilterTable, tea.Cmd) {
 				f.move(1)
 			case "b", "pgup":
 				f.move(-maxI(f.bodyH(), 1))
-			case "f", "pgdown", " ":
+			case "f", "pgdown", " ", "space":
 				f.move(maxI(f.bodyH(), 1))
 			case "u", "ctrl+u":
 				f.move(-half)
@@ -493,31 +505,36 @@ func (f *FilterTable) RowAt(rel int) (int, bool) {
 // moved=true when the cursor changed and dbl=true for a double-click
 // on the same row (callers turn that into their "enter" action).
 func (f *FilterTable) Mouse(m tea.MouseMsg, topAbs int) (moved, dbl bool) {
-	switch m.Type {
-	case tea.MouseWheelUp:
-		f.move(-1)
-		return true, false
-	case tea.MouseWheelDown:
-		f.move(1)
-		return true, false
-	case tea.MouseLeft:
-		// click handling below
-	default:
+	switch ev := m.(type) {
+	case tea.MouseWheelMsg:
+		switch ev.Button {
+		case tea.MouseWheelUp:
+			f.move(-1)
+			return true, false
+		case tea.MouseWheelDown:
+			f.move(1)
+			return true, false
+		}
 		return false, false
+	case tea.MouseClickMsg:
+		if ev.Button != tea.MouseLeft {
+			return false, false
+		}
+		row, ok := f.RowAt(ev.Y - topAbs)
+		if !ok {
+			return false, false
+		}
+		now := time.Now()
+		dbl = now.Sub(f.lastClickAt) <= dblClickWindow && f.lastClickRow == row &&
+			row == f.cursor // already selected before this press
+		f.lastClickAt, f.lastClickRow = now, row
+		if row != f.cursor {
+			f.SetCursor(row)
+			return true, false
+		}
+		return false, dbl
 	}
-	row, ok := f.RowAt(m.Y - topAbs)
-	if !ok {
-		return false, false
-	}
-	now := time.Now()
-	dbl = now.Sub(f.lastClickAt) <= dblClickWindow && f.lastClickRow == row &&
-		row == f.cursor // already selected before this press
-	f.lastClickAt, f.lastClickRow = now, row
-	if row != f.cursor {
-		f.SetCursor(row)
-		return true, false
-	}
-	return false, dbl
+	return false, false
 }
 
 // View renders the table with one chrome row: the filter prompt above

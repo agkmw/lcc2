@@ -3,43 +3,54 @@
 package ui
 
 import (
+	"fmt"
+	"image/color"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
+// C parses a "#RRGGBB" hex string into a color.Color.
+func C(hex string) color.Color {
+	var r, g, b uint8
+	if _, err := fmt.Sscanf(hex, "#%02x%02x%02x", &r, &g, &b); err != nil {
+		return nil
+	}
+	return color.RGBA{R: r, G: g, B: b, A: 255}
+}
+
 // Palette is the single source of truth for colors.
 var Palette = struct {
-	Text    lipgloss.Color
-	Muted   lipgloss.Color
-	Faint   lipgloss.Color
-	Blue    lipgloss.Color
-	Green   lipgloss.Color
-	Red     lipgloss.Color
-	Yellow  lipgloss.Color
-	Mauve   lipgloss.Color
-	Teal    lipgloss.Color
-	Peach   lipgloss.Color
-	Surface lipgloss.Color
-	Overlay lipgloss.Color
+	Text    color.Color
+	Muted   color.Color
+	Faint   color.Color
+	Blue    color.Color
+	Green   color.Color
+	Red     color.Color
+	Yellow  color.Color
+	Mauve   color.Color
+	Teal    color.Color
+	Peach   color.Color
+	Surface color.Color
+	Overlay color.Color
 }{
-	Text:    lipgloss.Color("#CDD6F4"),
-	Muted:   lipgloss.Color("#9399B2"),
-	Faint:   lipgloss.Color("#585B70"),
-	Blue:    lipgloss.Color("#89B4FA"),
-	Green:   lipgloss.Color("#A6E3A1"),
-	Red:     lipgloss.Color("#F38BA8"),
-	Yellow:  lipgloss.Color("#F9E2AF"),
-	Mauve:   lipgloss.Color("#CBA6F7"),
-	Teal:    lipgloss.Color("#94E2D5"),
-	Peach:   lipgloss.Color("#FAB387"),
-	Surface: lipgloss.Color("#313244"),
-	Overlay: lipgloss.Color("#6C7086"),
+	Text:    C("#CDD6F4"),
+	Muted:   C("#9399B2"),
+	Faint:   C("#585B70"),
+	Blue:    C("#89B4FA"),
+	Green:   C("#A6E3A1"),
+	Red:     C("#F38BA8"),
+	Yellow:  C("#F9E2AF"),
+	Mauve:   C("#CBA6F7"),
+	Teal:    C("#94E2D5"),
+	Peach:   C("#FAB387"),
+	Surface: C("#313244"),
+	Overlay: C("#6C7086"),
 }
 
 // Section accent colors, keyed by section id.
-var Accents = map[string]lipgloss.Color{
+var Accents = map[string]color.Color{
 	"overview": Palette.Blue,
 	"proc":     Palette.Green,
 	"disk":     Palette.Peach,
@@ -48,7 +59,7 @@ var Accents = map[string]lipgloss.Color{
 	"users":    Palette.Yellow,
 }
 
-func accent(id string) lipgloss.Color {
+func accent(id string) color.Color {
 	if c, ok := Accents[id]; ok {
 		return c
 	}
@@ -56,11 +67,11 @@ func accent(id string) lipgloss.Color {
 }
 
 // Accent returns the theme color for a section id.
-func Accent(id string) lipgloss.Color { return accent(id) }
+func Accent(id string) color.Color { return accent(id) }
 
 var (
-	appBG    = lipgloss.Color("#1E1E2E")
-	dimBG    = lipgloss.Color("#11111B") // modal backdrop (crust)
+	appBG    = C("#1E1E2E")
+	dimBG    = C("#11111B") // modal backdrop (crust)
 	base     = lipgloss.NewStyle().Foreground(Palette.Text)
 	titleSty = lipgloss.NewStyle().Bold(true)
 	mutedSty = lipgloss.NewStyle().Foreground(Palette.Muted)
@@ -103,7 +114,7 @@ func SelectedRow() lipgloss.Style {
 }
 
 // StateColor maps a 0-100 percentage onto threshold colors.
-func StateColor(pct float64) lipgloss.Color {
+func StateColor(pct float64) color.Color {
 	switch {
 	case pct >= 90:
 		return Palette.Red

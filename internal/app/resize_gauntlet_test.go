@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"lcc2/internal/screens"
 )
@@ -42,7 +42,7 @@ func TestResizeCyclesKeepFrame(t *testing.T) {
 		for _, sz := range cycle {
 			w, h := sz[0], sz[1]
 			m, _ = m.Update(tea.WindowSizeMsg{Width: w, Height: h})
-			view := m.View()
+			view := viewString(m)
 			lines := strings.Split(view, "\n")
 			if len(lines) != h {
 				t.Errorf("%s @%dx%d: %d lines (want %d)", sc.name, w, h, len(lines), h)
@@ -70,17 +70,17 @@ func TestResizeBelowFloorShowsNotice(t *testing.T) {
 	for _, sz := range [][2]int{{50, 20}, {63, 15}, {100, 12}} {
 		w, h := sz[0], sz[1]
 		m, _ = m.Update(tea.WindowSizeMsg{Width: w, Height: h})
-		lines := strings.Split(m.View(), "\n")
+		lines := strings.Split(viewString(m), "\n")
 		if len(lines) != h {
 			t.Fatalf("%dx%d: %d lines, want %d", w, h, len(lines), h)
 		}
-		if !strings.Contains(stripANSI(m.View()), "terminal too small") {
+		if !strings.Contains(stripANSI(viewString(m)), "terminal too small") {
 			t.Errorf("%dx%d: notice not rendered", w, h)
 		}
 	}
 	// Recovery: growing back must restore the real UI instantly.
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 110, Height: 30})
-	if first := strings.Split(m.View(), "\n")[0]; !strings.Contains(first, "lcc2") {
+	if first := strings.Split(viewString(m), "\n")[0]; !strings.Contains(first, "lcc2") {
 		t.Errorf("no recovery after grow: %q", stripANSI(first))
 	}
 }

@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/bubbles/v2/key"
 
 	"lcc2/internal/accounts"
 	"lcc2/internal/ui"
@@ -43,8 +42,8 @@ func NewUsersGroups() UsersGroups {
 	}
 }
 
-func userCols() []table.Column {
-	return []table.Column{
+func userCols() []ui.Column {
+	return []ui.Column{
 		{Title: "user", Width: 18},
 		{Title: "uid", Width: 7},
 		{Title: "gid", Width: 7},
@@ -53,8 +52,8 @@ func userCols() []table.Column {
 	}
 }
 
-func groupCols() []table.Column {
-	return []table.Column{
+func groupCols() []ui.Column {
+	return []ui.Column{
 		{Title: "group", Width: 18},
 		{Title: "gid", Width: 7},
 		{Title: "members", Width: 30},
@@ -118,24 +117,24 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		u.loaded = true
 		u.users = m.users
 		u.groups = m.groups
-		urows := make([]table.Row, len(m.users))
+		urows := make([]ui.Row, len(m.users))
 		ukeys := make([]string, len(m.users))
 		for i, usr := range m.users {
-			urows[i] = table.Row{
+			urows[i] = ui.Row{
 				accountCell(usr), idCell(usr.UID), idCell(usr.GID),
 				homeCell(usr.Home, 22), shellCell(usr.Shell, 20),
 			}
 			ukeys[i] = usr.Name
 		}
 		u.uTbl.SetRowsTracked(urows, ukeys)
-		grows := make([]table.Row, len(m.groups))
+		grows := make([]ui.Row, len(m.groups))
 		gkeys := make([]string, len(m.groups))
 		for i, g := range m.groups {
 			members := strings.Join(g.Members, ", ")
 			if members == "" {
 				members = "-"
 			}
-			grows[i] = table.Row{groupCell(g), idCell(g.GID), ui.Truncate(members, 30)}
+			grows[i] = ui.Row{groupCell(g), idCell(g.GID), ui.Truncate(members, 30)}
 			gkeys[i] = g.Name
 		}
 		u.gTbl.SetRowsTracked(grows, gkeys)
@@ -151,7 +150,7 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 		return u, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return u.handleKey(m)
 	}
 	return u, nil

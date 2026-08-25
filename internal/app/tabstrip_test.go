@@ -1,21 +1,21 @@
 package app
 
 import (
+	"github.com/charmbracelet/colorprofile"
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"lcc2/internal/screens"
+	"lcc2/internal/ui"
 )
 
 func forceTrueColorApp(t *testing.T) {
 	t.Helper()
-	old := lipgloss.DefaultRenderer().ColorProfile()
-	lipgloss.DefaultRenderer().SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.DefaultRenderer().SetColorProfile(old) })
+	restore := ui.SetProfileOverride(colorprofile.TrueColor)
+	t.Cleanup(restore)
 }
 
 // Narrow terminals must degrade the tab strip by priority (badges ->
@@ -29,8 +29,8 @@ func TestTabStripDegradesWithinWidth(t *testing.T) {
 			screens.NewDisks(), screens.NewFiles(),
 			screens.NewServices(), screens.NewUsersGroups())
 		m, _ := r.Update(tea.WindowSizeMsg{Width: w, Height: 24})
-		root := m.(Root)
-		line := strings.Split(root.View(), "\n")[0]
+		_ = m.(Root)
+		line := strings.Split(viewString(m), "\n")[0]
 		if lw := lipgloss.Width(line); lw > w {
 			t.Errorf("w=%d: strip is %d cells wide", w, lw)
 		}
@@ -63,4 +63,10 @@ func stripANSI(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// viewString exposes the frame string to tests (View() wraps it in a
+// tea.View).
+func viewString(m tea.Model) string {
+	return m.(interface{ View() tea.View }).View().Content
 }

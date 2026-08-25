@@ -9,8 +9,6 @@ import (
 	"github.com/alecthomas/chroma/v2/formatters"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 
 	"lcc2/internal/ui"
 )
@@ -24,7 +22,7 @@ func highlightCode(name string, lines []string) []string {
 	if len(lines) == 0 || os.Getenv("NO_COLOR") != "" {
 		return nil
 	}
-	if lipgloss.DefaultRenderer().ColorProfile() != termenv.TrueColor {
+	if !ui.TrueColorActive() {
 		return nil
 	}
 	lexer := lexers.Match(name)

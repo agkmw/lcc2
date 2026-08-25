@@ -9,11 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/bubbles/v2/key"
 
 	"lcc2/internal/files"
 	"lcc2/internal/session"
@@ -103,7 +102,7 @@ type stageStepMsg struct {
 
 // NewFiles builds the file manager rooted at $HOME.
 func NewFiles() Files {
-	cols := []table.Column{
+	cols := []ui.Column{
 		{Title: "name", Width: 34},
 		{Title: "size", Width: 8},
 		{Title: "mode", Width: 10},
@@ -118,10 +117,10 @@ func NewFiles() Files {
 		mode:     "list",
 		auxGen:   &atomic.Uint64{},
 		auxInput: newAuxInput(),
-		findTbl: ui.NewFilterTable([]table.Column{
+		findTbl: ui.NewFilterTable([]ui.Column{
 			{Title: "name", Width: 30}, {Title: "dir", Width: 40}, {Title: "size", Width: 8},
 		}, 80, 18),
-		grepTbl: ui.NewFilterTable([]table.Column{
+		grepTbl: ui.NewFilterTable([]ui.Column{
 			{Title: "loc", Width: 30}, {Title: "text", Width: 60},
 		}, 80, 18),
 	}
@@ -317,7 +316,7 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 	case tea.MouseMsg:
 		return f.handleMouse(m)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return f.handleKey(m)
 	}
 	return f, nil
@@ -441,7 +440,7 @@ func (f *Files) syncTable() {
 			stagedAt[op.Path] = op.Kind
 		}
 	}
-	rows := make([]table.Row, len(f.entries))
+	rows := make([]ui.Row, len(f.entries))
 	keys := make([]string, len(f.entries))
 	for i, e := range f.entries {
 		mark := "  "
@@ -453,7 +452,7 @@ func (f *Files) syncTable() {
 			glyph = stagedGlyph(k) + " "
 		}
 		name := entryNameCell(e)
-		rows[i] = table.Row{
+		rows[i] = ui.Row{
 			mark + glyph + name,
 			sizeCell(e),
 			modeCell(e.Mode),
@@ -739,7 +738,7 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	case "a":
 		f.showHidden = !f.showHidden
 		return f, listDir(f.cwd, f.showHidden)
-	case " ":
+	case " ", "space":
 		if p := f.selectedPath(); p != "" {
 			if f.marked[p] {
 				delete(f.marked, p)
@@ -930,14 +929,17 @@ func filepathBase(p string) string {
 func (f Files) startPrompt(label string, act func(Files, string) tea.Cmd, prefill ...string) (ui.Screen, tea.Cmd) {
 	ti := textinput.New()
 	ti.Focus()
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(ui.Accent("files"))
+	st := textinput.DefaultStyles(true)
+	st.Focused.Prompt = lipgloss.NewStyle().Foreground(ui.Accent("files"))
+	st.Blurred.Prompt = st.Focused.Prompt
+	ti.SetStyles(st)
 	if len(prefill) > 0 {
 		ti.SetValue(prefill[0])
 	}
 	f.prompt = &ti
 	f.promptLbl = label
 	f.promptAct = act
-	return f, textinput.Blink
+	return f, ti.Focus()
 }
 
 func (f Files) handlePermKeys(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
@@ -964,7 +966,7 @@ func (f Files) handlePermKeys(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		f.permRow = (f.permRow + 1) % 3
 	case "k", "up":
 		f.permRow = (f.permRow + 2) % 3
-	case " ", "s":
+	case " ", "space", "s":
 		f.permEdit.Toggle(f.permRow, f.permCol)
 	}
 	return f, nil

@@ -1,41 +1,55 @@
 package ui
 
 import (
+	"image/color"
+	"os"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/colorprofile"
 )
 
 // BG returns the application canvas color. The app paints its own
 // opaque background so it looks identical on every terminal, including
 // transparent ones.
-func BG() lipgloss.Color { return appBG }
+func BG() color.Color { return appBG }
 
 // BGDim returns the dimmed canvas shade used behind modal overlays
 // (help): everything recedes one step darker while the overlay floats.
-func BGDim() lipgloss.Color { return dimBG }
+func BGDim() color.Color { return dimBG }
+
+// detectedProfile is resolved once per process from the environment
+// (NO_COLOR/CLICOLOR/TERM aware via colorprofile).
+var detectedProfile = colorprofile.Detect(os.Stdout, os.Environ())
+
+// profileOverride lets tests pin a profile; nil restores detection.
+var profileOverride *colorprofile.Profile
+
+// SetProfileOverride forces the detected profile and returns a
+// restore func. Intended for tests.
+func SetProfileOverride(p colorprofile.Profile) (restore func()) {
+	prev := profileOverride
+	profileOverride = &p
+	return func() { profileOverride = prev }
+}
+
+func activeProfile() colorprofile.Profile {
+	if profileOverride != nil {
+		return *profileOverride
+	}
+	return detectedProfile
+}
 
 // bgSeqFor returns the SGR truecolor background sequence for c, or ""
-// when the active color profile cannot render it.
-func bgSeqFor(c lipgloss.Color) string {
-	if lipgloss.DefaultRenderer().ColorProfile() == termenv.Ascii {
+// when the detected profile cannot render truecolor.
+func bgSeqFor(c color.Color) string {
+	if activeProfile() < colorprofile.TrueColor {
 		return ""
 	}
-	hex := string(c)
-	if len(hex) != 7 || hex[0] != '#' {
-		return ""
-	}
-	r, err1 := strconv.ParseUint(hex[1:3], 16, 8)
-	g, err2 := strconv.ParseUint(hex[3:5], 16, 8)
-	b, err3 := strconv.ParseUint(hex[5:7], 16, 8)
-	if err1 != nil || err2 != nil || err3 != nil {
-		return ""
-	}
-	return "\x1b[48;2;" + strconv.FormatUint(r, 10) + ";" +
-		strconv.FormatUint(g, 10) + ";" + strconv.FormatUint(b, 10) + "m"
+	r, g, b, _ := c.RGBA() // 16-bit channels
+	return "\x1b[48;2;" + strconv.Itoa(int(r>>8)) + ";" +
+		strconv.Itoa(int(g>>8)) + ";" + strconv.Itoa(int(b>>8)) + "m"
 }
 
 // PaintBlock fills every cell of block — clipped and padded to w
@@ -47,7 +61,7 @@ func bgSeqFor(c lipgloss.Color) string {
 // outer background (selected table row, dialog band) intact across the
 // resets of inner foreground-only spans, while spans that genuinely end
 // fall back to the canvas fill — no transparent holes, no erased bands.
-func PaintBlock(block string, w int, c lipgloss.Color) string {
+func PaintBlock(block string, w int, c color.Color) string {
 	seq := bgSeqFor(c)
 	lines := strings.Split(block, "\n")
 	for i, l := range lines {
@@ -225,7 +239,7 @@ func paintSGR(line, canvasSeq string) string {
 // View: anything composited earlier that lacks an explicit fill ends
 // up on the canvas instead of the terminal's own background. bg
 // selects the shade (BG normally, BGDim behind modal overlays).
-func CanvasWith(frame string, w, h int, bg lipgloss.Color) string {
+func CanvasWith(frame string, w, h int, bg color.Color) string {
 	lines := strings.Split(frame, "\n")
 	for len(lines) < h {
 		lines = append(lines, "")
@@ -240,3 +254,9 @@ func CanvasWith(frame string, w, h int, bg lipgloss.Color) string {
 func Canvas(frame string, w, h int) string {
 	return CanvasWith(frame, w, h, appBG)
 }
+
+// Profile reports the detected terminal color profile name.
+func Profile() string { return activeProfile().String() }
+
+// TrueColorActive reports whether 24-bit color is available.
+func TrueColorActive() bool { return activeProfile() >= colorprofile.TrueColor }

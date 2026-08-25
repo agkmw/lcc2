@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"lcc2/internal/screens"
 )
@@ -20,7 +20,7 @@ func freshAt(w, h int, active byte) string {
 		screens.NewServices(), screens.NewUsersGroups())
 	m, _ := r.Update(tea.WindowSizeMsg{Width: w, Height: h})
 	m, _ = m.Update(keyMsg(string(active)))
-	return normalizeClock(m.View())
+	return normalizeClock(viewString(m))
 }
 
 // The resize/tab-switch gauntlet: after every step the frame must be
@@ -51,7 +51,7 @@ func TestResizeTabSwitchNoGhosting(t *testing.T) {
 		m, _ := r.Update(tea.WindowSizeMsg{Width: st.w, Height: st.h})
 		r = m.(Root)
 
-		view := normalizeClock(r.View())
+		view := normalizeClock(viewString(m))
 		want := freshAt(st.w, st.h, st.active[len(st.active)-1])
 
 		if view != want {

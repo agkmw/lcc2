@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"lcc2/internal/screens"
 )
@@ -51,13 +51,13 @@ func TestFramesContainNoAmbiguousGlyphs(t *testing.T) {
 		m, _ := r.Update(tea.WindowSizeMsg{Width: w, Height: h})
 		for key := byte('1'); key <= '6'; key++ {
 			m, _ = m.Update(keyMsg(string(key)))
-			if off := offending(m.View()); off != "" {
+			if off := offending(viewString(m)); off != "" {
 				t.Errorf("w=%d sec=%c: ambiguous glyph %s", w, key, off)
 			}
 		}
 		// help overlay path too
 		m, _ = m.Update(keyMsg("?"))
-		if off := offending(m.View()); off != "" {
+		if off := offending(viewString(m)); off != "" {
 			t.Errorf("w=%d help: ambiguous glyph %s", w, off)
 		}
 	}

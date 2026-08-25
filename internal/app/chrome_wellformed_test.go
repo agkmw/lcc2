@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"lcc2/internal/screens"
 )
@@ -22,8 +22,8 @@ func TestSectionViewsAreWellFormed(t *testing.T) {
 				screens.NewDisks(), screens.NewFiles(),
 				screens.NewServices(), screens.NewUsersGroups())
 			m, _ := r.Update(tea.WindowSizeMsg{Width: w, Height: h})
-			m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{rune(key)}})
-			lines := strings.Split(m.View(), "\n")
+			m, _ = m.Update(keyRune(string(rune(key))))
+			lines := strings.Split(m.(tea.Model).View().Content, "\n")
 			if len(lines) != h {
 				t.Errorf("w=%d h=%d sec=%c: %d lines (want %d)",
 					w, h, key, len(lines), h)
@@ -57,11 +57,11 @@ func TestModalStatesKeepFrame(t *testing.T) {
 			screens.NewDisks(), screens.NewFiles(),
 			screens.NewServices(), screens.NewUsersGroups())
 		m, _ := r.Update(tea.WindowSizeMsg{Width: w, Height: h})
-		m, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{rune(st.sec)}})
+		m, _ = m.Update(keyRune(string(rune(st.sec))))
 		for _, k := range st.keys {
 			m, _ = m.Update(k)
 		}
-		lines := strings.Split(m.View(), "\n")
+		lines := strings.Split(m.(tea.Model).View().Content, "\n")
 		if len(lines) != h {
 			t.Errorf("%s: %d lines (want %d)", st.name, len(lines), h)
 		}
@@ -74,6 +74,7 @@ func TestModalStatesKeepFrame(t *testing.T) {
 	}
 }
 
-func keyRune(r string) tea.KeyMsg {
-	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(r)}
+func keyRune(r string) tea.KeyPressMsg {
+	runes := []rune(r)
+	return tea.KeyPressMsg{Code: runes[0], Text: r}
 }

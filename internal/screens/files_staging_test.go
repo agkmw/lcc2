@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"lcc2/internal/files"
 	"lcc2/internal/ui"
@@ -120,7 +120,7 @@ func TestUndoAndDiscard(t *testing.T) {
 	in := *f.prompt
 	in.SetValue("newdir")
 	f.prompt = &in
-	sc, _ = f.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	sc, _ = f.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	f = sc.(Files)
 
 	before := f.stager.Len()

@@ -1,16 +1,17 @@
 package ui
 
 import (
+	"image/color"
 	"math"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Gauge renders a percentage bar like "█████▌░░░░░ 52%" with a
 // fractional final block for smooth motion. color picks the fill
 // color; pass nil for automatic (green→yellow→red).
-func Gauge(pct float64, width int, color *lipgloss.Color) string {
+func Gauge(pct float64, width int, clr *color.Color) string {
 	if width < 8 {
 		width = 8
 	}
@@ -23,10 +24,10 @@ func Gauge(pct float64, width int, color *lipgloss.Color) string {
 		bar += fractionBlock(frac)
 		full++
 	}
-	var c lipgloss.Color
+	var c color.Color
 	switch {
-	case color != nil:
-		c = *color
+	case clr != nil:
+		c = *clr
 	case pct >= 90:
 		c = Palette.Red
 	case pct >= 70:
@@ -64,7 +65,7 @@ func clampF(v, lo, hi float64) float64 {
 }
 
 // Spark renders a one-line sparkline from samples using block characters.
-func Spark(samples []float64, width int, c lipgloss.Color) string {
+func Spark(samples []float64, width int, c color.Color) string {
 	if len(samples) == 0 {
 		return faintSty.Render(strings.Repeat("▁", width))
 	}
@@ -93,7 +94,7 @@ func Spark(samples []float64, width int, c lipgloss.Color) string {
 // Graph renders a multi-row area chart of 0-100 samples, newest at
 // the right edge. Columns beyond the recorded history stay blank so
 // the chart grows into its full width.
-func Graph(samples []float64, w, h int, c lipgloss.Color) string {
+func Graph(samples []float64, w, h int, c color.Color) string {
 	if w < 1 {
 		w = 1
 	}
@@ -141,7 +142,7 @@ var brailleBits = [8]byte{0x01, 0x02, 0x04, 0x40, 0x08, 0x10, 0x20, 0x80}
 // GraphBraille renders samples as a smooth connected line using
 // braille dots: each cell is a 2x4 sub-pixel grid, so h rows carry
 // h*4 vertical levels. EAW-neutral codepoints only - safe under tmux.
-func GraphBraille(samples []float64, w, h int, c lipgloss.Color) string {
+func GraphBraille(samples []float64, w, h int, c color.Color) string {
 	if w < 1 {
 		w = 1
 	}
@@ -227,7 +228,7 @@ func emptyRows(w, h int) []string {
 // the sub-fraction within it uses overlay (btop-style segmented usage,
 // e.g. cache inside used memory). The empty remainder trails on the
 // right, faint.
-func SegGauge(pct, innerPct float64, width int, fill, overlay lipgloss.Color) string {
+func SegGauge(pct, innerPct float64, width int, fill, overlay color.Color) string {
 	if width < 4 {
 		width = 4
 	}

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"lcc2/internal/screens"
 	"lcc2/internal/ui"
@@ -21,8 +21,8 @@ func TestFooterPinnedToLastLine(t *testing.T) {
 		r := New(screens.NewOverview(), screens.NewProcesses())
 		m, _ := r.Update(tea.WindowSizeMsg{Width: tc.w, Height: tc.h})
 		root := m.(Root)
-		view := root.View()
-		if view == "" {
+		view := root.View().Content
+		if strings.TrimSpace(view) == "" {
 			t.Fatalf("w=%d h=%d: empty view", tc.w, tc.h)
 		}
 		lines := strings.Split(view, "\n")
@@ -49,7 +49,7 @@ func TestTooSmallNotice(t *testing.T) {
 		r := New(screens.NewOverview(), screens.NewProcesses())
 		m, _ := r.Update(tea.WindowSizeMsg{Width: w, Height: h})
 		root := m.(Root)
-		lines := strings.Split(root.View(), "\n")
+		lines := strings.Split(root.View().Content, "\n")
 		if len(lines) != h {
 			t.Fatalf("%dx%d: %d lines, want %d", w, h, len(lines), h)
 		}
@@ -67,11 +67,11 @@ func TestRootViewWithNotificationsKeepsFrame(t *testing.T) {
 	r := New(screens.NewOverview(), screens.NewProcesses())
 	m, _ := r.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
 	root := m.(Root)
-	clean := root.View()
+	clean := root.View().Content
 
 	m, _ = root.Update(ui.OkToast("saved now")())
 	root = m.(Root)
-	withNote := root.View()
+	withNote := root.View().Content
 
 	cleanLines := strings.Split(clean, "\n")
 	noteLines := strings.Split(withNote, "\n")
@@ -97,13 +97,13 @@ func TestRootViewWithNotificationsKeepsFrame(t *testing.T) {
 	// expiry removes only its own notification
 	m, _ = root.Update(noteExpiryMsg{id: 999})
 	root = m.(Root)
-	if !strings.Contains(root.View(), "saved now") {
+	if !strings.Contains(root.View().Content, "saved now") {
 		t.Fatal("unknown expiry must not dismiss")
 	}
 	id := root.notes.Items()[0].ID
 	m, _ = root.Update(noteExpiryMsg{id: id})
 	root = m.(Root)
-	if root.View() != clean {
+	if root.View().Content != clean {
 		t.Fatal("view did not restore after expiry")
 	}
 }

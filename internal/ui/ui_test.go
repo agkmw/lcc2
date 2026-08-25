@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 func TestTruncate(t *testing.T) {
@@ -42,6 +42,33 @@ func TestSparkEmptyAndValues(t *testing.T) {
 	}
 }
 
+
+// stripCSI removes ANSI escape sequences (v2 emits bare \x1b[m
+// resets), leaving printable content for structural assertions.
+func stripCSI(s string) string {
+	var b strings.Builder
+	i := 0
+	for i < len(s) {
+		if s[i] != 0x1b {
+			b.WriteByte(s[i])
+			i++
+			continue
+		}
+		j := i + 1
+		if j < len(s) && s[j] == '[' {
+			j++
+		}
+		for j < len(s) && !(s[j] >= 0x40 && s[j] <= 0x7e) {
+			j++
+		}
+		if j >= len(s) {
+			break
+		}
+		i = j + 1
+	}
+	return b.String()
+}
+
 func TestGraphShape(t *testing.T) {
 	g := Graph([]float64{0, 50, 100}, 5, 3, Palette.Blue)
 	lines := strings.Split(g, "\n")
@@ -55,16 +82,16 @@ func TestGraphShape(t *testing.T) {
 	}
 	// Newest (100%) at the right edge must fill every row of the
 	// last column; the blank history columns stay empty.
-	lastCol := func(s string) rune {
-		runes := []rune(s)
-		return runes[len(runes)-1]
+	lastCol := func(raw string) rune {
+		cleaned := []rune(stripCSI(raw))
+		return cleaned[len(cleaned)-1]
 	}
 	for _, l := range lines {
 		if lastCol(l) != '█' {
 			t.Fatalf("full sample not filling column: %q", l)
 		}
 	}
-	if first := []rune(lines[0])[0]; first != ' ' {
+	if first := []rune(stripCSI(lines[0]))[0]; first != ' ' {
 		t.Fatalf("unrecorded history must be blank, got %q", first)
 	}
 }
@@ -108,8 +135,8 @@ func TestGraphBrailleShape(t *testing.T) {
 		if w := lipgloss.Width(l); w != 5 {
 			t.Fatalf("row %d width %d, want 5", i, w)
 		}
-		for _, r := range l {
-			if r == ' ' || r == '\x1b' || r == '[' || r == 'm' {
+		for _, r := range stripCSI(l) {
+			if r == ' ' {
 				continue
 			}
 			if r < '\u2800' || r > '\u28FF' {

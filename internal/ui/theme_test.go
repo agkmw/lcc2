@@ -1,10 +1,11 @@
 package ui
 
 import (
+	"image/color"
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 func TestGaugeConstantWidth(t *testing.T) {
@@ -33,7 +34,7 @@ func TestGaugeFractionalFill(t *testing.T) {
 }
 
 func TestStateColorThresholds(t *testing.T) {
-	cases := map[float64]lipgloss.Color{
+	cases := map[float64]color.Color{
 		10: Palette.Green, 69.9: Palette.Green,
 		70: Palette.Yellow, 89.9: Palette.Yellow,
 		90: Palette.Red, 100: Palette.Red,

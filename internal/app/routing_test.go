@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"lcc2/internal/screens"
 )
@@ -70,13 +70,19 @@ func TestTabSuppressedWhileCapturingInput(t *testing.T) {
 }
 
 func keyMsg(s string) tea.KeyMsg {
-	switch s {
-	case "tab":
-		return tea.KeyMsg{Type: tea.KeyTab}
-	case "shift+tab":
-		return tea.KeyMsg{Type: tea.KeyShiftTab}
-	default:
-		runes := []rune(s)
-		return tea.KeyMsg{Type: tea.KeyRunes, Runes: runes}
+	if s == "shift+tab" {
+		return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
 	}
+	special := map[string]rune{
+		"tab": tea.KeyTab,
+		"enter": tea.KeyEnter, "esc": tea.KeyEsc,
+		"up": tea.KeyUp, "down": tea.KeyDown,
+		"home": tea.KeyHome, "end": tea.KeyEnd,
+		"pgup": tea.KeyPgUp, "pgdown": tea.KeyPgDown,
+	}
+	if c, ok := special[s]; ok {
+		return tea.KeyPressMsg{Code: c}
+	}
+	r := []rune(s)
+	return tea.KeyPressMsg{Code: r[len(r)-1], Text: s}
 }

@@ -4,15 +4,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"github.com/charmbracelet/colorprofile"
+
+	"charm.land/lipgloss/v2"
 )
 
 func forceTrueColor(t *testing.T) {
 	t.Helper()
-	old := lipgloss.DefaultRenderer().ColorProfile()
-	lipgloss.DefaultRenderer().SetColorProfile(termenv.TrueColor)
-	t.Cleanup(func() { lipgloss.DefaultRenderer().SetColorProfile(old) })
+	restore := SetProfileOverride(colorprofile.TrueColor)
+	t.Cleanup(restore)
 }
 
 // Canvas must return exactly h lines of exactly w visible cells each,
@@ -44,7 +44,7 @@ func TestCanvasDimensionsAndFill(t *testing.T) {
 // background after each reset so no transparent holes appear.
 func TestCanvasSurvivesInnerResets(t *testing.T) {
 	forceTrueColor(t)
-	styled := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000")).
+	styled := lipgloss.NewStyle().Foreground(C("#FF0000")).
 		Render("red") + " plain"
 	out := PaintBlock(styled, 20, Palette.Surface)
 	seq := bgSeqFor(Palette.Surface)
@@ -56,9 +56,8 @@ func TestCanvasSurvivesInnerResets(t *testing.T) {
 // On color-less profiles the painter must degrade to plain clipping —
 // raw escapes would corrupt NO_COLOR terminals.
 func TestCanvasAsciiProfileSkipsEscapes(t *testing.T) {
-	old := lipgloss.DefaultRenderer().ColorProfile()
-	lipgloss.DefaultRenderer().SetColorProfile(termenv.Ascii)
-	defer lipgloss.DefaultRenderer().SetColorProfile(old)
+	restore := SetProfileOverride(colorprofile.ASCII)
+	defer restore()
 
 	out := Canvas("hello", 8, 2)
 	lines := strings.Split(out, "\n")

@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image/color"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"charm.land/bubbles/v2/key"
 
 	"lcc2/internal/disk"
 	"lcc2/internal/sysinfo"
@@ -54,8 +54,8 @@ func NewDisks() Disks {
 	}
 }
 
-func fsCols() []table.Column {
-	return []table.Column{
+func fsCols() []ui.Column {
+	return []ui.Column{
 		{Title: "mount", Width: 16},
 		{Title: "device", Width: 18},
 		{Title: "type", Width: 7},
@@ -64,8 +64,8 @@ func fsCols() []table.Column {
 	}
 }
 
-func itemCols() []table.Column {
-	return []table.Column{
+func itemCols() []ui.Column {
+	return []ui.Column{
 		{Title: "name", Width: 40},
 		{Title: "size", Width: 10},
 		{Title: "share%", Width: 8},
@@ -114,11 +114,11 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 
 	case fsListMsg:
 		d.fss = m
-		rows := make([]table.Row, len(m))
+		rows := make([]ui.Row, len(m))
 		keys := make([]string, len(m))
 		for i, f := range m {
 			pct := itoa(int(f.UsedPercent)) + "%"
-			rows[i] = table.Row{
+			rows[i] = ui.Row{
 				f.Mountpoint,
 				mutedSty.Render(ui.Truncate(f.Device, 18)),
 				faintSty.Render(ui.Narrow(f.FSType)),
@@ -162,11 +162,11 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 		_, dbl := tbl.Mouse(m, 3)
 		if dbl { // double-click = the enter gesture
-			return d.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+			return d.handleKey(tea.KeyPressMsg{Code: tea.KeyEnter})
 		}
 		return d, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return d.handleKey(m)
 	}
 	return d, nil
@@ -253,7 +253,7 @@ func (d Disks) startScan(root string) (ui.Screen, tea.Cmd) {
 	d.busy = true
 	d.mode = "scan"
 	return d, tea.Batch(
-		d.spin.Tick,
+		func() tea.Msg { return d.spin.Tick() },
 		func() tea.Msg {
 			res, err := disk.ScanDir(ctx, root, func(bytes int64) {
 				_ = bytes // progress kept coarse; duration shown on completion
@@ -263,13 +263,12 @@ func (d Disks) startScan(root string) (ui.Screen, tea.Cmd) {
 	)
 }
 
-
 func (d *Disks) syncItems() {
 	if d.items == nil {
 		return
 	}
 	total := float64(d.items.TotalSize)
-	rows := make([]table.Row, 0, len(d.items.Items))
+	rows := make([]ui.Row, 0, len(d.items.Items))
 	keys := make([]string, 0, len(d.items.Items))
 	for _, it := range d.items.Items {
 		share := 0.0
@@ -281,7 +280,7 @@ func (d *Disks) syncItems() {
 			name = lipgloss.NewStyle().Bold(true).
 				Foreground(ui.Accent("disk")).Render(name)
 		}
-		rows = append(rows, table.Row{
+		rows = append(rows, ui.Row{
 			name,
 			sysinfo.FormatBytes(float64(it.Size)),
 			lipgloss.NewStyle().Foreground(ui.StateColor(share)).Render(f1(share)),
@@ -291,7 +290,7 @@ func (d *Disks) syncItems() {
 	d.dirTbl.SetRowsTracked(rows, keys)
 }
 
-func colorPtr(c lipgloss.Color) *lipgloss.Color { return &c }
+func colorPtr(c color.Color) *color.Color { return &c }
 
 func (d *Disks) layout() {
 	wide, mainW, _ := splitGeom(d.w)

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"lcc2/internal/accounts"
 	"lcc2/internal/files"
@@ -65,7 +65,7 @@ func TestPreviewModesFit(t *testing.T) {
 		}
 		ug := NewUsersGroups()
 		ug = feed(ug, size, accountsMsg{users: us, groups: gs}).(UsersGroups)
-		ug = feed(ug, tea.KeyMsg{Type: tea.KeyEnter}).(UsersGroups)
+		ug = feed(ug, tea.KeyPressMsg{Code: tea.KeyEnter}).(UsersGroups)
 		fitCheck(t, fmt.Sprintf("users-detail@%dx%d", w, h), ug.View(), w)
 
 		// files + meta pane on a real entry
@@ -75,7 +75,7 @@ func TestPreviewModesFit(t *testing.T) {
 		fi := NewFiles()
 		fi.cwd = dir
 		fi = feed(fi, size, dirListMsg{dir: dir, list: lst}).(Files)
-		fi = feed(fi, tea.KeyMsg{Type: tea.KeyEnter}).(Files)
+		fi = feed(fi, tea.KeyPressMsg{Code: tea.KeyEnter}).(Files)
 		fitCheck(t, fmt.Sprintf("files-meta@%dx%d", w, h), fi.View(), w)
 	}
 }
