@@ -50,7 +50,7 @@ func TestPreviewModesFit(t *testing.T) {
 			{Name: "ssh.service", Active: "active", Sub: "running",
 				Description: "long description text that should wrap nicely"},
 		}}).(Services)
-		sv.detailText = strings.Repeat("status line\n", 12)
+		sv.detRaw = strings.Repeat("status line\n", 12)
 		sv.detailUnit = "ssh.service"
 		fitCheck(t, fmt.Sprintf("svc-preview@%dx%d", w, h), sv.View(), w)
 

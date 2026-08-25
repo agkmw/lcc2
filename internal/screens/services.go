@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"lcc2/internal/services"
+	"lcc2/internal/sysinfo"
 	"lcc2/internal/ui"
 )
 
@@ -27,7 +28,16 @@ type svcActionDoneMsg struct {
 	action string
 	err    error
 }
-type svcDetailMsg struct {
+type svcShowMsg struct {
+	unit string
+	d    services.Detail
+	err  error
+}
+type svcJournalMsg struct {
+	unit  string
+	lines []string
+}
+type svcRawMsg struct {
 	unit string
 	text string
 }
@@ -43,8 +53,10 @@ type Services struct {
 	loaded  bool
 	loadErr string
 
-	detailUnit string // unit whose status is displayed
-	detailText string
+	detailUnit string // unit whose details are displayed
+	det        *services.Detail
+	detRaw     string // raw systemctl status fallback
+	logs       []string
 	fetching   bool
 
 	confirm   *ui.ConfirmDialog
@@ -114,11 +126,23 @@ func refreshSvcCmd() tea.Cmd {
 	return func() tea.Msg { u, err := services.List(); return svcListMsg{units: u, err: err} }
 }
 
-func statusCmd(unit string) tea.Cmd {
+// fetchDetail issues the structured show + journal pair for a unit;
+// when show fails the screen follows up with the raw status dump.
+func fetchDetailCmd(unit string) tea.Cmd {
+	return tea.Batch(
+		func() tea.Msg {
+			d, err := services.Show(unit)
+			return svcShowMsg{unit: unit, d: d, err: err}
+		},
+		func() tea.Msg { return svcJournalMsg{unit: unit, lines: services.Journal(unit, 4)} },
+	)
+}
+
+func rawStatusCmd(unit string) tea.Cmd {
 	return func() tea.Msg {
-		// systemctl leads lines with ambiguous-width glyphs; narrow
-		// them so tmux cannot shift the pane columns.
-		return svcDetailMsg{unit: unit, text: ui.Narrow(services.StatusDetail(unit))}
+		// systemctl status leads lines with ambiguous-width glyphs;
+		// narrow them so tmux cannot shift the pane columns.
+		return svcRawMsg{unit: unit, text: ui.Narrow(services.StatusDetail(unit))}
 	}
 }
 
@@ -153,7 +177,7 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		var cmd tea.Cmd
 		if u := s.selectedName(); u != "" && u != s.detailUnit && !s.fetching {
 			s.fetching = true
-			cmd = statusCmd(u)
+			cmd = fetchDetailCmd(u)
 		}
 		return s, cmd
 
@@ -165,11 +189,30 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		s.spin, cmd = s.spin.Update(m)
 		return s, cmd
 
-	case svcDetailMsg:
-		s.fetching = false
-		if m.unit == s.selectedName() { // ignore stale fetches
-			s.detailUnit, s.detailText = m.unit, m.text
+	case svcShowMsg:
+		if m.unit != s.selectedName() {
+			return s, nil // stale fetch
 		}
+		if m.err != nil { // structured show failed: fall back to raw
+			return s, rawStatusCmd(m.unit)
+		}
+		d := m.d
+		s.det, s.detRaw, s.detailUnit = &d, "", m.unit
+		s.fetching = false
+
+	case svcRawMsg:
+		s.fetching = false
+		if m.unit != s.selectedName() {
+			return s, nil // stale fetch
+		}
+		s.det, s.detRaw, s.detailUnit = nil, m.text, m.unit
+
+	case svcJournalMsg:
+		s.fetching = false
+		if m.unit != s.selectedName() {
+			return s, nil // stale fetch
+		}
+		s.logs = m.lines
 
 	case svcTickMsg:
 		if m.gen != s.epoch.Load() {
@@ -178,7 +221,7 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		var cmd tea.Cmd
 		cmd = tea.Batch(refreshSvcCmd(), s.tick(m.gen))
 		if u := s.selectedName(); u != "" && !s.fetching {
-			cmd = tea.Batch(cmd, statusCmd(u))
+			cmd = tea.Batch(cmd, fetchDetailCmd(u))
 		}
 		return s, cmd
 
@@ -186,10 +229,10 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		s.confirm = nil
 		if m.err != nil {
 			return s, tea.Batch(ui.ErrToast(m.action+" failed: "+m.err.Error()),
-				statusCmd(m.unit))
+				fetchDetailCmd(m.unit))
 		}
 		return s, tea.Batch(ui.OkToast(m.action+" "+m.unit),
-			refreshSvcCmd(), statusCmd(m.unit))
+			refreshSvcCmd(), fetchDetailCmd(m.unit))
 
 	case tea.KeyMsg:
 		return s.handleKey(m)
@@ -322,7 +365,7 @@ func (s Services) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	if moved {
 		if u := s.selectedName(); u != "" && u != s.detailUnit {
 			s.fetching = true
-			cmd = tea.Batch(cmd, statusCmd(u))
+			cmd = tea.Batch(cmd, fetchDetailCmd(u))
 		}
 	}
 	return s, cmd
@@ -400,6 +443,8 @@ func (s Services) View() string {
 }
 
 // previewBody renders the right-hand pane for the selected unit.
+// previewBody renders the right-hand pane: a structured facts card
+// when `systemctl show` answered, the raw highlighted dump otherwise.
 func (s Services) previewBody() string {
 	_, _, prevW := splitGeom(s.w)
 	name := s.selectedName()
@@ -408,25 +453,119 @@ func (s Services) previewBody() string {
 		for _, u := range s.units {
 			if u.Name == name {
 				meta = stateStyled(u.Active) + faintSty.Render(" - ") +
-					bootStyled(u.Enabled)
+					bootStyled(u.Enabled) + restartsBadge(u, s.det)
 				break
 			}
 		}
-		title = name
-	} else {
-		title = "unit"
+		title = unitTitle(name)
 	}
 	var body string
 	switch {
 	case name == "":
 		// blank pane until a unit is selected
-	case s.detailText == "" || (s.fetching && name != s.detailUnit):
+	case s.det == nil && s.detRaw == "":
 		body = faintSty.Render("loading status..")
+	case s.det != nil:
+		body = detailCard(*s.det, prevW)
 	default:
 		body = lipgloss.NewStyle().Width(maxInt(prevW-2, 10)).
-			Render(highlightSvcStatus(strings.TrimSpace(s.detailText)))
+			Render(highlightSvcStatus(strings.TrimSpace(s.detRaw)))
+	}
+	if len(s.logs) > 0 && name != "" {
+		var b strings.Builder
+		b.WriteString(body)
+		b.WriteString("\n\n" + mutedSty.Render("last logs") + "\n")
+		for _, l := range s.logs {
+			b.WriteString(faintSty.Render(ui.ClipBlock(l, maxInt(prevW-4, 8))) + "\n")
+		}
+		body = strings.TrimRight(b.String(), "\n")
 	}
 	return renderPreview("services", truncCell(title, maxInt(prevW-4, 6)), meta, body, prevW, s.h-1)
+}
+
+// unitTitle dims the unit-type suffix like the table rows do.
+func unitTitle(name string) string {
+	i := strings.LastIndexByte(name, '.')
+	if i <= 0 {
+		return truncCell(name, 24)
+	}
+	return name[:i] + faintSty.Render(name[i:])
+}
+
+// restartsBadge surfaces non-zero restart counts in the meta line.
+func restartsBadge(u services.Unit, d *services.Detail) string {
+	if u.Active == "failed" || d == nil || d.Restarts <= 0 {
+		return ""
+	}
+	return faintSty.Render(" - ") + warnSty.Render("restarted "+itoa(d.Restarts))
+}
+
+// detailCard renders the structured facts of one unit.
+func detailCard(d services.Detail, pw int) string {
+	kv := func(k, v string) string {
+		return mutedSty.Render(padTo(k, 9)) + ui.Truncate(v, maxInt(pw-11, 6))
+	}
+	stateVal := stateStyled(d.Active)
+	if d.Sub != "" && d.Sub != "-" {
+		stateVal += faintSty.Render(" (" + d.Sub + ")")
+	}
+	lines := []string{kv("state", stateVal), kv("boot", bootStyled(d.Boot))}
+	if !d.Since.IsZero() {
+		lines = append(lines,
+			kv("since", relSince(time.Since(d.Since))),
+			kv("at", faintSty.Render(d.Timestamp)))
+	} else if d.Timestamp != "" {
+		lines = append(lines, kv("at", faintSty.Render(d.Timestamp)))
+	}
+	pid := "-"
+	if d.PID > 0 {
+		pid = itoa(int(d.PID))
+	}
+	mem := "-"
+	if d.MemBytes > 0 {
+		mem = dimUnit(sysinfo.FormatBytes(float64(d.MemBytes)))
+	}
+	cpu := "-"
+	if d.CPUNanos > 0 {
+		cpu = fmt.Sprintf("%.1fs", float64(d.CPUNanos)/1e9)
+	}
+	lines = append(lines, kv("pid", pid), kv("memory", mem), kv("cpu", cpu))
+	if d.Restarts > 0 {
+		lines = append(lines, kv("restarts", warnSty.Render(itoa(d.Restarts))))
+	}
+	out := strings.Join(lines, "\n")
+	if d.Active == "failed" { // banner first: the fact that matters
+		banner := lipgloss.NewStyle().Bold(true).
+			Background(badSty.GetForeground()).
+			Foreground(lipgloss.Color("#11111B")).
+			Render(" FAILED ")
+		out = banner + "\n" + out
+	}
+	return out
+}
+
+// relSince humanizes an age the way systemd does ("3 days ago").
+func relSince(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return itoa(int(d.Seconds())) + "s ago"
+	case d < time.Hour:
+		return itoa(int(d.Minutes())) + "m ago"
+	case d < 24*time.Hour:
+		h := int(d.Hours())
+		m := int(d.Minutes()) % 60
+		if m > 0 {
+			return itoa(h) + "h " + itoa(m) + "m ago"
+		}
+		return itoa(h) + "h ago"
+	default:
+		days := int(d.Hours()) / 24
+		h := int(d.Hours()) % 24
+		if h > 0 {
+			return itoa(days) + "d " + itoa(h) + "h ago"
+		}
+		return itoa(days) + "d ago"
+	}
 }
 
 // svcTokens are the systemctl status phrases worth surfacing, wrapped
