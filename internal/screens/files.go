@@ -155,6 +155,7 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mkdir")),
 		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "rename")),
 		key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy")),
+		key.NewBinding(key.WithKeys("Y"), key.WithHelp("Y", "copy path")),
 		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "cut")),
 		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "paste")),
 	}
@@ -742,6 +743,21 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return f, nil
 	case "y":
 		return f, f.copyTargets(false)
+	case "Y":
+		// Copy the absolute path(s) to the system clipboard.
+		ts := f.targets()
+		if len(ts) == 0 {
+			return f, nil
+		}
+		paths := make([]string, len(ts))
+		for i, e := range ts {
+			paths[i] = e.Path
+		}
+		res := ui.CopyText(strings.Join(paths, "\n"))
+		if res.Err != nil {
+			return f, ui.ErrToast("clipboard: " + res.Err.Error())
+		}
+		return f, ui.OkToast("path copied via " + res.Channel)
 	case "x":
 		return f, f.copyTargets(true)
 	case "p":
