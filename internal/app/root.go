@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
+	"lcc2/internal/session"
 	"lcc2/internal/ui"
 )
 
@@ -79,6 +80,7 @@ func (r *Root) switchTo(i int) tea.Cmd {
 	if i < 0 || i >= len(r.order) || i == r.active {
 		return nil
 	}
+	r.saveSession() // capture the outgoing screen's prefs first
 	r.active = i
 	return tea.Batch(r.current().Init(), r.sendSize())
 }
@@ -89,6 +91,35 @@ const (
 	MinW = 64
 	MinH = 16
 )
+
+// NewStartingAt builds the root with the given initial section
+// (clamped), for session restore.
+func NewStartingAt(active int, screens ...ui.Screen) Root {
+	r := New(screens...)
+	if active >= 0 && active < len(r.order) {
+		r.active = active
+	}
+	return r
+}
+
+// stateSource is implemented by screens with persisted preferences.
+type stateSource interface {
+	SessionState() session.State
+}
+
+// snapshot gathers the persistable state; only the Files screen
+// contributes extras today.
+func (r Root) snapshot() session.State {
+	st := session.State{Screen: r.active, SortKey: "name"}
+	if src, ok := r.current().(stateSource); ok {
+		fs := src.SessionState()
+		st.Cwd, st.Hidden = fs.Cwd, fs.Hidden
+		st.SortKey, st.SortDesc = fs.SortKey, fs.SortDesc
+	}
+	return st
+}
+
+func (r Root) saveSession() { _ = session.Save(r.snapshot()) }
 
 // Update handles global events and delegates to the active screen.
 func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -123,6 +154,7 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return r, nil
 
 	case clockTickMsg:
+		r.saveSession()
 		return r, tickClock() // keep the status-bar clock honest
 
 	case ui.ToastMsg:
@@ -148,6 +180,7 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.String() == "ctrl+c" {
 			r.quitting = true
+			r.saveSession()
 			return r, tea.Quit
 		}
 		if !r.current().CapturingInput() {

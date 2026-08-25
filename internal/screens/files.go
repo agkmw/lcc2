@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"lcc2/internal/files"
+	"lcc2/internal/session"
 	"lcc2/internal/sysinfo"
 	"lcc2/internal/ui"
 )
@@ -989,6 +990,34 @@ func entryMetaLine(e files.Entry) string {
 	bits := files.ParsePermBits(e.Mode)
 	return bits.Octal() + " - " + files.UserName(e.UID) +
 		" - " + sysinfo.FormatBytes(float64(e.Size))
+}
+
+// SessionState exposes the persisted preferences to the root's
+// session saver.
+func (f Files) SessionState() session.State {
+	return session.State{
+		Cwd:      f.cwd,
+		Hidden:   f.showHidden,
+		SortKey:  f.sort.key,
+		SortDesc: f.sort.desc,
+	}
+}
+
+// Hydrate restores persisted working state before the first listing;
+// anything invalid falls back to defaults silently.
+func (f *Files) Hydrate(cwd string, hidden bool, sortKey string, desc bool) {
+	if cwd != "" {
+		if st, err := os.Stat(cwd); err == nil && st.IsDir() {
+			f.cwd = cwd
+		}
+	}
+	f.showHidden = hidden
+	for _, k := range fileSortCycle {
+		if k == sortKey {
+			f.sort = fileSort{key: k, desc: desc}
+			break
+		}
+	}
 }
 
 // fetchPreview issues the right async read for the given entry.

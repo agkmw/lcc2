@@ -12,6 +12,7 @@ import (
 
 	"lcc2/internal/app"
 	"lcc2/internal/screens"
+	"lcc2/internal/session"
 )
 
 // Version is stamped here; --version reports it.
@@ -38,11 +39,16 @@ func main() {
 		lipgloss.DefaultRenderer().SetColorProfile(termenv.Ascii)
 	}
 
-	m := app.New(
+	// Restore the last session: previous screen and Files prefs.
+	st := session.Load()
+	filesScr := screens.NewFiles()
+	filesScr.Hydrate(st.Cwd, st.Hidden, st.SortKey, st.SortDesc)
+
+	m := app.NewStartingAt(st.Screen,
 		screens.NewOverview(),
 		screens.NewProcesses(),
 		screens.NewDisks(),
-		screens.NewFiles(),
+		filesScr,
 		screens.NewServices(),
 		screens.NewUsersGroups(),
 	)
