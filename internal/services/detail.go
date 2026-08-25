@@ -10,15 +10,16 @@ import (
 // Detail is the structured facts of one unit, sampled via
 // `systemctl show`. Zero values mean "unknown" and render as "-".
 type Detail struct {
-	Active    string // "active", "failed", ...
-	Sub       string // "running", "exited", ...
-	Boot      string // "enabled", "static", ...
-	PID       int32
-	MemBytes  uint64
-	CPUNanos  uint64
-	Since     time.Time
-	Restarts  int
-	Timestamp string // raw ExecMainStartTimestamp, shown dimmed
+	Active      string // "active", "failed", ...
+	Sub         string // "running", "exited", ...
+	Boot        string // "enabled", "static", ...
+	PID         int32
+	MemBytes    uint64
+	CPUNanos    uint64
+	Since       time.Time
+	Restarts    int
+	Timestamp   string // raw ExecMainStartTimestamp, shown dimmed
+	FragmentPath string // unit file on disk; empty for generated units
 }
 
 // showProps are the properties Show requests; keep in sync with
@@ -26,7 +27,7 @@ type Detail struct {
 var showProps = []string{
 	"ActiveState", "SubState", "UnitFileState", "MainPID",
 	"MemoryCurrent", "CPUUsageNSec", "ExecMainStartTimestamp",
-	"NRestarts",
+	"NRestarts", "FragmentPath",
 }
 
 // Show samples structured unit facts with one systemctl call.
@@ -63,6 +64,7 @@ func parseShow(out string) Detail {
 	d.CPUNanos = parseUint(kv["CPUUsageNSec"])
 	d.Restarts, _ = strconv.Atoi(kv["NRestarts"])
 	d.Timestamp = kv["ExecMainStartTimestamp"]
+	d.FragmentPath = kv["FragmentPath"]
 	const layout = "Mon 2006-01-02 15:04:05 -0700"
 	if t, err := time.Parse(layout, d.Timestamp); err == nil {
 		d.Since = t

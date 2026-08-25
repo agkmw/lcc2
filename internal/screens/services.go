@@ -2,6 +2,7 @@ package screens
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -41,6 +42,7 @@ type svcRawMsg struct {
 	unit string
 	text string
 }
+type editorDoneMsg struct{ err error }
 type svcTickMsg struct{ gen uint64 }
 
 // Services is the service management screen: unit list left, live
@@ -95,6 +97,7 @@ func (s Services) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "stop")),
 		key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "restart")),
 		key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "enable")),
+		key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "edit unit")),
 		key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "disable")),
 		ui.Keys.Refresh,
 	}
@@ -214,6 +217,9 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 		s.logs = m.lines
 
+	case editorDoneMsg:
+		return s, s.viewerFinished(m)
+
 	case svcTickMsg:
 		if m.gen != s.epoch.Load() {
 			return s, nil // stale chain from a previous Init
@@ -301,6 +307,29 @@ func subStyled(v string) string {
 	}
 }
 
+// editUnitFile suspends the TUI into $EDITOR on the unit's fragment
+// file; a daemon-reload afterwards is left to the user (toast hints).
+func (s Services) editUnitFile() tea.Cmd {
+	if s.det == nil || s.det.FragmentPath == "" {
+		return ui.ErrToast("no unit file to edit")
+	}
+	path := s.det.FragmentPath
+	argv := resolveViewer()
+	c := exec.Command(argv[0], append(argv[1:], path)...)
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		return editorDoneMsg{err}
+	})
+}
+
+// viewerFinished reacts after an external editor closes.
+func (s Services) viewerFinished(m editorDoneMsg) tea.Cmd {
+	cmd := fetchDetailCmd(s.selectedName())
+	if m.err != nil {
+		return tea.Batch(ui.ErrToast("editor: "+m.err.Error()), cmd)
+	}
+	return tea.Batch(ui.InfoToast("edited - run 'systemctl daemon-reload' if needed"), cmd)
+}
+
 func friendlySvcErr(err error) string {
 	if err == services.ErrUnavailable {
 		return "systemctl not found: service management unavailable here"
@@ -351,6 +380,8 @@ func (s Services) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return s.askAction("stop")
 	case "e":
 		return s.askAction("enable")
+	case "E":
+		return s, s.editUnitFile()
 	case "D":
 		return s.askAction("disable")
 	}

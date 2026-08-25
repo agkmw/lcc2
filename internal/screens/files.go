@@ -3,6 +3,7 @@ package screens
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -39,12 +40,12 @@ type Files struct {
 	findTbl   ui.FilterTable
 	grepTbl   ui.FilterTable
 
-	sort      fileSort // listing order; s cycles, S reverses
+	sort fileSort // listing order; s cycles, S reverses
 
 	backStack []string // visited dirs; ctrl+o pops
 	fwdStack  []string // forward history; ctrl+i pops
 
-	stager *files.Stager // shared across value copies: closures stage into it
+	stager *files.Stager   // shared across value copies: closures stage into it
 	marked map[string]bool // marked paths (multi-select)
 
 	clip     []string // clipboard paths
@@ -149,6 +150,7 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "grep")),
 		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "mark")),
 		key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "hidden")),
+		key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "open")),
 		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
 		key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mkdir")),
 		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "rename")),
@@ -275,6 +277,13 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 
 	case stageStepMsg:
 		return f.stageStep(m)
+
+	case viewerDoneMsg:
+		if m.err != nil {
+			return f, ui.ErrToast("viewer: " + m.err.Error())
+		}
+		// The file may have changed on disk; refresh listing+preview.
+		return f, tea.Batch(listDir(f.cwd, f.showHidden))
 
 	case auxDebounceMsg:
 		if f.mode != "list" {
@@ -576,6 +585,29 @@ func (f *Files) goForward() tea.Cmd {
 	return listDir(next, f.showHidden)
 }
 
+// resolveViewer picks the external opener: $EDITOR, then $VISUAL,
+// then $PAGER, then plain less.
+func resolveViewer() []string {
+	for _, env := range []string{"EDITOR", "VISUAL", "PAGER"} {
+		if v := os.Getenv(env); v != "" {
+			return strings.Fields(v)
+		}
+	}
+	return []string{"less", "-R"}
+}
+
+type viewerDoneMsg struct{ err error }
+
+// openInViewer suspends the TUI and runs the user's editor or pager
+// on path (tea.ExecProcess hands the terminal over cleanly).
+func (f Files) openInViewer(path string) tea.Cmd {
+	argv := resolveViewer()
+	c := exec.Command(argv[0], append(argv[1:], path)...)
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		return viewerDoneMsg{err}
+	})
+}
+
 func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	if f.permEdit != nil {
 		return f.handlePermKeys(m)
@@ -622,6 +654,11 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return f, f.startAux("find")
 	case "F":
 		return f, f.startAux("grep")
+	case "e":
+		if e, ok := f.selected(); ok && !e.IsDir {
+			return f, f.openInViewer(e.Path)
+		}
+		return f, nil
 	case "s":
 		f.sort = f.sort.next()
 		sortEntries(f.entries, f.sort)
@@ -1055,7 +1092,7 @@ func numberLines(lines []string, first, hit int) string {
 	var b strings.Builder
 	for i, l := range lines {
 		n := first + i
-		prefix := faintSty.Render(padLeft(itoa(n), gutter)+"  ")
+		prefix := faintSty.Render(padLeft(itoa(n), gutter) + "  ")
 		line := prefix + l
 		if n == hit {
 			b.WriteString(hitSty.Render(padLeft(itoa(n), gutter)) + "  " +
