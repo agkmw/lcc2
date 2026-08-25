@@ -151,7 +151,7 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "mark")),
 		key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "hidden")),
 		key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "open")),
-		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
+		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "trash")),
 		key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mkdir")),
 		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "rename")),
 		key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy")),
@@ -712,7 +712,11 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 				errs = append(errs, err.Error())
 			}
 		}
-		cmd := f.afterStage(errs, fmt.Sprintf("staged delete %d", len(ts)))
+		verb := "trash"
+		if !files.TrashAvailable() {
+			verb = "delete (permanent)"
+		}
+		cmd := f.afterStage(errs, fmt.Sprintf("staged %s %d", verb, len(ts)))
 		return f, cmd
 	case "m":
 		return f.startPrompt("new directory: ", func(ff Files, name string) tea.Cmd {

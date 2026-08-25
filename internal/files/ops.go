@@ -113,7 +113,8 @@ func Home() string {
 	return "/"
 }
 
-// Delete removes a file or a directory tree after caller confirmation.
+// Delete permanently removes a file or directory tree. Prefer Trash
+// so deletes are recoverable.
 func Delete(path string) error {
 	return os.RemoveAll(path)
 }

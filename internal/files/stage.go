@@ -162,7 +162,8 @@ func ApplyOp(op Op) error {
 	case OpMkdir:
 		return Mkdir(filepath.Dir(op.Path), filepath.Base(op.Path))
 	case OpDelete:
-		return Delete(op.Path)
+		_, err := Trash(op.Path)
+		return err
 	case OpRename:
 		return Rename(op.Path, op.Arg)
 	case OpCopy:
