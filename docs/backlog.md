@@ -199,6 +199,72 @@ Ptr: `internal/ui/theme.go`, `internal/ui/canvas.go`.
 Network graphs auto-scale to the session peak with a 64 KiB/s floor;
 scale label rendered in section title. Ptr: `internal/screens/overview.go`.
 
+### L6 · partial (polish batch 2026-08-25)
+--version/--help shipped (cmd/lcc2 flag package). Mouse support
+shipped (P7 below). Still open: time.Tick leak in procfs.
+Ptrs: `cmd/lcc2/main.go`, `internal/proc/procfs.go:170`.
+
+## 2026-08-25 polish batch (user-selected menu)
+
+### P1 · closed — files sort cycling
+`s` cycles name→size→mtime, `S` reverses; dirs-first always; cursor
+follows via path keys. Pure helper `sortEntries`.
+Tests: `files_sort_test.go`. Ptr: screens/files_sort.go.
+
+### P2 · closed — session memory
+`~/.config/lcc2/state.json` (atomic tmp+rename): last screen index +
+Files cwd/hidden/sort. Root snapshots on switch/quit/periodic tick;
+`Files.Hydrate` restores, ignoring invalid dirs/corrupt JSON.
+Tests: session round-trip/corruption/clamp; app snapshot test.
+Ptrs: internal/session, app/root.go snapshot/saveSession.
+
+### P3 · closed — open in $EDITOR/$PAGER
+Files `e` + Services `E` via tea.ExecProcess clean suspend/resume;
+viewer chain EDITOR→VISUAL→PAGER→less -R; post-close refresh + toast.
+Services Detail gained FragmentPath (systemctl show).
+Tests: resolveViewer precedence. Ptrs: files.go/services.go viewer*.
+
+### P4 · closed — copy path to clipboard
+Files `Y`: wl-copy → xclip → OSC52 on /dev/tty; toast names channel.
+Tests: channel preference with stub PATH; osc52 fallback.
+Ptrs: ui/clipboard.go. v2 note: swap to native tea.SetClipboard at
+migration.
+
+### P5 · closed — trash delete
+Staged deletes apply via freedesktop trash: gio trash, else rename to
+~/.local/share/Trash/files with .trashinfo; collision-suffixed names;
+permanent RemoveAll only as last resort and labeled as such in the
+stage toast/hint ("trash" vs "delete (permanent)").
+Tests: home fallback (PATH stripped), collision suffixes, uniqueTarget.
+Ptrs: files/trash.go, stage.go ApplyOp(OpDelete), screens hint/toast.
+
+### P6 · closed — dashboard disk I/O rates
+IOMonitor diffs per-device counters on the 1s tick (loop/ram/zram
+filtered, resets degrade to totals like NetMonitor); disk box title
+gains "r X - w Y" when active.
+Tests: sumAll filtering, counter-reset contract.
+Ptrs: sysinfo/diskio.go, overview.go diskBox.
+
+### P7 · closed — mouse support
+WithMouseCellMotion; FilterTable.Mouse hit-tests rows through its own
+header/scroll geometry (wheel ±1 row, left-click select, same-row
+re-click within 450ms = double-click); screens translate moved/dbl
+into preview refresh / enter-open-drill; tab-strip chips carry x-span
+hit ranges recorded during render; help documents gestures; modals
+and filter input swallow pointer events.
+Tests: wheel/click/dblclick mapping, header non-hits.
+Ptrs: ui/table.go Mouse/RowAt, root.go tabSpan/stripHit,
+screens MouseMsg cases.
+
+### P8 · closed — chroma syntax-highlighted previews
+New dep github.com/alecthomas/chroma/v2 (screen layer only; providers
+stay pure): lexers.Match on file name, catppuccin-mocha style +
+terminal16m formatter; gate matrix (unknown ext / NO_COLOR /
+non-truecolor) falls back to plain numbered lines with asserted equal
+line counts so preview geometry cannot shift.
+Tests: TestHighlightCodeGo, TestHighlightCodeGates.
+Ptr: screens/files_highlight.go, files.go filePreviewMsg branch.
+
 ### L6 · open
 No `--version`/`--help`; no mouse support; `time.Tick` leak.
 Ptrs: `cmd/lcc2/main.go`, `internal/proc/procfs.go:170`.

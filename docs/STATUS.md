@@ -4,15 +4,25 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-Sixth pass landed (2026-08-25): FilterTable renders rows itself —
-semantic colors survive in main panes at every width (H7's rune-fit
-workaround had stripped them), scroll/cursor behavior preserved with
-bubbles keymap parity, the rune-truncation hazard class and its `…`
-glyph are gone for good. Gate green; full suite untouched otherwise.
+Polish batch landed (2026-08-25, 9 commits): files sort cycling,
+session memory across runs, $EDITOR/$PAGER opening (files+services),
+clipboard path copy (wl-copy/xclip/OSC52), trash-instead-of-delete
+with permanent-fallback labeling, dashboard disk I/O rates, mouse
+support (clicks/wheel/tabs), and chroma syntax-highlighted previews
+(new dep). CLI gained --version/--help + NO_COLOR. Gate green.
 
 ## In progress
 
 Nothing — awaiting user's live pass on this batch.
+
+## Next action
+
+User exercises the new surface: sorts, editor open, clipboard over
+ssh/tmux, trash-then-undo, mouse gestures, highlighted previews.
+THEN: dedicated bubbletea/lipgloss/bubbles v2 migration session (own
+ADR — module paths, color types, termenv→colorprofile rework of
+canvas/painter/profile tests, ghosting recalibration; swap clipboard
+to native tea.SetClipboard).
 
 ## Next action
 
