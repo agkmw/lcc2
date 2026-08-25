@@ -45,6 +45,22 @@ type Root struct {
 	notes    ui.NotifyStack
 	helpOpen bool
 	quitting bool
+	tabSpans []tabSpan
+}
+
+// tabSpan is the horizontal hit range of one tab segment on row 0.
+type tabSpan struct {
+	start, end, idx int
+}
+
+// stripHit maps an x column on the tab strip to a section index.
+func (r Root) stripHit(x int) (int, bool) {
+	for _, s := range r.tabSpans {
+		if x >= s.start && x <= s.end {
+			return s.idx, true
+		}
+	}
+	return 0, false
 }
 
 // New creates the root model with the given screens (order matters).
@@ -166,6 +182,18 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return r, tea.Tick(d, func(time.Time) tea.Msg {
 			return noteExpiryMsg{id: n.ID}
 		})
+
+	case tea.MouseMsg:
+		if r.helpOpen {
+			return r, nil
+		}
+		if m.Y == 0 { // tab strip
+			if idx, ok := r.stripHit(m.X); ok {
+				return r, r.switchTo(idx)
+			}
+			return r, nil
+		}
+		// Everything else belongs to the active screen (fall through).
 
 	case tea.KeyMsg:
 		if r.helpOpen {
@@ -295,7 +323,10 @@ func (r Root) viewTabStrip() string {
 
 	render := func(numbers, badges bool, maxLabel int) string {
 		segs := []string{logo}
-		for i, ti := range tabs {
+		spans := make([]tabSpan, 0, len(tabs))
+		x := 1 + lipgloss.Width(logo) // leading global space + logo
+		for i := range tabs {
+			ti := tabs[i]
 			label := ti.label
 			if badges && ti.badge != "" {
 				label += " " + lipgloss.NewStyle().Bold(true).
@@ -307,17 +338,26 @@ func (r Root) viewTabStrip() string {
 			if numbers {
 				label = faintSty.Render(strconv.Itoa(i+1)) + " " + label
 			}
+			var seg string
 			if i == r.active {
 				// Inverted chip marks the current section at a glance;
 				// the SGR-state canvas keeps the fill intact.
-				segs = append(segs, lipgloss.NewStyle().
+				seg = lipgloss.NewStyle().
 					Bold(true).Foreground(ui.Accent(ti.id)).
 					Background(ui.Palette.Surface).
-					Render(" "+label+" "))
+					Render(" "+label+" ")
 			} else {
-				segs = append(segs, mutedSty.Render(label))
+				seg = mutedSty.Render(label)
 			}
+			if i > 0 {
+				x += 3 // separator " │ "
+			}
+			w := lipgloss.Width(seg)
+			spans = append(spans, tabSpan{start: x, end: x + w - 1, idx: i})
+			segs = append(segs, seg)
+			x += w
 		}
+		r.tabSpans = spans
 		return " " + strings.Join(segs, " "+faintSty.Render("│")+" ")
 	}
 
@@ -417,6 +457,8 @@ func (r Root) helpPanel() string {
 		[2]string{"?", "help"},
 		[2]string{"q", "quit"},
 	)...)
+	lines = append(lines, "", faintSty.Render(
+		"mouse: click rows - wheel scrolls - click tabs to switch"))
 	lines = append(lines, "")
 	for _, kb := range r.current().Hints() {
 		if kb.Enabled() {

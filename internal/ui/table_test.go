@@ -292,3 +292,46 @@ func balancedEscapes(s string) bool {
 	}
 	return true
 }
+
+// Mouse: wheel moves the cursor, clicks select, RowAt accounts for
+// the scroll offset.
+func TestTableMouse(t *testing.T) {
+	cols := []table.Column{{Title: "name", Width: 12}}
+	rows := make([]table.Row, 20)
+	keys := make([]string, 20)
+	for i := range rows {
+		rows[i] = table.Row{fmt.Sprintf("row%02d", i)}
+		keys[i] = fmt.Sprintf("k%02d", i)
+	}
+	ft := NewFilterTable(cols, 16, 9) // bodyH = 6
+	ft.SetRowsTracked(rows, keys)
+
+	wheel := tea.MouseMsg{Type: tea.MouseWheelDown}
+	for i := 0; i < 8; i++ {
+		ft.Mouse(wheel, 0)
+	}
+	if ft.Cursor() != 8 {
+		t.Fatalf("wheel cursor = %d, want 8", ft.Cursor())
+	}
+	if ft.yOff != 3 { // 8 - bodyH(6) + 1
+		t.Fatalf("yOff = %d, want 3", ft.yOff)
+	}
+
+	// Click on the third visible row: abs y = header(2) + (row - yOff).
+	click := tea.MouseMsg{Type: tea.MouseLeft, Y: 2 + 2} // vis row 5
+	moved, dbl := ft.Mouse(click, 0)
+	if !moved || ft.Cursor() != 5 {
+		t.Fatalf("click moved=%v cursor=%d", moved, ft.Cursor())
+	}
+
+	// Double-click the same row within the window.
+	_, dbl = ft.Mouse(click, 0)
+	if !dbl {
+		t.Error("second click not detected as double-click")
+	}
+
+	// Header and rule rows are never hits.
+	if _, ok := ft.RowAt(0); ok {
+		t.Error("header text row should not map to a data row")
+	}
+}

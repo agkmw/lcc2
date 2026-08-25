@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/table" // Column struct: shared API type
 	"github.com/charmbracelet/bubbles/textinput"
@@ -30,6 +31,9 @@ type FilterTable struct {
 	vis    []table.Row // visible (filtered) rows
 	cursor int         // index into vis
 	yOff   int         // first visible body row
+
+	lastClickRow int
+	lastClickAt  time.Time
 
 	headerSty lipgloss.Style
 
@@ -463,6 +467,57 @@ func maxI(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// --- mouse ------------------------------------------------------------
+
+// dblClickWindow is the max gap between clicks that counts as a
+// double-click.
+const dblClickWindow = 450 * time.Millisecond
+
+// RowAt maps a terminal-row hit relative to the table's own View
+// (0 = header text line, 1 = header rule, 2+ = body rows) onto a
+// visible row index.
+func (f *FilterTable) RowAt(rel int) (int, bool) {
+	if rel < 2 {
+		return 0, false
+	}
+	i := f.yOff + rel - 2
+	if i >= 0 && i < len(f.vis) {
+		return i, true
+	}
+	return 0, false
+}
+
+// Mouse handles wheel and left-click over the table. It returns
+// moved=true when the cursor changed and dbl=true for a double-click
+// on the same row (callers turn that into their "enter" action).
+func (f *FilterTable) Mouse(m tea.MouseMsg, topAbs int) (moved, dbl bool) {
+	switch m.Type {
+	case tea.MouseWheelUp:
+		f.move(-1)
+		return true, false
+	case tea.MouseWheelDown:
+		f.move(1)
+		return true, false
+	case tea.MouseLeft:
+		// click handling below
+	default:
+		return false, false
+	}
+	row, ok := f.RowAt(m.Y - topAbs)
+	if !ok {
+		return false, false
+	}
+	now := time.Now()
+	dbl = now.Sub(f.lastClickAt) <= dblClickWindow && f.lastClickRow == row &&
+		row == f.cursor // already selected before this press
+	f.lastClickAt, f.lastClickRow = now, row
+	if row != f.cursor {
+		f.SetCursor(row)
+		return true, false
+	}
+	return false, dbl
 }
 
 // View renders the table with one chrome row: the filter prompt above

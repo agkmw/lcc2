@@ -140,6 +140,17 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 		u.gTbl.SetRowsTracked(grows, gkeys)
 
+	case tea.MouseMsg:
+		if u.uTbl.Filtering() || u.gTbl.Filtering() {
+			return u, nil
+		}
+		if u.tab == "users" {
+			u.uTbl.Mouse(m, 3)
+		} else {
+			u.gTbl.Mouse(m, 3)
+		}
+		return u, nil
+
 	case tea.KeyMsg:
 		return u.handleKey(m)
 	}

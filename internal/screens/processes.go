@@ -177,6 +177,16 @@ func (p Processes) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 		return p, ui.OkToast(sig + " " + itoa(int(m.pid)))
 
+	case tea.MouseMsg:
+		if p.confirm != nil || p.tbl.Filtering() {
+			return p, nil
+		}
+		moved, _ := p.tbl.Mouse(m, 3)
+		if moved {
+			return p, p.inspectSelected()
+		}
+		return p, nil
+
 	case tea.KeyMsg:
 		return p.handleKey(m)
 	}

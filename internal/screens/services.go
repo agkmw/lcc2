@@ -217,6 +217,16 @@ func (s Services) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 		s.logs = m.lines
 
+	case tea.MouseMsg:
+		if s.confirm != nil || s.tbl.Filtering() {
+			return s, nil
+		}
+		moved, _ := s.tbl.Mouse(m, 3)
+		if moved {
+			return s, fetchDetailCmd(s.selectedName())
+		}
+		return s, nil
+
 	case editorDoneMsg:
 		return s, s.viewerFinished(m)
 

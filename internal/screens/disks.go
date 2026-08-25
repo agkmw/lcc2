@@ -152,6 +152,20 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		d.spin, cmd = d.spin.Update(m)
 		return d, cmd
 
+	case tea.MouseMsg:
+		if d.fsTbl.Filtering() || d.dirTbl.Filtering() {
+			return d, nil
+		}
+		tbl := &d.dirTbl
+		if d.mode == "fs" {
+			tbl = &d.fsTbl
+		}
+		_, dbl := tbl.Mouse(m, 3)
+		if dbl { // double-click = the enter gesture
+			return d.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+		}
+		return d, nil
+
 	case tea.KeyMsg:
 		return d.handleKey(m)
 	}

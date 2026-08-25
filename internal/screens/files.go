@@ -317,6 +317,9 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		f.syncAuxTables()
 		return f, f.auxFollow()
 
+	case tea.MouseMsg:
+		return f.handleMouse(m)
+
 	case tea.KeyMsg:
 		return f.handleKey(m)
 	}
@@ -607,6 +610,56 @@ func (f Files) openInViewer(path string) tea.Cmd {
 	return tea.ExecProcess(c, func(err error) tea.Msg {
 		return viewerDoneMsg{err}
 	})
+}
+
+// tableTopAbs is the absolute terminal row of the main table's header
+// line: root chrome (2) + page head (1) + pane header/query bar (1).
+func (f Files) tableTopAbs() int { return 4 }
+
+// enterOrOpen is the double-click gesture: dirs open, files launch
+// the viewer.
+func (f *Files) enterOrOpen() tea.Cmd {
+	if e, ok := f.selected(); ok {
+		if e.IsDir {
+			f.clearMarks()
+			return f.navigate(e.Path)
+		}
+		return f.openInViewer(e.Path)
+	}
+	return nil
+}
+
+// handleMouse routes wheel/clicks to the active table; a double-click
+// acts like pressing enter on the selection.
+func (f Files) handleMouse(m tea.MouseMsg) (ui.Screen, tea.Cmd) {
+	if f.prompt != nil || f.permEdit != nil || f.opCount.Load() > 0 {
+		return f, nil
+	}
+	if f.mode != "list" {
+		moved, dbl := f.auxTable().Mouse(m, f.tableTopAbs())
+		switch {
+		case dbl:
+			return f.auxOpen()
+		case moved:
+			return f, f.auxFollow()
+		}
+		return f, nil
+	}
+	if f.tbl.Filtering() {
+		return f, nil // filter input owns the pointer too
+	}
+	moved, dbl := f.tbl.Mouse(m, f.tableTopAbs())
+	switch {
+	case dbl:
+		return f, f.enterOrOpen()
+	case moved:
+		if p := f.selectedPath(); p != "" && p != f.prevPath && !f.fetching {
+			e, _ := f.selected()
+			f.fetching = true
+			return f, fetchPreviewCmd(*e)
+		}
+	}
+	return f, nil
 }
 
 func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
