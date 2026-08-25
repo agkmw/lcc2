@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"lcc2/internal/files"
 	"lcc2/internal/ui"
@@ -99,5 +101,27 @@ func TestSymlinkNameGetsAtTail(t *testing.T) {
 	f = feed(f, ui.SizeMsg{Width: 100, Height: 30}, dirListMsg{dir: dir, list: lst}).(Files)
 	if !strings.Contains(stripANSI(f.View()), "link@") {
 		t.Error("symlink missing '@' marker in listing")
+	}
+}
+
+// Main-pane rows keep their semantic colors even when columns refit
+// narrow — the first-party renderer no longer strips styled cells
+// (H8). Asserts on raw bytes since stripANSI would hide the win.
+func TestMainPaneRowsKeepColor(t *testing.T) {
+	old := lipgloss.DefaultRenderer().ColorProfile()
+	lipgloss.DefaultRenderer().SetColorProfile(termenv.TrueColor)
+	defer lipgloss.DefaultRenderer().SetColorProfile(old)
+
+	dir := t.TempDir()
+	files.Mkdir(dir, "projects")
+	lst, err := files.List(dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := NewFiles()
+	f = feed(f, ui.SizeMsg{Width: 80, Height: 30}, dirListMsg{dir: dir, list: lst}).(Files)
+	view := f.View() // 76-col content: name column must refit below its base width
+	if !strings.Contains(view, "\x1b[1;") && !strings.Contains(view, ";38;2;") {
+		t.Error("main pane lost semantic styling after column refit")
 	}
 }

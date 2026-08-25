@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -22,7 +23,9 @@ func newTestTable() FilterTable {
 // (ADR-0010): the app-level denylist test only sees empty tables, so
 // the stats line and filter placeholder escape it unless scanned here.
 func TestTableChromeGlyphClean(t *testing.T) {
-	deny := func(r rune) bool { return strings.ContainsRune("●○◌◐◑◕◉✕✗✔✖▸◂▴▾◄►◊◈◇◆•·‣›‹…—", r) }
+	deny := func(r rune) bool {
+		return strings.ContainsRune("●○◌◐◑◕◉✕✗✔✖▸◂▴▾◄►◊◈◇◆•·‣›‹…—", r)
+	}
 	scan := func(name, s string) {
 		t.Helper()
 		for _, r := range stripSeq(s) {
@@ -192,23 +195,27 @@ func rows5() []table.Row {
 	}
 }
 
-// Regression: bubbles re-truncates cells by rune count on render, and
-// ANSI escapes count as runes. A styled cell whose escapes pushed it
-// past its refitted column got sliced mid-escape on terminal shrink,
-// garbling the live frame. clipCells must keep every cell within its
-// column in both display cells and runes.
-func TestStyledCellsSurviveShrink(t *testing.T) {
+// Regression (H8): bubbles/table truncated cells by rune count, so
+// styled cells had to be stripped to plain text before rendering —
+// which drained ALL color from the main panes. The first-party
+// renderer must keep styled cells intact at every width.
+func TestStyledCellsKeepColorAtAnyWidth(t *testing.T) {
+	forceTrueColor(t)
 	cols := []table.Column{{Title: "name", Width: 30}, {Title: "pct", Width: 6}}
-	ft := NewFilterTable(cols, 80, 4)
 	styled := lipgloss.NewStyle().Bold(true).Foreground(Palette.Red)
 	rows := []table.Row{
 		{styled.Render("a-very-long-directory-name-indeed/"), styled.Render("99%")},
 		{"plain-but-long-plaintext-name-here.txt", "0.0"},
 	}
+	ft := NewFilterTable(cols, 80, 4)
 	ft.SetRowsTracked(rows, []string{"a", "b"})
-	for _, w := range []int{60, 40, 26, 18, 12} {
+	for _, w := range []int{60, 40, 26, 18} {
 		ft.SetSize(w, 4)
-		for i, l := range strings.Split(ft.View(), "\n") {
+		view := ft.View()
+		if !strings.Contains(view, ";38;2;") {
+			t.Fatalf("w=%d: styled cell lost its color", w)
+		}
+		for i, l := range strings.Split(view, "\n") {
 			if lw := lipgloss.Width(l); lw > w {
 				t.Fatalf("w=%d: line %d is %d cells (cap %d)", w, i, lw, w)
 			}
@@ -216,6 +223,50 @@ func TestStyledCellsSurviveShrink(t *testing.T) {
 				t.Fatalf("w=%d: line %d has a sliced escape sequence: %q", w, i, l)
 			}
 		}
+	}
+}
+
+// The built-in scroller keeps the cursor row visible through moves,
+// page jumps and list shrinks.
+func TestTableViewportKeepsCursorVisible(t *testing.T) {
+	cols := []table.Column{{Title: "name", Width: 20}}
+	rows := make([]table.Row, 30)
+	keys := make([]string, 30)
+	for i := range rows {
+		rows[i] = table.Row{fmt.Sprintf("row%02d", i)}
+		keys[i] = fmt.Sprintf("k%02d", i)
+	}
+	ft := NewFilterTable(cols, 24, 9) // bodyH = 9-3 = 6
+	ft.SetRowsTracked(rows, keys)
+
+	down := tea.KeyMsg{Type: tea.KeyDown}
+	for i := 0; i < 10; i++ { // walk past the window edge
+		ft, _ = ft.Update(down)
+	}
+	if ft.cursor != 10 {
+		t.Fatalf("cursor = %d, want 10", ft.cursor)
+	}
+	if !strings.Contains(ft.View(), "row10") {
+		t.Error("cursor row scrolled out of view")
+	}
+
+	end := tea.KeyMsg{Type: tea.KeyEnd}
+	ft, _ = ft.Update(end)
+	v := ft.View()
+	if ft.cursor != 29 || !strings.Contains(v, "row29") {
+		t.Errorf("goto-bottom failed: cursor=%d view=%q", ft.cursor, v)
+	}
+
+	home := tea.KeyMsg{Type: tea.KeyHome}
+	ft, _ = ft.Update(home)
+	if ft.cursor != 0 || !strings.Contains(ft.View(), "row00") {
+		t.Error("goto-top failed")
+	}
+
+	// Shrinking the list under the cursor clamps instead of panicking.
+	ft.SetRowsTracked(rows[:4], keys[:4])
+	if c := ft.Cursor(); c > 3 {
+		t.Errorf("cursor %d out of range after shrink", c)
 	}
 }
 

@@ -4,11 +4,11 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-Fifth pass landed (2026-08-25): services details pane is a structured
-kv card from `systemctl show` (state/boot/since/pid/memory/cpu/
-restarts), with a red FAILED banner, journal tail on every selection,
-amber restart badge in the meta line and the raw highlighted dump as
-fallback for not-found units. Gate green.
+Sixth pass landed (2026-08-25): FilterTable renders rows itself —
+semantic colors survive in main panes at every width (H7's rune-fit
+workaround had stripped them), scroll/cursor behavior preserved with
+bubbles keymap parity, the rune-truncation hazard class and its `…`
+glyph are gone for good. Gate green; full suite untouched otherwise.
 
 ## In progress
 

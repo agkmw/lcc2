@@ -319,12 +319,29 @@ window (`peakWin`). Regression `TestOverviewNetPeakDecays`.
 Narrow strips degrade by priority — badges off, numbers off, inactive
 labels shrink; active label last. `TestTabStripDegradesWithinWidth`.
 
-### T6 · open
+### T6 · closed
 bubbles renderRow also emits "…" (banned glyph) whenever IT truncates;
 our invariant makes that unreachable for FilterTable rows, but any
-future direct use of bubbles tables re-exposes it. Consider vendoring
-or replacing bubbles table long-term.
+future direct use of bubbles tables re-exposes it.
 Ptr: bubbles v1.0.0 table.go:422,435.
+
+## 2026-08-25 sixth pass (table renderer)
+
+### H8 · closed
+H7's rune-fit workaround stripped styling from nearly every main-pane
+cell: escape overhead (~20+ runes per span) exceeded fitted column
+widths at common sizes, so fitCell flattened dirs/modes/pids/percent
+to plain text — colors survived only in previews. bubbles v1.0.0 has
+no render hook, so FilterTable now renders rows itself (header rule,
+ANSI-aware cell padding, SelectedRow full-line fill, viewport scroll
+with cursor visibility, full DefaultKeyMap parity incl b/f/u/d half-
+pages). fitCell's rune branch and stripStyles deleted; clipCells is
+display-fit only. Supersedes H7; closes T6 for good (no bubbles in
+the hot path).
+Tests: `TestStyledCellsKeepColorAtAnyWidth` (inverts H7's contract),
+`TestTableViewportKeepsCursorVisible`,
+`TestMainPaneRowsKeepColor` (screens-level raw-byte check).
+Ptr: internal/ui/table.go.
 
 ### T7 · open
 fd/rg integration assumes POSIX vimgrep parsing (SplitN on ':');
