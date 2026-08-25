@@ -23,14 +23,17 @@ func TestCopyTextPrefersWlCopy(t *testing.T) {
 	}
 }
 
-// With no helper binaries, OSC52 is the last resort and always
-// "succeeds" (the terminal acks nothing).
-func TestCopyTextFallsBackToOSC52(t *testing.T) {
+// With no helper binaries, the native tea.SetClipboard OSC52 command
+// is the last resort.
+func TestCopyTextFallsBackToNative(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("PATH", dir)
 
 	res := CopyText("ssh text")
 	if res.Err != nil || res.Channel != "osc52" {
 		t.Fatalf("res = %+v", res)
+	}
+	if res.Cmd == nil {
+		t.Fatal("native clipboard cmd missing")
 	}
 }

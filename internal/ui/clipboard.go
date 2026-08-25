@@ -1,22 +1,23 @@
 package ui
 
 import (
-	"encoding/base64"
-	"os"
 	"os/exec"
 	"strings"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // CopyResult reports which channel carried the text, for toasts.
 type CopyResult struct {
 	Channel string // "wl-copy", "xclip", "osc52"
+	Cmd     tea.Cmd
 	Err     error
 }
 
 // CopyText places text on the system clipboard: Wayland first, then
-// X11, then the OSC52 escape sequence written straight to the tty
-// (works over ssh; tmux needs `set -g set-clipboard on`). OSC52 is
-// consumed silently by the terminal, so it cannot corrupt the frame.
+// X11, finally bubbletea's native OSC52 command (works over ssh;
+// tmux needs `set -g set-clipboard on`). The Cmd must be returned to
+// the program for the native path to run.
 func CopyText(text string) CopyResult {
 	for _, c := range []struct {
 		bin  string
@@ -35,21 +36,5 @@ func CopyText(text string) CopyResult {
 			return CopyResult{Channel: c.name}
 		}
 	}
-	if err := osc52(text); err != nil {
-		return CopyResult{Err: err}
-	}
-	return CopyResult{Channel: "osc52"}
-}
-
-// osc52 emits the base64 clipboard sequence on the controlling tty,
-// falling back to stdout.
-func osc52(text string) error {
-	seq := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(text)) + "\a"
-	if f, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0); err == nil {
-		defer f.Close()
-		_, err = f.WriteString(seq)
-		return err
-	}
-	_, err := os.Stdout.WriteString(seq)
-	return err
+	return CopyResult{Channel: "osc52", Cmd: tea.SetClipboard(text)}
 }

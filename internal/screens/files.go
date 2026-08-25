@@ -810,6 +810,9 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		if res.Err != nil {
 			return f, ui.ErrToast("clipboard: " + res.Err.Error())
 		}
+		if res.Cmd != nil { // native OSC52 path
+			return f, tea.Batch(res.Cmd, ui.OkToast("path copied via "+res.Channel))
+		}
 		return f, ui.OkToast("path copied via " + res.Channel)
 	case "x":
 		return f, f.copyTargets(true)
