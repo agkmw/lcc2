@@ -979,6 +979,9 @@ func (f Files) handlePermKeys(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	return f, nil
 }
 
+// parseOctal parses a unix permission octal ("644", "4755") into Go's
+// os.FileMode encoding: setuid/setgid/sticky must ride their flag bits
+// or os.Chmod silently ignores them.
 func parseOctal(s string) (os.FileMode, error) {
 	var v uint32
 	for _, c := range s {
@@ -987,7 +990,20 @@ func parseOctal(s string) (os.FileMode, error) {
 		}
 		v = v*8 + uint32(c-'0')
 	}
-	return os.FileMode(v), nil
+	if v > 0o7777 {
+		return 0, fmt.Errorf("mode out of range: %q", s)
+	}
+	m := os.FileMode(v & 0o777)
+	if v&0o4000 != 0 {
+		m |= os.ModeSetuid
+	}
+	if v&0o2000 != 0 {
+		m |= os.ModeSetgid
+	}
+	if v&0o1000 != 0 {
+		m |= os.ModeSticky
+	}
+	return m, nil
 }
 
 func (f *Files) layout() {
