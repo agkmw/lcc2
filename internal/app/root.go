@@ -45,7 +45,10 @@ type Root struct {
 	notes    ui.NotifyStack
 	helpOpen bool
 	quitting bool
-	tabSpans []tabSpan
+	// tabSpans lives behind a pointer because View renders through
+	// value receivers: a plain slice write would be discarded with
+	// the receiver copy and stripHit would never see it.
+	tabSpans *[]tabSpan
 }
 
 // tabSpan is the horizontal hit range of one tab segment on row 0.
@@ -55,7 +58,10 @@ type tabSpan struct {
 
 // stripHit maps an x column on the tab strip to a section index.
 func (r Root) stripHit(x int) (int, bool) {
-	for _, s := range r.tabSpans {
+	if r.tabSpans == nil {
+		return 0, false
+	}
+	for _, s := range *r.tabSpans {
 		if x >= s.start && x <= s.end {
 			return s.idx, true
 		}
@@ -65,7 +71,7 @@ func (r Root) stripHit(x int) (int, bool) {
 
 // New creates the root model with the given screens (order matters).
 func New(screens ...ui.Screen) Root {
-	r := Root{screens: map[string]ui.Screen{}}
+	r := Root{screens: map[string]ui.Screen{}, tabSpans: &[]tabSpan{}}
 	for _, s := range screens {
 		r.screens[s.ID()] = s
 		r.order = append(r.order, s.ID())
@@ -364,7 +370,7 @@ func (r Root) viewTabStrip() string {
 			segs = append(segs, seg)
 			x += w
 		}
-		r.tabSpans = spans
+		*r.tabSpans = spans
 		return " " + strings.Join(segs, " "+faintSty.Render("│")+" ")
 	}
 
