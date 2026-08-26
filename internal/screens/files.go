@@ -9,10 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"charm.land/bubbles/v2/key"
 
 	"lcc2/internal/files"
 	"lcc2/internal/session"
@@ -279,8 +279,14 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		if m.err != nil {
 			return f, ui.ErrToast("viewer: " + m.err.Error())
 		}
-		// The file may have changed on disk; refresh listing+preview.
-		return f, tea.Batch(listDir(f.cwd, f.showHidden))
+		// The file may have changed on disk; refresh listing AND the
+		// preview of whatever is under the cursor.
+		cmd := tea.Batch(listDir(f.cwd, f.showHidden))
+		if e, ok := f.selected(); ok && !e.IsDir && !f.fetching {
+			f.fetching = true
+			cmd = tea.Batch(cmd, fetchPreviewCmd(*e))
+		}
+		return f, cmd
 
 	case auxDebounceMsg:
 		if f.mode != "list" {
