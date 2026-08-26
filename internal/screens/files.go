@@ -1206,7 +1206,9 @@ func metaCard(e files.Entry, w int) string {
 		kv("modified", e.ModTime.Format(time.RFC3339)),
 	}
 	if e.Link != "" {
-		lines = append(lines, kv("link →", e.Link))
+		// ASCII arrow: "→" is EAW-ambiguous and shifts columns in
+		// tmux/CJK locales (ADR-0010).
+		lines = append(lines, kv("link ->", e.Link))
 	}
 	return strings.Join(lines, "\n")
 }
