@@ -7,12 +7,13 @@ import (
 	"image/color"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"charm.land/bubbles/v2/key"
 
 	"lcc2/internal/disk"
 	"lcc2/internal/sysinfo"
@@ -24,33 +25,35 @@ type scanDoneMsg struct {
 	root string
 	res  *disk.ScanResult
 	err  error
+	gen  uint64 // scan generation that produced this result
 }
 
 // Disks is the storage screen: filesystem overview plus interactive
 // directory usage analysis, both with a live preview pane.
 type Disks struct {
-	w, h   int
-	spin   spinner.Model
-	fss    []disk.Filesystem
-	fsTbl  ui.FilterTable
-	mode   string // "fs" or "scan"
-	path   string // current analyzed directory
-	stack  []string
-	items  *disk.ScanResult
-	dirTbl ui.FilterTable
-	busy   bool
-	cancel context.CancelFunc
-	err    string
+	w, h    int
+	spin    spinner.Model
+	fss     []disk.Filesystem
+	fsTbl   ui.FilterTable
+	mode    string // "fs" or "scan"
+	path    string // current analyzed directory
+	stack   []string
+	items   *disk.ScanResult
+	dirTbl  ui.FilterTable
+	busy    bool
+	cancel  context.CancelFunc
+	scanGen *atomic.Uint64 // scan generation; stale completions die
+	err     string
 }
 
 // NewDisks builds the disks screen.
 func NewDisks() Disks {
-	sp := spinner.New(spinner.WithSpinner(spinner.Dot))
 	return Disks{
-		spin:   sp,
-		mode:   "fs",
-		fsTbl:  ui.NewFilterTable(fsCols(), 80, 12),
-		dirTbl: ui.NewFilterTable(itemCols(), 80, 16),
+		spin:    spinner.New(spinner.WithSpinner(spinner.Dot)),
+		mode:    "fs",
+		fsTbl:   ui.NewFilterTable(fsCols(), 80, 12),
+		dirTbl:  ui.NewFilterTable(itemCols(), 80, 16),
+		scanGen: &atomic.Uint64{},
 	}
 }
 
@@ -130,6 +133,9 @@ func (d Disks) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		d.fsTbl.SetRowsTracked(rows, keys)
 
 	case scanDoneMsg:
+		if m.gen != d.scanGen.Load() {
+			return d, nil // superseded by a newer scan; apply nothing
+		}
 		d.busy = false
 		d.cancel = nil
 		if errors.Is(m.err, context.Canceled) {
@@ -206,6 +212,9 @@ func (d Disks) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 			}
 			return d, nil
 		}
+		if d.busy { // a scan is running; drilling now would race it
+			return d, nil
+		}
 		if idx, ok := d.dirTbl.Selected(); ok && d.items != nil && idx < len(d.items.Items) {
 			it := d.items.Items[idx]
 			if it.IsDir {
@@ -248,6 +257,7 @@ func (d Disks) startScan(root string) (ui.Screen, tea.Cmd) {
 	if d.cancel != nil {
 		d.cancel()
 	}
+	gen := d.scanGen.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
 	d.cancel = cancel
 	d.busy = true
@@ -258,7 +268,7 @@ func (d Disks) startScan(root string) (ui.Screen, tea.Cmd) {
 			res, err := disk.ScanDir(ctx, root, func(bytes int64) {
 				_ = bytes // progress kept coarse; duration shown on completion
 			})
-			return scanDoneMsg{root: root, res: res, err: err}
+			return scanDoneMsg{root: root, res: res, err: err, gen: gen}
 		},
 	)
 }
