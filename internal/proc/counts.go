@@ -17,7 +17,7 @@ type Counts struct {
 // ReadCounts samples process/thread/runnable counts from /proc.
 func ReadCounts() Counts {
 	var c Counts
-	if data, err := os.ReadFile("/proc/loadavg"); err == nil {
+	if data, err := os.ReadFile(procDir + "/loadavg"); err == nil {
 		fields := strings.Fields(string(data))
 		if len(fields) >= 4 {
 			parts := strings.SplitN(fields[3], "/", 2)
@@ -27,7 +27,7 @@ func ReadCounts() Counts {
 			}
 		}
 	}
-	if ents, err := os.ReadDir("/proc"); err == nil {
+	if ents, err := os.ReadDir(procDir); err == nil {
 		for _, e := range ents {
 			if _, err := strconv.Atoi(e.Name()); err == nil {
 				c.Processes++
