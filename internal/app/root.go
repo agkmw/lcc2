@@ -129,11 +129,12 @@ type stateSource interface {
 	SessionState() session.State
 }
 
-// snapshot gathers the persistable state; only the Files screen
-// contributes extras today.
+// snapshot gathers the persistable state. The Files screen contributes
+// its extras regardless of which section is active — otherwise any
+// save made elsewhere (clock tick, quit) resets cwd/sort to defaults.
 func (r Root) snapshot() session.State {
 	st := session.State{Screen: r.active, SortKey: "name"}
-	if src, ok := r.current().(stateSource); ok {
+	if src, ok := r.screens["files"].(stateSource); ok {
 		fs := src.SessionState()
 		st.Cwd, st.Hidden = fs.Cwd, fs.Hidden
 		st.SortKey, st.SortDesc = fs.SortKey, fs.SortDesc
