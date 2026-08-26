@@ -66,6 +66,9 @@ func TestStagerUndoClearDropFirst(t *testing.T) {
 
 func TestApplyOpRoundTrip(t *testing.T) {
 	root := t.TempDir()
+	// Keep the trash on the source filesystem: deletes must go through
+	// a real trash now that cross-device refusals are the contract.
+	t.Setenv("HOME", root)
 	src := filepath.Join(root, "x.txt")
 	os.WriteFile(src, []byte("data"), 0644)
 	dstDir := filepath.Join(root, "out")

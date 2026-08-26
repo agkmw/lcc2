@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -18,9 +19,8 @@ func TestTrashHomeFallback(t *testing.T) {
 	src := filepath.Join(home, "doomed.txt")
 	os.WriteFile(src, []byte("bye"), 0o644)
 
-	permanent, err := Trash(src)
-	if err != nil || permanent {
-		t.Fatalf("permanent=%v err=%v", permanent, err)
+	if err := Trash(src); err != nil {
+		t.Fatalf("err=%v", err)
 	}
 	if _, err := os.Lstat(src); !os.IsNotExist(err) {
 		t.Fatal("source still exists")
@@ -46,11 +46,11 @@ func TestTrashCollisionSuffix(t *testing.T) {
 
 	src1 := filepath.Join(home, "same.txt")
 	os.WriteFile(src1, []byte("one"), 0o644)
-	if permanent, err := Trash(src1); err != nil || permanent {
-		t.Fatalf("first: %v %v", permanent, err)
+	if err := Trash(src1); err != nil {
+		t.Fatalf("first: %v", err)
 	}
 	os.WriteFile(src1, []byte("two"), 0o644)
-	if _, err := Trash(src1); err != nil {
+	if err := Trash(src1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -70,5 +70,32 @@ func TestUniqueTarget(t *testing.T) {
 	got := uniqueTarget(dir, "n.txt")
 	if filepath.Base(got) != "n.3.txt" {
 		t.Fatalf("unique = %q", got)
+	}
+}
+
+// A source the home trash cannot take (cross-device) must be refused
+// with an explicit error — never deleted permanently, never half-moved.
+func TestTrashRefusesCrossDevice(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", "")
+
+	prev := osRename
+	osRename = func(string, string) error { return syscall.EXDEV }
+	t.Cleanup(func() { osRename = prev })
+
+	src := filepath.Join(t.TempDir(), "keep.txt")
+	os.WriteFile(src, []byte("precious"), 0o644)
+
+	err := Trash(src)
+	if err == nil || !strings.Contains(err.Error(), "different filesystem") {
+		t.Fatalf("err = %v, want cross-device refusal", err)
+	}
+	if _, serr := os.Lstat(src); serr != nil {
+		t.Fatal("source did not survive the refusal")
+	}
+	ents, rerr := os.ReadDir(filepath.Join(home, ".local", "share", "Trash", "files"))
+	if rerr == nil && len(ents) != 0 {
+		t.Fatalf("trash received data on refusal: %v", ents)
 	}
 }

@@ -37,6 +37,9 @@ func filesScreen(t *testing.T) (Files, string) {
 // badge, and only lands on disk after `w`.
 func TestStagedDeleteSavesOnW(t *testing.T) {
 	f, dir := seedScreenForFlow(t)
+	// Same-filesystem HOME so the staged delete reaches the home trash
+	// instead of refusing as cross-device.
+	t.Setenv("HOME", dir)
 
 	target := filepath.Join(dir, "a.txt")
 	f.tbl.SetCursor(indexOf(f.entries, target))
