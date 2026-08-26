@@ -334,3 +334,34 @@ func TestTableMouse(t *testing.T) {
 		t.Error("header text row should not map to a data row")
 	}
 }
+
+// With a committed filter the View grows a bar above the header; clicks
+// must map through that shift, not land one row high.
+func TestTableMouseCommittedFilterOffset(t *testing.T) {
+	cols := []Column{{Title: "name", Width: 12}}
+	rows := make([]Row, 20)
+	keys := make([]string, 20)
+	for i := range rows {
+		rows[i] = Row{fmt.Sprintf("row%02d", i)}
+		keys[i] = fmt.Sprintf("k%02d", i)
+	}
+	ft := NewFilterTable(cols, 16, 12)
+	ft.SetRowsTracked(rows, keys)
+
+	ft.StartFilter()
+	typeString(&ft, "row0") // narrows to rows 0..9
+	ft.AcceptFilter()
+	if ft.FilterString() != "row0" {
+		t.Fatalf("filter state off: q=%q", ft.FilterString())
+	}
+	ft.SetCursor(5) // park off-target so every click below is a real move
+
+	// View layout: bar(0) header(1) rule(2) body(3+); topAbs=0.
+	for want := 0; want < 3; want++ {
+		click := tea.MouseClickMsg(tea.Mouse{X: 5, Y: 3 + want, Button: tea.MouseLeft})
+		moved, _ := ft.Mouse(click, 0)
+		if !moved || ft.Cursor() != want {
+			t.Fatalf("click row %d: moved=%v cursor=%d", want, moved, ft.Cursor())
+		}
+	}
+}

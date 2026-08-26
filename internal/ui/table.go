@@ -501,9 +501,20 @@ func (f *FilterTable) RowAt(rel int) (int, bool) {
 	return 0, false
 }
 
+// chromeRows reports how many chrome lines View renders ABOVE the
+// header text: the filter bar appears while the input is open or a
+// committed filter exists, shifting every body row down one line.
+func (f *FilterTable) chromeRows() int {
+	if f.filtering || f.filterStr != "" {
+		return 1
+	}
+	return 0
+}
+
 // Mouse handles wheel and left-click over the table. It returns
 // moved=true when the cursor changed and dbl=true for a double-click
 // on the same row (callers turn that into their "enter" action).
+// topAbs is the absolute terminal row of the table's first View line.
 func (f *FilterTable) Mouse(m tea.MouseMsg, topAbs int) (moved, dbl bool) {
 	switch ev := m.(type) {
 	case tea.MouseWheelMsg:
@@ -520,7 +531,7 @@ func (f *FilterTable) Mouse(m tea.MouseMsg, topAbs int) (moved, dbl bool) {
 		if ev.Button != tea.MouseLeft {
 			return false, false
 		}
-		row, ok := f.RowAt(ev.Y - topAbs)
+		row, ok := f.RowAt(ev.Y - topAbs - f.chromeRows())
 		if !ok {
 			return false, false
 		}
