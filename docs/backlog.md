@@ -546,3 +546,95 @@ detailCard/relSince.
 
 ### L3 · open
 
+
+## 2026-08-26 audit batch (15 findings, all fixed same session)
+
+One-bug-per-commit sweep; every fix carries its regression test.
+
+### C5 · closed (dbf0c50)
+Trash fell through to `os.RemoveAll` whenever `gio trash` failed or the
+home-trash rename refused (cross-device = any second filesystem) — silent
+permanent deletion after staging said "trash". Trash now refuses with
+"different filesystem — not trashed"; RemoveAll is gone from every path;
+the lying `permanent bool` return removed. Tests: `TestTrashRefusesCrossDevice`.
+Ptrs: `internal/files/trash.go`, `internal/screens/files.go` verb pick.
+
+### H9 · closed (92bf40d)
+`Root.Init` started `order[0]` regardless of the restored section, so a
+session saved on Processes/Files/... launched with that screen's data loop
+never initialized — stuck on "Scanning.." / empty listing until a manual
+section switch. Fix: Init starts `order[active]`. Test:
+`init_restore_test.go::TestInitStartsRestoredScreen`. Ptr: `internal/app/root.go`.
+
+### H10 · closed (1a02953)
+Tab-strip clicks were dead: `viewTabStrip` recorded hit spans onto its
+value-receiver copy; `stripHit` always saw nil. Spans now live behind a
+shared pointer field. Test: `tabstrip_click_test.go`. Ptr: `internal/app/root.go`.
+
+### H11 · closed (59cc0c4)
+Overview `r` reused the live generation for its new tick chain, so the
+epoch guard couldn't retire the old one — chains multiplied per keypress.
+Fix: `r` bumps the epoch like Init does. Test:
+`lifecycle_test.go::TestOverviewRefreshRetiresOldChain`. Ptr: `overview.go`.
+
+### M17 · closed (4454c26)
+find/grep result handlers cleared results + "searching.." BEFORE the
+generation staleness check, letting a slow older response wipe fresher
+state. Check reordered. Test: `files_aux_test.go::TestStaleSearchKeepsFreshState`.
+Ptr: `internal/screens/files.go`.
+
+### M18 · closed (ace0490)
+Preview `Truncated` compared file size against consumed bytes excluding
+newlines — virtually every fully-shown text file claimed ".. truncated".
+Flag is now decided by why the read stopped. Tests:
+`preview_test.go::TestReadPreviewCompleteNotFlagged/ExactLineCount/ByteCapFlagsTruncated`.
+Ptr: `internal/files/preview.go`.
+
+### M19 · closed (f377a09)
+With a committed filter, `FilterTable.View` grows a bar above the header,
+but screens passed fixed `topAbs` — clicks landed one row high. Central
+fix: `Mouse` subtracts `chromeRows()`. Test:
+`table_test.go::TestTableMouseCommittedFilterOffset`. Ptr: `internal/ui/table.go`.
+
+### M20 · closed (a46a952)
+`snapshot()` captured Files prefs only while Files was the active screen;
+the minute-tick save from anywhere else persisted `Cwd:""` and reset cwd
+to $HOME next launch. Snapshot now consults `screens["files"]` by id.
+Test: `session_test.go::TestSnapshotCapturesFilesFromAnySection`. Ptr: `app/root.go`.
+
+### M21 · closed (1e791ea)
+Disks allowed overlapping scans (enter mid-scan) and `scanDoneMsg` had no
+generation — a superseded completion could clobber the newer view. Busy
+guard + scan generation added. Tests: `disks_race_test.go`. Ptr: `disks.go`.
+
+### L10 · closed (302c3b0)
+Filter prompt rendered "//query": code prepended "/" over textinput's own
+prompt render. Ptr: `internal/ui/table.go` View.
+
+### L11 · closed (23453bf)
+Disk I/O summed partition children alongside their parents (sda + sda1),
+roughly doubling rates on partitioned drives. Partition-shaped names are
+excluded via regex. Test: `diskio_test.go::TestSumAllSkipsPartitions`.
+Ptr: `internal/sysinfo/diskio.go`.
+
+### L12 · closed (2d9c905)
+Link preview card used EAW-ambiguous "→", violating ADR-0010's own rule.
+Now "link ->". Ptr: `internal/screens/files.go` metaCard.
+
+### L13 · closed (7b0b927)
+Post-editor refresh only re-listed the directory despite promising
+"listing+preview"; previews stayed stale after external edits. Preview
+fetch now rides the viewerDoneMsg handler. Test:
+`viewer_test.go::TestViewerDoneRefetchesPreview`. Ptr: `files.go`.
+
+### L14 · closed (c884263)
+Perm editor staged chmods from a 9-bit octal, silently clearing
+setuid/setgid/sticky. PermBits gained Special bits, Octal() emits the 4th
+digit when set, parseOctal maps them onto Go's FileMode flags. Tests:
+`perms_special_test.go`, `files_perms_test.go`. Ptrs: `files/perms.go`,
+`screens/files.go`.
+
+### L15 · closed (7c0994e)
+`proc.ReadCounts` hardcoded "/proc", bypassing the package's procDir test
+seam. Now reads through it. Test:
+`counts_test.go::TestReadCountsUsesProcDirSeam`. Ptr: `internal/proc/counts.go`.
