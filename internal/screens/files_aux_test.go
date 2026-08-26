@@ -166,3 +166,25 @@ func mustList(t *testing.T, dir string) []files.Entry {
 	}
 	return l
 }
+
+// A slow response from an older query must not wipe the results of the
+// newer one or kill its "searching.." indicator (clearing happened
+// before the staleness check).
+func TestStaleSearchKeepsFreshState(t *testing.T) {
+	f := auxScreen(t)
+	f = feed(f, tea.KeyPressMsg{Code: 102, Text: "f"}).(Files) // find mode
+	f.findRes = []files.Entry{{Name: "fresh", Path: "/tmp/fresh"}}
+	f.auxSearch = true
+	f.auxGen.Store(7)
+
+	f = feed(f, findResultMsg{gen: 6}).(Files)
+	if len(f.findRes) != 1 || !f.auxSearch {
+		t.Fatalf("stale response mutated state: res=%d searching=%v",
+			len(f.findRes), f.auxSearch)
+	}
+
+	f = feed(f, grepResultMsg{gen: 6}).(Files)
+	if len(f.grepRes) != 0 || !f.auxSearch {
+		t.Fatal("stale grep response mutated state")
+	}
+}

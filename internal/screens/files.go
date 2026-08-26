@@ -288,11 +288,10 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 
 	case findResultMsg:
-		f.findRes = nil
-		f.auxSearch = false
 		if m.gen != f.auxGen.Load() {
-			return f, nil // stale search
+			return f, nil // stale search: never clobber newer state
 		}
+		f.auxSearch = false
 		if m.err != nil {
 			return f, ui.ErrToast(m.err.Error())
 		}
@@ -301,11 +300,10 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		return f, f.auxFollow()
 
 	case grepResultMsg:
-		f.grepRes = nil
-		f.auxSearch = false
 		if m.gen != f.auxGen.Load() {
-			return f, nil // stale search
+			return f, nil // stale search: never clobber newer state
 		}
+		f.auxSearch = false
 		if m.err != nil {
 			return f, ui.ErrToast(m.err.Error())
 		}
