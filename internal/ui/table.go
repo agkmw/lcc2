@@ -554,11 +554,9 @@ func (f *FilterTable) View() string {
 	out := f.headersView() + "\n" + f.bodyView()
 	if f.filtering || f.filterStr != "" {
 		bar := faintSty.Render("filter")
-		val := f.input.View()
+		val := f.input.View() // textinput already renders its "/" prompt
 		if !f.filtering {
 			val = mutedSty.Render("/" + f.filterStr)
-		} else {
-			val = "/" + val
 		}
 		return uiPanellessRow(f.vw, bar+" "+val) + "\n" + out
 	}
