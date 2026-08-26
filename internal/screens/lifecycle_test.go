@@ -121,3 +121,21 @@ func TestPaneHeight(t *testing.T) {
 		t.Fatalf("tiny pane = %d, want floor 4", got)
 	}
 }
+
+// Manual refresh must retire the previous tick chain, not run a second
+// one beside it: reusing the live generation defeats the epoch guard.
+func TestOverviewRefreshRetiresOldChain(t *testing.T) {
+	o := NewOverview()
+	old := o.epoch.Load()
+	sc, _ := o.Update(keyRunes("r"))
+	o = sc.(Overview)
+	if o.epoch.Load() != old+1 {
+		t.Fatalf("epoch = %d, want %d", o.epoch.Load(), old+1)
+	}
+	if _, cmd := o.Update(overviewTickMsg{gen: old}); cmd != nil {
+		t.Fatal("pre-refresh chain must die after manual refresh")
+	}
+	if _, cmd := o.Update(overviewTickMsg{gen: o.epoch.Load()}); cmd == nil {
+		t.Fatal("refreshed chain must reschedule")
+	}
+}

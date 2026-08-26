@@ -148,8 +148,11 @@ func (o Overview) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		return o, o.tick(m.gen)
 	case tea.KeyPressMsg:
 		if m.String() == "r" {
+			// Bump the epoch like Init does: reusing the live
+			// generation would let the old chain keep rescheduling
+			// alongside the new one, multiplying refresh loops.
 			o.loaded = false
-			return o, o.tick(o.epoch.Load())
+			return o, o.tick(o.epoch.Add(1))
 		}
 		if m.String() == "g" {
 			if o.graphStyle == "braille" {
