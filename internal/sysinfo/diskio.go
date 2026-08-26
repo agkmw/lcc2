@@ -1,6 +1,7 @@
 package sysinfo
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -68,14 +69,20 @@ func (m *IOMonitor) Rates() DiskIO {
 	return out
 }
 
-// usableDevice filters out loop/ram devices: noise for a usage
-// dashboard.
+// partitionRe matches partition-shaped device names whose bytes the
+// kernel also reports on their parent (sda1 → sda): summing both
+// double-counts real throughput.
+var partitionRe = regexp.MustCompile(
+	`^((sd|hd|vd|xvd)[a-z]+[0-9]+|nvme[0-9]+n[0-9]+p[0-9]+|mmcblk[0-9]+p[0-9]+)$`)
+
+// usableDevice filters out loop/ram devices and partition children:
+// noise or duplicates for a usage dashboard.
 func usableDevice(name string) bool {
 	if strings.HasPrefix(name, "loop") || strings.HasPrefix(name, "ram") ||
 		strings.HasPrefix(name, "zram") {
 		return false
 	}
-	return true
+	return !partitionRe.MatchString(name)
 }
 
 // sumAll totals read/write bytes across usable counter entries.
