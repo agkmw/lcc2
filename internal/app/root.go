@@ -77,7 +77,7 @@ func New(screens ...ui.Screen) Root {
 func (r Root) Init() tea.Cmd {
 	var cmds []tea.Cmd
 	if len(r.order) > 0 {
-		cmds = append(cmds, r.screens[r.order[0]].Init())
+		cmds = append(cmds, r.screens[r.order[r.active]].Init())
 	}
 	cmds = append(cmds, tickClock())
 	return tea.Batch(cmds...)
