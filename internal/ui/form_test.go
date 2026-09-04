@@ -6,11 +6,12 @@ import (
 )
 
 func newTestForm() Form {
-	return NewForm("test form", "users", []Field{
+	f, _ := NewForm("test form", "users", []Field{
 		{Label: "name", Value: "pre"},
 		{Label: "shell", Placeholder: "/bin/bash"},
 		{Label: "password", Password: true},
 	})
+	return f
 }
 
 func TestFormValuesPrefill(t *testing.T) {

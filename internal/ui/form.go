@@ -32,14 +32,16 @@ type formField struct {
 	input textinput.Model
 }
 
-// NewForm builds a form with the first field focused.
-func NewForm(title, accent string, fields []Field) Form {
+// NewForm builds a form with the first field focused; the returned
+// cmd drives its cursor blink.
+func NewForm(title, accent string, fields []Field) (Form, tea.Cmd) {
 	f := Form{Title: title, width: 60}
 	st := textinput.DefaultStyles(true)
 	st.Focused.Prompt = lipgloss.NewStyle().Foreground(Accent(accent))
 	st.Blurred.Prompt = st.Focused.Prompt
 	st.Focused.Text = lipgloss.NewStyle().Foreground(Palette.Text)
 	st.Blurred.Text = st.Focused.Text
+	var cmd tea.Cmd
 	for i, spec := range fields {
 		ti := textinput.New()
 		ti.SetStyles(st)
@@ -54,11 +56,11 @@ func NewForm(title, accent string, fields []Field) Form {
 		ti.SetValue(spec.Value)
 		if i == 0 {
 			f.cur = 0
-			ti.Focus()
+			cmd = ti.Focus()
 		}
 		f.fields = append(f.fields, formField{label: spec.Label, input: ti})
 	}
-	return f
+	return f, cmd
 }
 
 // SetWidth sets the dialog width.

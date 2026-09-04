@@ -19,8 +19,10 @@ type accountsMsg struct {
 }
 
 // UsersGroups is the combined users & groups section: list left, a
-// detail preview always visible right. The `tab` key switches lists.
+// detail preview always visible right. The `s` key switches lists.
 // System accounts (uid/gid < 1000, except root) render dimmed.
+// Mutating actions (users_actions.go) are gated on running as root
+// and go through a confirm dialog before touching the system.
 type UsersGroups struct {
 	w, h   int
 	users  []accounts.User
@@ -28,15 +30,23 @@ type UsersGroups struct {
 	uTbl   ui.FilterTable
 	gTbl   ui.FilterTable
 	tab    string // "users" or "groups"
+	root   bool   // process runs as uid 0; mutations require it
 
 	loaded bool
 	err    string
+
+	confirm  *ui.ConfirmDialog
+	form     *ui.Form
+	formKind string
+	formTgt  string // user/group the open form edits
+	pending  pendingOp
 }
 
 // NewUsersGroups builds the section.
 func NewUsersGroups() UsersGroups {
 	return UsersGroups{
 		tab:  "users",
+		root: accounts.IsRoot(),
 		uTbl: ui.NewFilterTable(userCols(), 80, 18),
 		gTbl: ui.NewFilterTable(groupCols(), 80, 18),
 	}
@@ -68,11 +78,30 @@ func (u UsersGroups) Title() string { return "Users & Groups" }
 
 // Hints implements ui.Screen.
 func (u UsersGroups) Hints() []key.Binding {
-	return []key.Binding{
+	hints := []key.Binding{
 		ui.Keys.Filter,
 		key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "switch to "+otherTab(u.tab))),
-		ui.Keys.Refresh,
 	}
+	if u.tab == "users" {
+		hints = append(hints,
+			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new user")),
+			key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
+			key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "password")),
+			key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "lock")),
+			key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "unlock")),
+			key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete")),
+			key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "delete +home")),
+			key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "expiry")),
+		)
+	} else {
+		hints = append(hints,
+			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new group")),
+			key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "delete")),
+			key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add member")),
+			key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "remove member")),
+		)
+	}
+	return append(hints, ui.Keys.Refresh)
 }
 
 func otherTab(cur string) string {
@@ -84,6 +113,9 @@ func otherTab(cur string) string {
 
 // CapturingInput implements ui.Screen.
 func (u UsersGroups) CapturingInput() bool {
+	if u.form != nil || u.confirm != nil {
+		return true
+	}
 	return u.uTbl.Filtering() || u.gTbl.Filtering()
 }
 
@@ -139,6 +171,12 @@ func (u UsersGroups) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		}
 		u.gTbl.SetRowsTracked(grows, gkeys)
 
+	case userActionMsg:
+		if m.err != nil {
+			return u, ui.ErrToast(m.label + ": " + m.err.Error())
+		}
+		return u, tea.Batch(ui.OkToast(m.label), u.Init())
+
 	case tea.MouseMsg:
 		if u.uTbl.Filtering() || u.gTbl.Filtering() {
 			return u, nil
@@ -190,8 +228,32 @@ func (u UsersGroups) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	}
 	if u.tab == "groups" && u.gTbl.Filtering() {
 		var cmd tea.Cmd
-		u.gTbl, cmd = u.gTbl.Update(m)
+		u.gTbl, cmd = u.uTbl.Update(m)
 		return u, cmd
+	}
+
+	if u.confirm != nil {
+		dlg, yes, done := u.confirm.Update(m)
+		*u.confirm = dlg
+		if done {
+			u.confirm = nil
+			if yes {
+				return u, runUserAction(u.pending)
+			}
+		}
+		return u, nil
+	}
+
+	if u.form != nil {
+		submitted, done, cmd := u.form.Update(m)
+		if !done {
+			return u, cmd
+		}
+		if submitted {
+			return u.submitForm()
+		}
+		u.form = nil
+		return u, nil
 	}
 
 	switch m.String() {
@@ -200,6 +262,38 @@ func (u UsersGroups) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return u, nil
 	case "r":
 		return u, u.Init()
+	}
+
+	if u.tab == "users" {
+		switch m.String() {
+		case "n":
+			return u.openCreateUser()
+		case "e":
+			return u.openEditUser()
+		case "p":
+			return u.openPassword()
+		case "L":
+			return u.askLock(true)
+		case "u":
+			return u.askLock(false)
+		case "x":
+			return u.askDeleteUser(false)
+		case "X":
+			return u.askDeleteUser(true)
+		case "E":
+			return u.openExpiry()
+		}
+	} else {
+		switch m.String() {
+		case "n":
+			return u.openCreateGroup()
+		case "x":
+			return u.askDeleteGroup()
+		case "a":
+			return u.openMember(true)
+		case "d":
+			return u.openMember(false)
+		}
 	}
 
 	moved := false
@@ -254,7 +348,8 @@ func (u UsersGroups) View() string {
 		tabLabel = "Groups"
 	}
 	head := pageHead(tabLabel,
-		fmt.Sprintf("s switches lists - %d entries - system accounts dimmed", count), u.w)
+		fmt.Sprintf("s switches lists - %d entries - system accounts dimmed%s",
+			count, u.rootSuffix()), u.w)
 
 	wide, mainW, prevW := splitGeom(u.w)
 	prev := renderPreview("users", u.previewTitle(), "", u.previewBody(), prevW, u.h-1)
@@ -275,7 +370,22 @@ func (u UsersGroups) View() string {
 	if len(lines) > u.h {
 		lines = lines[:u.h]
 	}
-	return strings.Join(lines, "\n")
+	view := strings.Join(lines, "\n")
+	if u.confirm != nil {
+		view = overlayCenter(view, u.confirm.View(), u.w)
+	}
+	if u.form != nil {
+		view = overlayCenter(view, u.form.View(), u.w)
+	}
+	return view
+}
+
+// rootSuffix marks the unprivileged state in the page head.
+func (u UsersGroups) rootSuffix() string {
+	if u.root {
+		return ""
+	}
+	return " - read-only (not root)"
 }
 
 func (u UsersGroups) previewTitle() string {
@@ -322,6 +432,14 @@ func (u UsersGroups) previewBody() string {
 		default:
 			lines = append(lines, kv("class", warnSty.Render("no login shell")))
 		}
+		if admin := accounts.AdminGroup(u.groups); admin != "" {
+			if accounts.HasAdmin(usr.Name, usr.GID, admin, u.groups) {
+				lines = append(lines, kv("sudo",
+					goodSty.Render("yes")+" "+faintSty.Render("("+admin+")")))
+			} else {
+				lines = append(lines, kv("sudo", faintSty.Render("no")))
+			}
+		}
 		if len(memberships) > 0 {
 			tinted := make([]string, len(memberships))
 			for i, m := range memberships {
@@ -340,6 +458,9 @@ func (u UsersGroups) previewBody() string {
 	g := u.groups[idx]
 	members := accounts.MembersOf(g, u.users)
 	lines := []string{kv("gid", idCell(g.GID))}
+	if admin := accounts.AdminGroup(u.groups); admin == g.Name {
+		lines = append(lines, kv("role", warnSty.Render("sudo group")))
+	}
 	if len(members) == 0 {
 		lines = append(lines, kv("members", faintSty.Render("-")))
 		return strings.Join(lines, "\n")
