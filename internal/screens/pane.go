@@ -109,7 +109,10 @@ func overlayCenter(base, panel string, w int) string {
 		} else if lw < x {
 			line += strings.Repeat(" ", x-lw)
 		}
-		bl[row] = line + src
+		// Terminate the base row's SGR state at the cut point: a style
+		// still open in the truncated run would bleed bold/bright into
+		// the panel text appended after it.
+		bl[row] = line + "\x1b[0m" + src
 	}
 	return strings.Join(bl, "\n")
 }
