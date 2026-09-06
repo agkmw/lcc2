@@ -228,7 +228,7 @@ func (u UsersGroups) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	}
 	if u.tab == "groups" && u.gTbl.Filtering() {
 		var cmd tea.Cmd
-		u.gTbl, cmd = u.uTbl.Update(m)
+		u.gTbl, cmd = u.gTbl.Update(m)
 		return u, cmd
 	}
 
