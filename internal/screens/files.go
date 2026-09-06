@@ -264,8 +264,8 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			}
 			f.prevMeta = sysinfo.FormatBytes(float64(m.p.Size))
 			if e != nil {
-				f.prevMeta = entryMetaLine(*e)
-			}
+					f.prevMeta = entryMetaLine(*e, f.stagedFor(e.Path))
+				}
 			if m.hit > 0 {
 				f.prevMeta += " - line " + itoa(m.hit)
 			}
@@ -278,10 +278,10 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		default: // binary: metadata fallback
 			f.prevTitle = filepathBase(m.path)
 			f.prevMeta = sysinfo.FormatBytes(float64(m.p.Size))
-			f.prevBody = faintSty.Render("binary file - no text preview")
-			if e != nil {
-				f.prevBody = metaCard(*e, f.paneW()-2) + "\n\n" + f.prevBody
-			}
+				f.prevBody = faintSty.Render("binary file - no text preview")
+				if e != nil {
+					f.prevBody = metaCard(*e, f.stagedFor(e.Path), f.paneW()-2) + "\n\n" + f.prevBody
+				}
 		}
 
 	case dirPreviewMsg:
@@ -294,7 +294,8 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		f.prevBody = dirListingCard(m.list)
 		f.prevMeta = itoa(len(m.list)) + " entries"
 		if e != nil {
-			f.prevTitle, f.prevMeta = e.Name, entryMetaLine(*e)+" - "+itoa(len(m.list))+" entries"
+			f.prevTitle, f.prevMeta = e.Name,
+				entryMetaLine(*e, f.stagedFor(e.Path))+" - "+itoa(len(m.list))+" entries"
 		} else {
 			f.prevTitle = filepathBase(m.path)
 		}
@@ -1234,10 +1235,47 @@ func (f Files) mainHeader() string {
 
 // --- preview plumbing -------------------------------------------------
 
-func entryMetaLine(e files.Entry) string {
-	bits := files.ParsePermBits(e.Mode)
-	return bits.Octal() + " - " + files.UserName(e.UID) + ":" + files.GroupName(e.GID) +
-		" - " + sysinfo.FormatBytes(float64(e.Size))
+// stagedFor returns the queued ops touching path, in order.
+func (f Files) stagedFor(path string) []files.Op {
+	var out []files.Op
+	for _, op := range f.stager.Ops() {
+		if op.Path == path {
+			out = append(out, op)
+		}
+	}
+	return out
+}
+
+// entryMetaLine renders "octal - owner:group - size" with staged
+// chmod/chown overlaid as old -> new plus a (staged ...) tag, so the
+// preview never quietly shows metadata a pending op is about to
+// change.
+func entryMetaLine(e files.Entry, ops []files.Op) string {
+	perm := files.ParsePermBits(e.Mode).Octal()
+	own := files.UserName(e.UID) + ":" + files.GroupName(e.GID)
+	var newPerm, newOwn string
+	tag := ""
+	for _, op := range ops {
+		switch op.Kind {
+		case files.OpChmod:
+			newPerm = files.ParsePermBits(op.Mode).Octal()
+			tag = " (staged)"
+		case files.OpChown:
+			newOwn = op.Arg
+			tag = " (staged)"
+		case files.OpDelete:
+			tag = " (staged trash)"
+		case files.OpRename:
+			tag = " (staged rename -> " + filepathBase(op.Arg) + ")"
+		}
+	}
+	if newPerm != "" {
+		perm += " -> " + newPerm
+	}
+	if newOwn != "" {
+		own += " -> " + newOwn
+	}
+	return perm + tag + " - " + own + " - " + sysinfo.FormatBytes(float64(e.Size))
 }
 
 // SessionState exposes the persisted preferences to the root's
@@ -1330,18 +1368,45 @@ func dirListingCard(list []files.Entry) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func metaCard(e files.Entry, w int) string {
+func metaCard(e files.Entry, ops []files.Op, w int) string {
+	var newPerm, newOwn, staged string
+	for _, op := range ops {
+		switch op.Kind {
+		case files.OpChmod:
+			newPerm = files.ParsePermBits(op.Mode).Octal()
+		case files.OpChown:
+			newOwn = op.Arg
+		case files.OpDelete:
+			staged = "trash"
+		case files.OpRename:
+			staged = "rename -> " + filepathBase(op.Arg)
+		}
+	}
 	kv := func(k, v string) string {
 		return mutedSty.Render(padTo(k, 9)) + faintSty.Render(ui.Truncate(v, maxInt(w-11, 4)))
 	}
 	bits := files.ParsePermBits(e.Mode)
+	perms := bits.Symbolic() + " (" + bits.Octal()
+	if newPerm != "" {
+		perms += " -> " + newPerm
+	}
+	perms += ")"
+	owner := files.UserName(e.UID)
+	if newOwn != "" {
+		owner += " -> " + newOwn
+	}
 	lines := []string{
 		kv("kind", dirFileWord(e.IsDir)),
 		kv("size", sysinfo.FormatBytes(float64(e.Size))),
-		kv("owner", files.UserName(e.UID)),
+		kv("owner", owner),
 		kv("group", files.GroupName(e.GID)),
-		kv("perms", bits.Symbolic()+" ("+bits.Octal()+")"),
+		kv("perms", perms),
 		kv("modified", e.ModTime.Format(time.RFC3339)),
+	}
+	if staged != "" {
+		lines = append([]string{kv("staged", warnSty.Render(staged))}, lines...)
+	} else if newPerm != "" || newOwn != "" {
+		lines = append([]string{kv("staged", warnSty.Render("yes - w reviews"))}, lines...)
 	}
 	if e.Link != "" {
 		// ASCII arrow: "→" is EAW-ambiguous and shifts columns in
@@ -1352,8 +1417,17 @@ func metaCard(e files.Entry, w int) string {
 }
 
 func (f Files) previewTitle() string {
-	if f.prevTitle != "" {
-		return truncCell(f.prevTitle, maxInt(f.paneW()-4, 6))
+	title := f.prevTitle
+	for _, op := range f.stagedFor(f.prevPath) {
+		switch op.Kind {
+		case files.OpDelete:
+			title += " (staged trash)"
+		case files.OpRename:
+			title += " (staged -> " + filepathBase(op.Arg) + ")"
+		}
+	}
+	if title != "" {
+		return truncCell(title, maxInt(f.paneW()-4, 6))
 	}
 	return "preview"
 }

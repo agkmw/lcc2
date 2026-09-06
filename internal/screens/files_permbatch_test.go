@@ -167,7 +167,7 @@ func TestFilesGroupColumn(t *testing.T) {
 		t.Fatal("group column header missing")
 	}
 	e := f.entries[0]
-	if !strings.Contains(entryMetaLine(e), ":") {
+	if !strings.Contains(entryMetaLine(e, nil), ":") {
 		t.Fatal("meta line lacks owner:group")
 	}
 }
