@@ -111,6 +111,19 @@ func otherTab(cur string) string {
 	return "users"
 }
 
+// StatusHints implements ui.StatusSource. Unprivileged runs collapse
+// the mutation hints into one pointer: every mutating key would only
+// error, so the bar stops advertising them (the ? overlay still lists
+// the full set).
+func (u UsersGroups) StatusHints() []key.Binding {
+	if u.root {
+		return nil
+	}
+	return []key.Binding{
+		key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "needs root - restart with sudo")),
+	}
+}
+
 // CapturingInput implements ui.Screen.
 func (u UsersGroups) CapturingInput() bool {
 	if u.form != nil || u.confirm != nil {
@@ -262,6 +275,11 @@ func (u UsersGroups) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return u, nil
 	case "r":
 		return u, u.Init()
+	case "!":
+		if u.root {
+			return u, ui.InfoToast("running as root")
+		}
+		return u, ui.ErrToast("needs root - restart the app with sudo")
 	}
 
 	if u.tab == "users" {

@@ -410,17 +410,33 @@ func rule(w int) string {
 }
 
 // viewStatusBar renders the bottom bar: square rule, hints left,
-// context slot and clock right.
+// context slot and clock right. StatusSource screens show only their
+// state hints plus a "? keys (n)" pointer into the help overlay —
+// the full key list lives there, so the bar never overflows.
 func (r Root) viewStatusBar(cur ui.Screen) string {
 	hints := ""
-	for _, kb := range cur.Hints() {
-		if !kb.Enabled() {
-			continue
+	if ss, ok := cur.(ui.StatusSource); ok {
+		for _, kb := range ss.StatusHints() {
+			if kb.Enabled() {
+				hints += keycap(kb.Help().Key) + faintSty.Render(" "+kb.Help().Desc+"  ")
+			}
 		}
-		hints += keycap(kb.Help().Key) + faintSty.Render(" "+kb.Help().Desc+"  ")
+		n := 0
+		for _, kb := range cur.Hints() {
+			if kb.Enabled() {
+				n++
+			}
+		}
+		hints += keycap("?") + faintSty.Render(fmt.Sprintf(" keys (%d)  ", n))
+	} else {
+		for _, kb := range cur.Hints() {
+			if !kb.Enabled() {
+				continue
+			}
+			hints += keycap(kb.Help().Key) + faintSty.Render(" "+kb.Help().Desc+"  ")
+		}
 	}
-	hints += keycap("?") + faintSty.Render(" help  ") +
-		keycap("q") + faintSty.Render(" quit")
+	hints += keycap("q") + faintSty.Render(" quit")
 
 	right := ""
 	if cs, ok := cur.(ui.ContextSource); ok && cs.ContextHint() != "" {

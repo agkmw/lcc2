@@ -53,3 +53,13 @@ type ContextSource interface {
 type BadgeSource interface {
 	Badge() string
 }
+
+// StatusSource is an optional Screen extension: state-bearing hints
+// (staged counts, sort mode, privilege state) shown in the status
+// bar. Screens implementing it get ONLY these in the bar plus a
+// "? keys (n)" pointer; the full Hints() list stays in the ? help
+// overlay. This keeps the bar readable no matter how many actions a
+// section has.
+type StatusSource interface {
+	StatusHints() []key.Binding
+}

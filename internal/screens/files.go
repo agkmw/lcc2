@@ -183,6 +183,25 @@ func (f Files) Hints() []key.Binding {
 	return h
 }
 
+// StatusHints implements ui.StatusSource: the bar shows only live
+// state (sort, marks, staged ops) plus the "? keys (n)" pointer; the
+// full action list stays in the ? overlay.
+func (f Files) StatusHints() []key.Binding {
+	h := []key.Binding{
+		key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "sort: "+f.sort.label())),
+	}
+	if n := len(f.marked); n > 0 {
+		h = append(h, key.NewBinding(key.WithKeys("esc"),
+			key.WithHelp("esc", fmt.Sprintf("marks: %d", n))))
+	}
+	if n := f.stager.Len(); n > 0 {
+		h = append(h,
+			key.NewBinding(key.WithKeys("w"), key.WithHelp("w", fmt.Sprintf("review %d", n))),
+			key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "undo op")))
+	}
+	return h
+}
+
 // Badge implements ui.BadgeSource: pending-change count for the tab strip.
 func (f Files) Badge() string {
 	if n := f.stager.Len(); n > 0 {
