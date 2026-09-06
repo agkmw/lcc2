@@ -116,6 +116,7 @@ func NewFiles() Files {
 	}
 	return Files{
 		cwd:      files.Home(),
+		sort:     fileSort{key: "name"},
 		marked:   map[string]bool{},
 		stager:   files.NewStager(),
 		tbl:      ui.NewFilterTable(cols, 80, 20),
@@ -678,8 +679,8 @@ func (f Files) tableTopAbs() int { return 4 }
 func (f *Files) enterOrOpen() tea.Cmd {
 	if e, ok := f.selected(); ok {
 		if e.IsDir {
-			f.clearMarks()
-			return f.navigate(e.Path)
+			cmd := f.dropMarks()
+			return tea.Batch(cmd, f.navigate(e.Path))
 		}
 		return f.openInViewer(e.Path)
 	}
@@ -803,15 +804,15 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return f, f.goForward()
 	case "enter", "l":
 		if e, ok := f.selected(); ok && e.IsDir {
-			f.clearMarks()
-			return f, f.navigate(e.Path)
+			cmd := f.dropMarks()
+			return f, tea.Batch(cmd, f.navigate(e.Path))
 		}
 		return f, nil
 	case "h":
 		parent := parentDir(f.cwd)
 		if parent != f.cwd {
-			f.clearMarks()
-			return f, f.navigate(parent)
+			cmd := f.dropMarks()
+			return f, tea.Batch(cmd, f.navigate(parent))
 		}
 	case "a":
 		f.showHidden = !f.showHidden
@@ -827,10 +828,8 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		}
 		return f, nil
 	case "esc":
-		if len(f.marked) > 0 {
-			f.clearMarks()
-		}
-		return f, nil
+		cmd := f.dropMarks()
+		return f, cmd
 	case "d":
 		ts := f.targets()
 		var errs []string
@@ -983,6 +982,18 @@ func (f *Files) showPhantom(path string) {
 	f.prevMeta = "staged create"
 	f.prevBody = faintSty.Render("will be created on save (w)")
 	f.prevHit = 0
+}
+
+// dropMarks clears the mark set and reports the loss - marks are easy
+// to lose unnoticed, so the toast only stays silent when there were
+// none. Pointer receiver: call sites return f after this runs.
+func (f *Files) dropMarks() tea.Cmd {
+	n := len(f.marked)
+	f.clearMarks()
+	if n > 0 {
+		return ui.InfoToast(fmt.Sprintf("marks cleared (%d)", n))
+	}
+	return nil
 }
 
 func (f *Files) clearMarks() {
@@ -1282,9 +1293,11 @@ func (f Files) paneMainW() int {
 
 // mainHeader renders the main pane's own title row: accent breadcrumb,
 // entry count right.
+// The sort lives in the pane header so it stays visible no matter
+// what the status bar budget allows.
 func (f Files) mainHeader() string {
 	crumb := crumbMeta(f.cwd)
-	count := mutedSty.Render(itoa(len(f.entries)) + " items")
+	count := mutedSty.Render(f.sort.label() + " - " + itoa(len(f.entries)) + " items")
 	gap := f.paneMainW() - lipgloss.Width(crumb) - lipgloss.Width(count) - 1
 	if gap < 1 {
 		gap = 1

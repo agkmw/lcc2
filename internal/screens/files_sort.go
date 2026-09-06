@@ -27,6 +27,9 @@ func (s fileSort) next() fileSort {
 
 func (s fileSort) label() string {
 	l := s.key
+	if l == "" {
+		l = "name"
+	}
 	if s.desc {
 		l += " desc" // ASCII per ADR-0010
 	}
