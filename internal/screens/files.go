@@ -684,10 +684,10 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 			f.confirm = nil
 			ops := f.pendingOps
 			f.pendingOps = nil
-		if yes {
-			cmd := f.stageOps(ops, fmt.Sprintf("staged - %d paths", len(ops)))
-			return f, cmd
-		}
+			if yes {
+				cmd := f.stageOps(ops, fmt.Sprintf("staged - %d paths", len(ops)))
+				return f, cmd
+			}
 		}
 		return f, nil
 	}
