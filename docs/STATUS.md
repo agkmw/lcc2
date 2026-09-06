@@ -4,24 +4,19 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-UX clarity batch landed (2026-09-06, backlog U1-U8), on top of the
-access-management feature from earlier today:
+User manual + demo runbook landed (2026-09-06):
 
-- Status bar no longer overflows: StatusSource screens show state only
-  (sort, marks, staged counts, root pointer) plus `? keys (n)`; the
-  full key list lives in the ? overlay. Files shows sort/marks/review;
-  unprivileged Users collapses to a single sudo pointer.
-- Staged changes are now visible everywhere: `w` opens a scrollable
-  review of the whole queue (old -> new per op) before anything
-  applies; the preview overlays pending chmod/chown/delete/rename with
-  `(staged ...)` tags; staged creates get phantom rows with their own
-  preview. The >100-op stage-time confirm is gone - review is the one
-  gate.
-- Small clarity fixes: sort + direction in the files pane header (and
-  fileSort actually initialized), marks-cleared toast, ASCII sort
-  direction. Dialog danger-band audit found nothing to change.
+- `docs/manual.md`: install/run, frame layout, global keys, all six
+  sections with per-screen key tables, the Files staged-changes model
+  (staging, glyphs, review via `w`, trash semantics, perm editor),
+  troubleshooting. Written from the source, key-by-key verified.
+- `docs/showcase.md`: 12-minute live-demo runbook (7 beats with
+  SAY/DO/POINT AT/IF-IT-FAILS), sandbox setup script, 5-minute
+  lightning cut, Q&A prep, presentation craft.
+- Backlog hygiene: pruned stale duplicate `L6/L8/L9 open` blocks; the
+  live entries (L6 partial, L8/L9 closed) remain.
 
-Full suite + gauntlets green (`scripts/check.sh`).
+Full suite green (`scripts/check.sh`).
 
 ## In progress
 
@@ -29,8 +24,6 @@ Nothing.
 
 ## Next action
 
-User live-pass: stage several mixed ops in Files (mkdir, rename, chmod,
-chown, trash), check glyphs/preview tags, then `w` — the review should
-list everything with old -> new before save. Then confirm the status
-bar reads cleanly at 80 and 120 columns. Afterwards: procfs time.Tick
-leak (last L6 remnant).
+procfs time.Tick leak (last L6 remnant,
+`internal/proc/procfs.go:172`) — replace with a ticker that stops.
+Then first real rehearsal of `docs/showcase.md` to shake out timing.

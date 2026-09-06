@@ -273,24 +273,14 @@ line counts so preview geometry cannot shift.
 Tests: TestHighlightCodeGo, TestHighlightCodeGates.
 Ptr: screens/files_highlight.go, files.go filePreviewMsg branch.
 
-### L6 · open
-No `--version`/`--help`; no mouse support; `time.Tick` leak.
-Ptrs: `cmd/lcc2/main.go`, `internal/proc/procfs.go:170`.
-
 ### L7 · open
 File saves have per-op progress + stop-on-error (staged pipeline), but
 still no byte-level progress or cancel within a single big copy/move.
 Ptrs: `internal/screens/files.go` `runStageStep`, pattern `internal/disk/scan.go`.
 
-### L8 · open
-Overview netPeak is monotonic per session — one huge transfer pins the
-graph scale forever after. Needs decay or rolling window.
-Ptr: `internal/screens/overview.go` `observe`.
-
-### L9 · open
-Tab strip truncates mid-segment below ~70 cols (ClipBlock cuts the
-rightmost tabs first, no priority logic).
-Ptr: `internal/app/root.go` `viewTabStrip`.
+(Duplicates pruned 2026-09-06: stale `L6 open` / `L8 open` / `L9 open`
+blocks repeated entries that live elsewhere in this file — L6 partial
+above, L8/L9 closed below.)
 
 ### T2 · closed (glyph-ban commit, ADR-0010)
 Services preview bled into the table; dashboard bars drifted; files
