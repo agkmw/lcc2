@@ -54,8 +54,12 @@ Delete the file to reset.
   context and a clock right. Busy screens show a compact state summary and
   a `? keys (n)` pointer; the full key list lives in the help overlay.
 - **Toasts** appear over the body: info for 3 s, errors for 6 s.
-- **Help overlay**: press `?` anywhere. Shows the global keys plus every
-  key the current screen accepts. `?` or `esc` closes it.
+- **Help overlay**: press `?` anywhere. Same fixed height on every
+  screen; shows the global keys plus every key the current screen
+  accepts. Scroll it with the mouse wheel or `ctrl+d` / `ctrl+u`
+  (half page), `j`/`k` (line), `pgup`/`pgdn`. While it is open the
+  wheel and keys scroll only the help — the screen behind does not
+  move, and clicks do nothing. `?` or `esc` closes it.
 
 ### Global keys
 
@@ -74,7 +78,8 @@ Delete the file to reset.
 Mouse works too: click tabs to switch, click rows to select, wheel scrolls,
 double-click acts like `enter` on Files and Disks rows. While a filter or
 dialog has focus, the keyboard belongs to it — screen shortcuts are
-suppressed so typing `d` in a filter never deletes anything.
+suppressed so typing `d` in a filter never deletes anything. With the
+help overlay open, the wheel scrolls the help instead of the list.
 
 ## 3. Sections
 

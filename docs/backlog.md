@@ -704,3 +704,27 @@ Dialog danger-band audit: services stop/disable/restart red with
 start/enable neutral; users lock/delete red with unlock neutral; the
 new review overlay is neutral (reversible until applied). Existing
 styles were already correct; no code changed.
+
+## 2026-09-06 help window batch (user findings)
+
+### H1 · closed (9848ee6)
+Overlay splicing left the base row's SGR state open at the cut point,
+bleeding bold/bright from whatever sat underneath into floating panel
+text - help text randomly rendered brighter/bold. Both overlay() and
+overlayCenter() emit an explicit reset before the panel line.
+Tests: `overlay_splice_test.go`, `pane_splice_test.go`.
+Ptrs: `internal/app/root.go`, `internal/screens/pane.go`.
+
+### H2 · closed (bccdb9b)
+Wheel events were delegated to the active screen while help was open,
+scrolling the content behind the overlay. Help now owns the mouse
+while open: wheel scrolls the key list, clicks do nothing. Ptr:
+`internal/app/root.go` MouseWheelMsg case.
+
+### H3 · closed (bccdb9b)
+Help panel height varied per screen (content-sized from the current
+section's hint count). It is now a fixed-height viewport with a
+position line, scrolled by wheel, ctrl+d/ctrl+u (half page), j/k and
+pgup/pgdn; scroll resets on reopen. Tests:
+`help_test.go` (height parity, clamping, wheel, reset, position). Ptr:
+`internal/app/root.go` helpPanel/helpContent/clampHelpScroll.
