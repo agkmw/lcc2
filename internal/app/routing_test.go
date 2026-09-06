@@ -1,6 +1,7 @@
 package app
 
 import (
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -73,6 +74,9 @@ func keyMsg(s string) tea.KeyMsg {
 	if s == "shift+tab" {
 		return tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}
 	}
+	if strings.HasPrefix(s, "ctrl+") && len(s) == 6 {
+		return tea.KeyPressMsg{Code: runea(s[5:]), Mod: tea.ModCtrl}
+	}
 	special := map[string]rune{
 		"tab": tea.KeyTab,
 		"enter": tea.KeyEnter, "esc": tea.KeyEsc,
@@ -85,4 +89,9 @@ func keyMsg(s string) tea.KeyMsg {
 	}
 	r := []rune(s)
 	return tea.KeyPressMsg{Code: r[len(r)-1], Text: s}
+}
+
+func runea(s string) rune {
+	r := []rune(s)
+	return r[0]
 }

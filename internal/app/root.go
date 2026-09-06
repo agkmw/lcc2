@@ -37,14 +37,15 @@ var (
 
 // Root is the top-level tea.Model.
 type Root struct {
-	screens  map[string]ui.Screen
-	order    []string
-	active   int
-	width    int
-	height   int
-	notes    ui.NotifyStack
-	helpOpen bool
-	quitting bool
+	screens    map[string]ui.Screen
+	order      []string
+	active     int
+	width      int
+	height     int
+	notes      ui.NotifyStack
+	helpOpen   bool
+	helpScroll int
+	quitting   bool
 	// tabSpans lives behind a pointer because View renders through
 	// value receivers: a plain slice write would be discarded with
 	// the receiver copy and stripHit would never see it.
@@ -190,9 +191,23 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return noteExpiryMsg{id: n.ID}
 		})
 
+	case tea.MouseWheelMsg:
+		if r.helpOpen {
+			// The help overlay owns the wheel: scroll its key list
+			// instead of the content underneath.
+			switch m.Button {
+			case tea.MouseWheelUp:
+				r.clampHelpScroll(-3)
+			case tea.MouseWheelDown:
+				r.clampHelpScroll(3)
+			}
+			return r, nil
+		}
+		return r.delegate(msg)
+
 	case tea.MouseClickMsg:
 		if r.helpOpen {
-			return r, nil
+			return r, nil // nothing behind the overlay is clickable
 		}
 		ev := m.Mouse()
 		if ev.Y == 0 { // tab strip
@@ -211,6 +226,14 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "ctrl+c":
 				r.quitting = true
 				return r, tea.Quit
+			case "ctrl+d", "pgdown":
+				r.clampHelpScroll(r.helpViewport())
+			case "ctrl+u", "pgup":
+				r.clampHelpScroll(-r.helpViewport())
+			case "j", "down":
+				r.clampHelpScroll(1)
+			case "k", "up":
+				r.clampHelpScroll(-1)
 			}
 			return r, nil
 		}
@@ -226,6 +249,7 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return r, tea.Quit
 			case "?":
 				r.helpOpen = true
+				r.helpScroll = 0
 				return r, nil
 			case "tab":
 				return r, r.switchTo((r.active + 1) % len(r.order))
@@ -468,47 +492,117 @@ func (r Root) View() tea.View {
 	return v
 }
 
-// helpPanel renders the keyboard reference as a bordered card floating
-// on the dimmed canvas (ADR-0011 supersedes the no-card clause for
-// help): a visible boundary is the cue that a modal layer is open.
-func (r Root) helpPanel() string {
-	chip := keycap
+// helpContent builds the scrollable key list: global keys first, then
+// the active screen's actions, then the mouse reference.
+func (r Root) helpContent() []string {
 	rows := func(pairs ...[2]string) []string {
 		out := make([]string, 0, len(pairs))
 		for _, p := range pairs {
-			out = append(out, "  "+chip(p[0])+faintSty.Render(" "+p[1]))
+			out = append(out, "  "+keycap(p[0])+faintSty.Render(" "+p[1]))
 		}
 		return out
 	}
-	section := lookupSection(r.order[r.active]).label
-	lines := []string{
-		lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Blue).
-			Render("Keys") + faintSty.Render("  "+section),
-		"",
-	}
-	lines = append(lines, rows(
+	content := rows(
 		[2]string{"tab / shift+tab", "next / previous screen"},
-		[2]string{"1-6", "jump to screen"},
+		[2]string{fmt.Sprintf("1-%d", len(sections)), "jump to screen"},
 		[2]string{"j/k", "move selection"},
 		[2]string{"/", "filter list"},
 		[2]string{"enter", "select / open"},
 		[2]string{"esc", "back / cancel"},
 		[2]string{"?", "help"},
 		[2]string{"q", "quit"},
-	)...)
-	lines = append(lines, "", faintSty.Render(
-		"mouse: click rows - wheel scrolls - click tabs to switch"))
-	lines = append(lines, "")
+	)
+	content = append(content, "", faintSty.Render("mouse: click rows - wheel scrolls - click tabs to switch"))
 	for _, kb := range r.current().Hints() {
 		if kb.Enabled() {
-			lines = append(lines, "  "+chip(kb.Help().Key)+
+			content = append(content, "  "+keycap(kb.Help().Key)+
 				faintSty.Render(" "+kb.Help().Desc))
 		}
 	}
+	return content
+}
+
+// helpViewport is the visible row count of the key list: the content
+// area minus the panel's title/footer and borders. Fixed per terminal
+// size - the panel is the same height on every screen.
+func (r Root) helpViewport() int {
+	_, ch := r.contentArea()
+	vh := ch - 8
+	if vh < 4 {
+		vh = 4
+	}
+	return vh
+}
+
+// clampHelpScroll applies delta to the scroll offset, clamped to the
+// list length.
+func (r *Root) clampHelpScroll(delta int) {
+	max := len(r.helpContent()) - r.helpViewport()
+	if max < 0 {
+		max = 0
+	}
+	r.helpScroll += delta
+	if r.helpScroll > max {
+		r.helpScroll = max
+	}
+	if r.helpScroll < 0 {
+		r.helpScroll = 0
+	}
+}
+
+// helpPanel renders the keyboard reference as a bordered card floating
+// on the dimmed canvas (ADR-0011 supersedes the no-card clause for
+// help): a visible boundary is the cue that a modal layer is open.
+// The card is a fixed-height viewport - identical across screens -
+// scrolled with the wheel or ctrl+d/ctrl+u.
+func (r Root) helpPanel() string {
+	section := lookupSection(r.order[r.active]).label
+	content := r.helpContent()
+
+	vh := r.helpViewport()
+	maxTop := len(content) - vh
+	if maxTop < 0 {
+		maxTop = 0
+	}
+	top := r.helpScroll
+	if top > maxTop {
+		top = maxTop
+	}
+	if top < 0 {
+		top = 0
+	}
+	end := top + vh
+	if end > len(content) {
+		end = len(content)
+	}
+	view := content[top:end]
+	for len(view) < vh {
+		view = append(view, "")
+	}
+
+	body := lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Blue).
+		Render("Keys") + faintSty.Render("  "+section) + "\n\n" +
+		strings.Join(view, "\n") + "\n\n" +
+		faintSty.Render(fmt.Sprintf("%d-%d of %d", top+1, end, len(content))) +
+		faintSty.Render("   ctrl+d/u scroll   esc close")
+
 	return ui.Panel().
 		BorderForeground(ui.Palette.Surface).
+		Width(clampHelpWidth(r.width)).
+		Height(vh+4).
 		Padding(0, 1).
-		Render(strings.Join(lines, "\n"))
+		Render(body)
+}
+
+func clampHelpWidth(w int) int {
+	v := w - 12
+	if v < 44 {
+		v = 44
+	}
+	if v > 76 {
+		v = 76
+	}
+	return v
 }
 
 // overlay centers a filled panel on top of the base frame without

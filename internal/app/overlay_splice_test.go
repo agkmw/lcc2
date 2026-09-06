@@ -14,7 +14,7 @@ func TestOverlayTerminatesBaseStyleAtCut(t *testing.T) {
 	r.width = 40 // panel centers at x > 0, cutting the run mid-style
 
 	// One long bold run, style never closed; the panel lands mid-run.
-	base := strings.Repeat("\n", 4) + "\x1b[1m"+strings.Repeat("x", 60)
+	base := strings.Repeat("\n", 4) + "\x1b[1m" + strings.Repeat("x", 60)
 	panel := "line one\nline two"
 
 	out := r.overlay(base, panel)
@@ -28,4 +28,3 @@ func TestOverlayTerminatesBaseStyleAtCut(t *testing.T) {
 		t.Fatalf("panel text does not directly follow the reset: %q", out[i:i+40])
 	}
 }
-
