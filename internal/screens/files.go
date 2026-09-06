@@ -52,7 +52,7 @@ type Files struct {
 
 	prompt    *textinput.Model
 	promptLbl string
-	promptAct func(Files, string) tea.Cmd
+	promptAct func(*Files, string) tea.Cmd
 
 	permEdit   *files.PermBits
 	permTarget string
@@ -245,6 +245,9 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			f.fetching = true
 			return f, fetchPreview(e)
 		}
+		if p, ok := f.phantomSelected(); ok && p != f.prevPath {
+			f.showPhantom(p)
+		}
 		return f, nil
 
 	case filePreviewMsg:
@@ -264,8 +267,8 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			}
 			f.prevMeta = sysinfo.FormatBytes(float64(m.p.Size))
 			if e != nil {
-					f.prevMeta = entryMetaLine(*e, f.stagedFor(e.Path))
-				}
+				f.prevMeta = entryMetaLine(*e, f.stagedFor(e.Path))
+			}
 			if m.hit > 0 {
 				f.prevMeta += " - line " + itoa(m.hit)
 			}
@@ -278,10 +281,10 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		default: // binary: metadata fallback
 			f.prevTitle = filepathBase(m.path)
 			f.prevMeta = sysinfo.FormatBytes(float64(m.p.Size))
-				f.prevBody = faintSty.Render("binary file - no text preview")
-				if e != nil {
-					f.prevBody = metaCard(*e, f.stagedFor(e.Path), f.paneW()-2) + "\n\n" + f.prevBody
-				}
+			f.prevBody = faintSty.Render("binary file - no text preview")
+			if e != nil {
+				f.prevBody = metaCard(*e, f.stagedFor(e.Path), f.paneW()-2) + "\n\n" + f.prevBody
+			}
 		}
 
 	case dirPreviewMsg:
@@ -462,6 +465,9 @@ func (f *Files) pruneMarks() {
 
 // syncTable rebuilds rows; marks and staged glyphs live in the name
 // cell so the name column keeps its full width. Cursor follows.
+// Staged creates (OpMkdir) have no disk row yet, so phantom rows are
+// appended - a staged create must be visible and cursor-addressable
+// like every other op.
 func (f *Files) syncTable() {
 	stagedAt := map[string]files.OpKind{}
 	for _, op := range f.stager.Ops() {
@@ -474,7 +480,9 @@ func (f *Files) syncTable() {
 	}
 	rows := make([]ui.Row, len(f.entries))
 	keys := make([]string, len(f.entries))
+	have := map[string]bool{}
 	for i, e := range f.entries {
+		have[e.Path] = true
 		mark := "  "
 		if f.marked[e.Path] {
 			mark = lipgloss.NewStyle().Foreground(ui.Palette.Mauve).Render("* ")
@@ -492,6 +500,22 @@ func (f *Files) syncTable() {
 			mutedSty.Render(files.GroupName(e.GID)),
 		}
 		keys[i] = e.Path
+	}
+	for _, op := range f.stager.Ops() {
+		if op.Kind != files.OpMkdir || have[op.Path] {
+			continue
+		}
+		have[op.Path] = true
+		rows = append(rows, ui.Row{
+			stagedGlyph(files.OpMkdir) + " " +
+				lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("files")).
+					Render(filepathBase(op.Path)+"/"),
+			"-",
+			modeCell(0o755 | os.ModeDir),
+			mutedSty.Render("-"),
+			mutedSty.Render("-"),
+		})
+		keys = append(keys, op.Path)
 	}
 	f.tbl.SetRowsTracked(rows, keys)
 }
@@ -725,7 +749,8 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 			f.prompt = nil
 			f.promptAct = nil
 			if val != "" && act != nil {
-				return f, act(f, val)
+				cmd := act(&f, val)
+				return f, cmd
 			}
 			return f, nil
 		case "esc":
@@ -821,21 +846,23 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		cmd := f.afterStage(errs, fmt.Sprintf("staged %s %d", verb, len(ts)))
 		return f, cmd
 	case "m":
-		return f.startPrompt("new directory: ", func(ff Files, name string) tea.Cmd {
+		return f.startPrompt("new directory: ", func(ff *Files, name string) tea.Cmd {
 			p := filepath.Join(ff.cwd, name)
 			if err := ff.stager.Stage(files.Op{Kind: files.OpMkdir, Path: p}); err != nil {
 				return ui.ErrToast(err.Error())
 			}
+			ff.syncTable()
 			return ui.InfoToast("staged create " + name)
 		})
 	case "R":
 		if e, ok := f.selected(); ok {
 			cur := e.Name
 			target := e.Path
-			return f.startPrompt("rename: ", func(ff Files, name string) tea.Cmd {
+			return f.startPrompt("rename: ", func(ff *Files, name string) tea.Cmd {
 				if err := ff.stager.Stage(files.Op{Kind: files.OpRename, Path: target, Arg: name}); err != nil {
 					return ui.ErrToast(err.Error())
 				}
+				ff.syncTable()
 				return ui.InfoToast("staged rename -> " + name)
 			}, cur)
 		}
@@ -917,13 +944,45 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	var cmd tea.Cmd
 	f.tbl, cmd = f.tbl.Update(m)
 	if moved {
-		if p := f.selectedPath(); p != "" && p != f.prevPath && !f.fetching {
+		if e, ok := f.selected(); ok && e.Path != f.prevPath && !f.fetching {
 			f.fetching = true
-			e, _ := f.selected()
+			e, _ = f.selected()
 			cmd = tea.Batch(cmd, fetchPreviewCmd(*e))
+		} else if p, ok := f.phantomSelected(); ok && p != f.prevPath {
+			f.showPhantom(p)
 		}
 	}
 	return f, cmd
+}
+
+// phantomSelected reports the staged-create path under the cursor:
+// a row whose key is neither on disk nor fetchable, but is queued as
+// an OpMkdir.
+func (f Files) phantomSelected() (string, bool) {
+	key, ok := f.tbl.SelectedKey()
+	if !ok {
+		return "", false
+	}
+	if _, onDisk := f.entryByPath(key); onDisk {
+		return "", false
+	}
+	for _, op := range f.stager.Ops() {
+		if op.Kind == files.OpMkdir && op.Path == key {
+			return key, true
+		}
+	}
+	return "", false
+}
+
+// showPhantom renders the preview for a staged create: there is no
+// disk content, so the pane states the pending fact instead.
+func (f *Files) showPhantom(path string) {
+	f.fetching = false
+	f.prevPath = path
+	f.prevTitle = filepathBase(path) + "/"
+	f.prevMeta = "staged create"
+	f.prevBody = faintSty.Render("will be created on save (w)")
+	f.prevHit = 0
 }
 
 func (f *Files) clearMarks() {
@@ -1024,7 +1083,7 @@ func filepathBase(p string) string {
 	return p[i+1:]
 }
 
-func (f Files) startPrompt(label string, act func(Files, string) tea.Cmd, prefill ...string) (ui.Screen, tea.Cmd) {
+func (f Files) startPrompt(label string, act func(*Files, string) tea.Cmd, prefill ...string) (ui.Screen, tea.Cmd) {
 	ti := textinput.New()
 	ti.Focus()
 	st := textinput.DefaultStyles(true)
