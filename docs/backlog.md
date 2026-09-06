@@ -638,3 +638,30 @@ digit when set, parseOctal maps them onto Go's FileMode flags. Tests:
 `proc.ReadCounts` hardcoded "/proc", bypassing the package's procDir test
 seam. Now reads through it. Test:
 `counts_test.go::TestReadCountsUsesProcDirSeam`. Ptr: `internal/proc/counts.go`.
+
+## 2026-09-06 permission & access feature batch
+
+### P1 · open
+Group membership editing is a raw comma-separated text field in the
+edit-user form and a name prompt on the group tab; a checkbox-list
+membership editor (both directions, primary group included) was
+deferred. Ptrs: `internal/screens/users_actions.go` (edituser form),
+`internal/ui/form.go`.
+
+### P2 · open
+Recursive permission batches stage one op per path with per-op progress
+on save, but there is no batch cancel mid-save — same gap as L7, which
+now also covers staged chmod/chown batches. Ptr:
+`internal/screens/files.go` (startSave/runStageStep), `stagePerms`.
+
+### P3 · closed (9054845)
+Groups-tab filter guard assigned from `uTbl` instead of `gTbl`: typing
+in the groups filter fed the users table's input. Regression:
+`users_filter_test.go::TestGroupsFilterReceivesKeys`. Ptr:
+`internal/screens/users.go` handleKey.
+
+### P4 · closed (c5a01ce)
+`afterStage`/`stageOps` were value-receiver methods: the `syncTable`
+glyph refresh mutated a discarded copy, so staged-trash rows did not
+paint their glyph until the next resync. Methods now take pointers;
+call sites return `f` only after they run. Ptr: `internal/screens/files.go`.

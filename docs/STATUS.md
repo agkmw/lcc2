@@ -4,21 +4,36 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-2026-08-26 audit batch landed: 15 findings (1 critical, 3 high,
-5 medium, 6 low) fixed in 15 one-bug commits, each with a regression
-test. Headline: trash no longer falls back to permanent deletion —
-cross-device deletes refuse with an explicit error (C5); session
-restore initializes the restored section (H9); tab-strip clicks work
-(H10). Full suite + gauntlets green (`scripts/check.sh`).
+Permission & access management landed (2026-09-06, ADR-0013):
+
+- `internal/ui` gained `Form`, a multi-field modal (tab/enter/esc,
+  password masking) alongside ConfirmDialog.
+- `internal/accounts` gained a mutation layer: user/group CRUD,
+  membership, lock, password (`chpasswd`, stdin), expiry (`chage`),
+  all shelled out through an `execer` test seam with provider-level
+  guard rails — root check, name regex + `--` argv separator,
+  system accounts (uid/gid < 1000) and primary groups protected,
+  membership applied as gpasswd diffs. Plus `AdminGroup`/`HasAdmin`.
+- Users & Groups screen (6): `n` create, `e` edit, `p` password,
+  `L`/`u` lock, `x`/`X` delete (± home), `E` expiry; groups tab
+  `n`/`x`/`a`/`d`. Every action confirms, is root-gated (read-only
+  badge when unprivileged), user cards show a sudo flag.
+- Files screen: staged `OpChown` via `O` (owner/group form),
+  perm editor (`P`) gained a special-bit row, typed-octal entry and
+  a recursive toggle (dir → one op per entry, > 100 ops confirm),
+  multi-target staging for marked sets, and a group column.
+
+Full suite + gauntlets green (`scripts/check.sh`).
 
 ## In progress
 
-Nothing — awaiting user's live pass on the audit build.
+Nothing.
 
 ## Next action
 
-User runs `go run ./cmd/lcc2` for a real session: confirm mouse
-gestures end-to-end (tab clicks, committed-filter clicks), a session
-restored onto a non-overview tab, and trashing a file on a second
-filesystem (expect the refusal toast, not deletion). Then: procfs
-time.Tick leak (last L6 remnant).
+User live-pass of the feature under `sudo go run ./cmd/lcc2`:
+create/lock/delete a scratch user, toggle wheel membership, chown +
+recursive chmod in Files, then save. Root-gated toasts should appear
+when running without sudo. Afterwards: procfs `time.Tick` leak (last
+L6 remnant), then P1 (membership checkbox editor) if the comma-list
+form feels too raw in practice.
