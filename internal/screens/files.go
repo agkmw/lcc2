@@ -59,6 +59,9 @@ type Files struct {
 	permRow    int
 	permCol    int
 
+	chownForm   *ui.Form
+	chownTarget string
+
 	prevPath  string // path whose preview is displayed
 	prevBody  string // rendered body lines
 	prevTitle string
@@ -157,6 +160,8 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("Y"), key.WithHelp("Y", "copy path")),
 		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "cut")),
 		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "paste")),
+		key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "perms")),
+		key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "owner")),
 	}
 	if n := f.stager.Len(); n > 0 {
 		h = append(h,
@@ -185,7 +190,7 @@ func (f Files) Badge() string {
 // CapturingInput implements ui.Screen.
 func (f Files) CapturingInput() bool {
 	return f.tbl.Filtering() || f.prompt != nil || f.permEdit != nil ||
-		f.mode != "list"
+		f.chownForm != nil || f.mode != "list"
 }
 
 // Init loads the starting directory.
@@ -440,7 +445,7 @@ func (f *Files) syncTable() {
 		switch op.Kind {
 		case files.OpMkdir:
 			stagedAt[op.Path] = op.Kind
-		case files.OpDelete, files.OpRename, files.OpChmod:
+		case files.OpDelete, files.OpRename, files.OpChmod, files.OpChown:
 			stagedAt[op.Path] = op.Kind
 		}
 	}
@@ -516,6 +521,8 @@ func stagedGlyph(k files.OpKind) string {
 		s = ">"
 	case files.OpChmod:
 		s = "~"
+	case files.OpChown:
+		s = "~"
 	default:
 		return ""
 	}
@@ -527,6 +534,8 @@ func stagedGlyph(k files.OpKind) string {
 		c = ui.Palette.Yellow
 	case files.OpChmod:
 		c = ui.Palette.Blue
+	case files.OpChown:
+		c = ui.Palette.Teal
 	}
 	return lipgloss.NewStyle().Bold(true).Foreground(c).Render(s)
 }
@@ -667,6 +676,18 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return f.handlePermKeys(m)
 	}
 
+	if f.chownForm != nil {
+		submitted, done, cmd := f.chownForm.Update(m)
+		if !done {
+			return f, cmd
+		}
+		if submitted {
+			return f.chownSubmit()
+		}
+		f.chownForm = nil
+		return f, nil
+	}
+
 	if f.prompt != nil {
 		switch m.String() {
 		case "enter":
@@ -798,6 +819,8 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 			f.permRow = 0
 		}
 		return f, nil
+	case "O":
+		return f.openChown()
 	case "y":
 		return f, f.copyTargets(false)
 	case "Y":
@@ -1089,6 +1112,9 @@ func (f Files) View() string {
 	view := strings.Join(lines, "\n")
 	if f.permEdit != nil {
 		return overlayCenter(view, f.permEditorView(), f.w)
+	}
+	if f.chownForm != nil {
+		return overlayCenter(view, f.chownForm.View(), f.w)
 	}
 	if f.prompt != nil {
 		box := ui.Panel().BorderForeground(ui.Accent("files")).Width(clampInt(f.w/2, 40, 60)).

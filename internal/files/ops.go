@@ -222,3 +222,35 @@ func copyFile(src, dst string, mode os.FileMode) error {
 func Chmod(path string, mode os.FileMode) error {
 	return os.Chmod(path, mode)
 }
+
+// Chown applies a new owner and/or group to path; -1 leaves that id
+// unchanged. Non-root callers may only chown their own files to
+// groups they belong to; the OS enforces this.
+func Chown(path string, uid, gid int) error {
+	return os.Chown(path, uid, gid)
+}
+
+// ResolveOwner maps owner/group names to ids through the system user
+// database; empty means unchanged (-1).
+func ResolveOwner(owner, group string) (uid, gid int, err error) {
+	uid, gid = -1, -1
+	if owner != "" {
+		u, err := user.Lookup(owner)
+		if err != nil {
+			return -1, -1, fmt.Errorf("unknown user %q", owner)
+		}
+		if uid, err = strconv.Atoi(u.Uid); err != nil {
+			return -1, -1, fmt.Errorf("bad uid for %q", owner)
+		}
+	}
+	if group != "" {
+		g, err := user.LookupGroup(group)
+		if err != nil {
+			return -1, -1, fmt.Errorf("unknown group %q", group)
+		}
+		if gid, err = strconv.Atoi(g.Gid); err != nil {
+			return -1, -1, fmt.Errorf("bad gid for %q", group)
+		}
+	}
+	return uid, gid, nil
+}

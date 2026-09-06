@@ -16,6 +16,7 @@ const (
 	OpCopy   // Arg = destination directory
 	OpMove   // Arg = destination directory
 	OpChmod  // Mode = new permission bits
+	OpChown  // UID/GID = new owner/group, -1 = unchanged; Arg = display string
 )
 
 func (k OpKind) String() string {
@@ -32,6 +33,8 @@ func (k OpKind) String() string {
 		return "move"
 	case OpChmod:
 		return "chmod"
+	case OpChown:
+		return "chown"
 	}
 	return "?"
 }
@@ -42,6 +45,8 @@ type Op struct {
 	Path string // subject path (for OpMkdir: the full new path)
 	Arg  string // kind-dependent argument
 	Mode os.FileMode
+	UID  int // OpChown: new uid, -1 = unchanged
+	GID  int // OpChown: new gid, -1 = unchanged
 }
 
 // Label renders the operation as a short human phrase.
@@ -59,6 +64,8 @@ func (o Op) Label() string {
 		return "move " + filepath.Base(o.Path) + " -> " + filepath.Base(o.Arg)
 	case OpChmod:
 		return "chmod " + o.Mode.String() + " " + filepath.Base(o.Path)
+	case OpChown:
+		return "chown " + o.Arg + " " + filepath.Base(o.Path)
 	}
 	return "unknown"
 }
@@ -83,7 +90,7 @@ func (s *Stager) Stage(op Op) error {
 		if _, err := os.Lstat(op.Path); err == nil {
 			return fmt.Errorf("%s already exists", filepath.Base(op.Path))
 		}
-	case OpDelete, OpChmod:
+	case OpDelete, OpChmod, OpChown:
 		if _, err := os.Lstat(op.Path); err != nil {
 			return fmt.Errorf("%s vanished", filepath.Base(op.Path))
 		}
@@ -171,6 +178,8 @@ func ApplyOp(op Op) error {
 		return Move(op.Path, op.Arg)
 	case OpChmod:
 		return Chmod(op.Path, op.Mode)
+	case OpChown:
+		return Chown(op.Path, op.UID, op.GID)
 	}
 	return fmt.Errorf("unknown op kind")
 }
