@@ -25,6 +25,29 @@ func TestPermBitsSpecialOctal(t *testing.T) {
 	}
 }
 
+// ToggleSpecial flips exactly one special bit per call.
+func TestToggleSpecial(t *testing.T) {
+	p := ParsePermBits(0o755)
+	if p.Special != 0 {
+		t.Fatalf("start Special = %d", p.Special)
+	}
+	p.ToggleSpecial(0) // setuid
+	if p.Special != 4 {
+		t.Fatalf("after setuid toggle Special = %d", p.Special)
+	}
+	p.ToggleSpecial(1) // setgid
+	if p.Special != 6 {
+		t.Fatalf("after setgid toggle Special = %d", p.Special)
+	}
+	p.ToggleSpecial(0) // setuid off again
+	if p.Special != 2 {
+		t.Fatalf("after second toggle Special = %d", p.Special)
+	}
+	if got := p.Octal(); got != "2755" {
+		t.Fatalf("Octal = %q, want 2755", got)
+	}
+}
+
 // The apply path honors a mode carrying special bits.
 func TestChmodAppliesSpecialBits(t *testing.T) {
 	f := filepath.Join(t.TempDir(), "prog")

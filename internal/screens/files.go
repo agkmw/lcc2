@@ -56,8 +56,9 @@ type Files struct {
 
 	permEdit   *files.PermBits
 	permTarget string
-	permRow    int
+	permRow    int // 0..2 rwx rows, 3 = special bits
 	permCol    int
+	permOctal  string // typed-octal entry buffer; enter applies it
 
 	chownForm   *ui.Form
 	chownTarget string
@@ -817,6 +818,7 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 			f.permEdit = &bits
 			f.permTarget = e.Path
 			f.permRow = 0
+			f.permOctal = ""
 		}
 		return f, nil
 	case "O":
@@ -976,28 +978,47 @@ func (f Files) handlePermKeys(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	switch m.String() {
 	case "esc":
 		f.permEdit = nil
+		f.permOctal = ""
 		return f, nil
 	case "enter":
 		bits := *f.permEdit
 		target := f.permTarget
 		f.permEdit = nil
-		mode, _ := parseOctal(bits.Octal())
-		err := f.stager.Stage(files.Op{Kind: files.OpChmod, Path: target, Mode: mode})
+		octal := bits.Octal()
+		if f.permOctal != "" { // typed octal overrides the grid
+			octal, f.permOctal = f.permOctal, ""
+		}
+		mode, err := parseOctal(octal)
 		if err != nil {
 			return f, ui.ErrToast(err.Error())
 		}
+		if err := f.stager.Stage(files.Op{Kind: files.OpChmod, Path: target, Mode: mode}); err != nil {
+			return f, ui.ErrToast(err.Error())
+		}
 		f.syncTable()
-		return f, ui.InfoToast("staged chmod " + bits.Octal() + " " + filepathBase(target))
+		return f, ui.InfoToast("staged chmod " + octal + " " + filepathBase(target))
 	case "h", "left":
 		f.permCol = (f.permCol + 2) % 3
 	case "l", "right", "tab":
 		f.permCol = (f.permCol + 1) % 3
 	case "j", "down":
-		f.permRow = (f.permRow + 1) % 3
+		f.permRow = (f.permRow + 1) % 4
 	case "k", "up":
-		f.permRow = (f.permRow + 2) % 3
+		f.permRow = (f.permRow + 3) % 4
 	case " ", "space", "s":
-		f.permEdit.Toggle(f.permRow, f.permCol)
+		if f.permRow == 3 {
+			f.permEdit.ToggleSpecial(f.permCol)
+		} else {
+			f.permEdit.Toggle(f.permRow, f.permCol)
+		}
+	case "0", "1", "2", "3", "4", "5", "6", "7":
+		if len(f.permOctal) < 4 {
+			f.permOctal += m.String()
+		}
+	case "backspace":
+		if f.permOctal != "" {
+			f.permOctal = f.permOctal[:len(f.permOctal)-1]
+		}
 	}
 	return f, nil
 }
@@ -1280,7 +1301,8 @@ func (f Files) previewContent() string {
 	return "" // nothing to show yet: leave the pane blank
 }
 
-// permEditorView draws the interactive rwx matrix with a live octal readout.
+// permEditorView draws the interactive rwx matrix plus the special-bit
+// row, with a live octal readout and a typed-octal entry buffer.
 func (f Files) permEditorView() string {
 	bits := *f.permEdit
 	target := filepathBase(f.permTarget)
@@ -1288,9 +1310,11 @@ func (f Files) permEditorView() string {
 	header := lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Text).
 		Render("        r      w      x")
 	grid := header + "\n"
-	labels := [3]string{"user", "group", "other"}
-	cells := [3][3]bool{bits.U, bits.G, bits.O}
-	for who := 0; who < 3; who++ {
+	labels := [4]string{"user", "group", "other", "special"}
+	cells := [4][3]bool{bits.U, bits.G, bits.O, {
+		bits.Special&4 != 0, bits.Special&2 != 0, bits.Special&1 != 0,
+	}}
+	for who := 0; who < 4; who++ {
 		rowLabel := mutedSty.Render(padTo(labels[who], 7))
 		if who == f.permRow {
 			rowLabel = lipgloss.NewStyle().Bold(true).
@@ -1312,14 +1336,22 @@ func (f Files) permEditorView() string {
 		}
 		grid += "\n"
 	}
-	help := faintSty.Render("h/j/k/l move - space toggle - enter stage - esc cancel")
+	grid += faintSty.Render("      setuid setgid sticky") + "\n"
+	help := faintSty.Render("h/j/k/l move - space toggle - 0-7 octal entry - enter stage - esc cancel")
+
+	readout := mutedSty.Render(bits.Symbolic()) + "  " +
+		lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Yellow).
+			Render(bits.Octal())
+	if f.permOctal != "" {
+		readout += "   " + faintSty.Render("entry: ") +
+			lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Yellow).
+				Render(f.permOctal+"_")
+	}
 
 	body := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("files")).
 		Render("permissions - "+target) + "\n\n" +
 		grid + "\n" +
-		mutedSty.Render(bits.Symbolic()) + "  " +
-		lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Yellow).
-			Render(bits.Octal()) + "\n\n" + help
+		readout + "\n\n" + help
 
 	return ui.Panel().BorderForeground(ui.Accent("files")).
 		Width(clampInt(f.w/2, 40, 56)).Padding(1, 2).Render(body)

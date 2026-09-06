@@ -88,3 +88,9 @@ func (p *PermBits) Toggle(who, which int) {
 		p.O[which] = !p.O[which]
 	}
 }
+
+// ToggleSpecial flips one special bit; which is 0..2
+// (setuid/setgid/sticky).
+func (p *PermBits) ToggleSpecial(which int) {
+	p.Special ^= 4 >> which
+}
