@@ -59,9 +59,11 @@ type Files struct {
 	permRow    int // 0..2 rwx rows, 3 = special bits
 	permCol    int
 	permOctal  string // typed-octal entry buffer; enter applies it
+	permRec    bool   // recursive: dirs expand to one op per entry
 
-	chownForm   *ui.Form
-	chownTarget string
+	confirm    *ui.ConfirmDialog
+	pendingOps []files.Op // ops waiting behind a confirm
+	chownForm  *ui.Form
 
 	prevPath  string // path whose preview is displayed
 	prevBody  string // rendered body lines
@@ -107,10 +109,11 @@ type stageStepMsg struct {
 // NewFiles builds the file manager rooted at $HOME.
 func NewFiles() Files {
 	cols := []ui.Column{
-		{Title: "name", Width: 34},
-		{Title: "size", Width: 8},
+		{Title: "name", Width: 32},
+		{Title: "size", Width: 7},
 		{Title: "mode", Width: 10},
-		{Title: "owner", Width: 10},
+		{Title: "owner", Width: 8},
+		{Title: "group", Width: 8},
 	}
 	return Files{
 		cwd:      files.Home(),
@@ -191,7 +194,7 @@ func (f Files) Badge() string {
 // CapturingInput implements ui.Screen.
 func (f Files) CapturingInput() bool {
 	return f.tbl.Filtering() || f.prompt != nil || f.permEdit != nil ||
-		f.chownForm != nil || f.mode != "list"
+		f.chownForm != nil || f.confirm != nil || f.mode != "list"
 }
 
 // Init loads the starting directory.
@@ -467,6 +470,7 @@ func (f *Files) syncTable() {
 			sizeCell(e),
 			modeCell(e.Mode),
 			mutedSty.Render(files.UserName(e.UID)),
+			mutedSty.Render(files.GroupName(e.GID)),
 		}
 		keys[i] = e.Path
 	}
@@ -673,6 +677,21 @@ func (f Files) handleMouse(m tea.MouseMsg) (ui.Screen, tea.Cmd) {
 }
 
 func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
+	if f.confirm != nil {
+		dlg, yes, done := f.confirm.Update(m)
+		*f.confirm = dlg
+		if done {
+			f.confirm = nil
+			ops := f.pendingOps
+			f.pendingOps = nil
+		if yes {
+			cmd := f.stageOps(ops, fmt.Sprintf("staged - %d paths", len(ops)))
+			return f, cmd
+		}
+		}
+		return f, nil
+	}
+
 	if f.permEdit != nil {
 		return f.handlePermKeys(m)
 	}
@@ -819,6 +838,7 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 			f.permTarget = e.Path
 			f.permRow = 0
 			f.permOctal = ""
+			f.permRec = false
 		}
 		return f, nil
 	case "O":
@@ -927,12 +947,62 @@ func (f *Files) copyTargets(move bool) tea.Cmd {
 	return ui.InfoToast(verb + " " + what)
 }
 
-func (f Files) afterStage(errs []string, okMsg string) tea.Cmd {
+// afterStage refreshes the table and reports the batch outcome. It
+// takes a pointer so the syncTable mutation survives to the returned
+// model — call sites must return f only after this runs.
+func (f *Files) afterStage(errs []string, okMsg string) tea.Cmd {
 	f.syncTable()
 	if len(errs) > 0 {
 		return ui.ErrToast(strings.Join(errs, "; "))
 	}
 	return ui.InfoToast(okMsg)
+}
+
+// stageOps stages a batch, collecting per-op errors.
+func (f *Files) stageOps(ops []files.Op, okMsg string) tea.Cmd {
+	var errs []string
+	for _, op := range ops {
+		if err := f.stager.Stage(op); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+	return f.afterStage(errs, okMsg)
+}
+
+// permConfirmFloor is the staged-op count above which a recursive
+// chmod asks before joining the queue.
+const permConfirmFloor = 100
+
+// stagePerms turns the editor's mode into chmod ops for the marked
+// set (or cursor entry), expanding directories when recursive.
+func (f *Files) stagePerms(octal string, mode os.FileMode, recursive bool) tea.Cmd {
+	var ops []files.Op
+	for _, e := range f.targets() {
+		if recursive && e.IsDir {
+			paths, err := files.WalkTree(e.Path)
+			if err != nil {
+				return ui.ErrToast("chmod: " + err.Error())
+			}
+			for _, p := range paths {
+				ops = append(ops, files.Op{Kind: files.OpChmod, Path: p, Mode: mode})
+			}
+			continue
+		}
+		ops = append(ops, files.Op{Kind: files.OpChmod, Path: e.Path, Mode: mode})
+	}
+	if len(ops) == 0 {
+		return nil
+	}
+	if len(ops) > permConfirmFloor {
+		dlg := ui.NewConfirm("Recursive chmod",
+			fmt.Sprintf("Stage chmod %s for %d paths?", octal, len(ops)), "")
+		dlg.SetWidth(clampInt(f.w-8, 44, 70))
+		f.confirm = &dlg
+		f.pendingOps = ops
+		f.syncTable()
+		return nil
+	}
+	return f.stageOps(ops, fmt.Sprintf("staged chmod %s - %d paths", octal, len(ops)))
 }
 
 func dirFileWord(isDir bool) string {
@@ -982,21 +1052,20 @@ func (f Files) handlePermKeys(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		return f, nil
 	case "enter":
 		bits := *f.permEdit
-		target := f.permTarget
+		recursive := f.permRec
 		f.permEdit = nil
+		f.permRec = false
 		octal := bits.Octal()
 		if f.permOctal != "" { // typed octal overrides the grid
-			octal, f.permOctal = f.permOctal, ""
+			octal = f.permOctal
 		}
+		f.permOctal = ""
 		mode, err := parseOctal(octal)
 		if err != nil {
 			return f, ui.ErrToast(err.Error())
 		}
-		if err := f.stager.Stage(files.Op{Kind: files.OpChmod, Path: target, Mode: mode}); err != nil {
-			return f, ui.ErrToast(err.Error())
-		}
-		f.syncTable()
-		return f, ui.InfoToast("staged chmod " + octal + " " + filepathBase(target))
+		cmd := f.stagePerms(octal, mode, recursive)
+		return f, cmd
 	case "h", "left":
 		f.permCol = (f.permCol + 2) % 3
 	case "l", "right", "tab":
@@ -1011,6 +1080,8 @@ func (f Files) handlePermKeys(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		} else {
 			f.permEdit.Toggle(f.permRow, f.permCol)
 		}
+	case "r":
+		f.permRec = !f.permRec
 	case "0", "1", "2", "3", "4", "5", "6", "7":
 		if len(f.permOctal) < 4 {
 			f.permOctal += m.String()
@@ -1131,6 +1202,9 @@ func (f Files) View() string {
 	}
 
 	view := strings.Join(lines, "\n")
+	if f.confirm != nil {
+		return overlayCenter(view, f.confirm.View(), f.w)
+	}
 	if f.permEdit != nil {
 		return overlayCenter(view, f.permEditorView(), f.w)
 	}
@@ -1167,7 +1241,7 @@ func (f Files) mainHeader() string {
 
 func entryMetaLine(e files.Entry) string {
 	bits := files.ParsePermBits(e.Mode)
-	return bits.Octal() + " - " + files.UserName(e.UID) +
+	return bits.Octal() + " - " + files.UserName(e.UID) + ":" + files.GroupName(e.GID) +
 		" - " + sysinfo.FormatBytes(float64(e.Size))
 }
 
@@ -1337,7 +1411,7 @@ func (f Files) permEditorView() string {
 		grid += "\n"
 	}
 	grid += faintSty.Render("      setuid setgid sticky") + "\n"
-	help := faintSty.Render("h/j/k/l move - space toggle - 0-7 octal entry - enter stage - esc cancel")
+	help := faintSty.Render("h/j/k/l move - space toggle - 0-7 octal - r recursive - enter stage - esc")
 
 	readout := mutedSty.Render(bits.Symbolic()) + "  " +
 		lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Yellow).
@@ -1346,6 +1420,9 @@ func (f Files) permEditorView() string {
 		readout += "   " + faintSty.Render("entry: ") +
 			lipgloss.NewStyle().Bold(true).Foreground(ui.Palette.Yellow).
 				Render(f.permOctal+"_")
+	}
+	if f.permRec {
+		readout += "   " + warnSty.Render("recursive")
 	}
 
 	body := lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("files")).

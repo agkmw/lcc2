@@ -28,7 +28,7 @@ func loadedFiles(t *testing.T) Files {
 	rows := make([]ui.Row, len(f.entries))
 	keys := make([]string, len(f.entries))
 	for i, e := range f.entries {
-		rows[i] = ui.Row{e.Name, "", "", ""}
+		rows[i] = ui.Row{e.Name, "", "", "", ""}
 		keys[i] = e.Path
 	}
 	f.tbl.SetRowsTracked(rows, keys)

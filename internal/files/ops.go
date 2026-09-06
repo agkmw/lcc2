@@ -5,6 +5,7 @@ package files
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -228,6 +229,24 @@ func Chmod(path string, mode os.FileMode) error {
 // groups they belong to; the OS enforces this.
 func Chown(path string, uid, gid int) error {
 	return os.Chown(path, uid, gid)
+}
+
+// WalkTree lists every path under root, including root itself.
+// Symlinks are skipped: applying chmod through them would silently
+// follow to their targets.
+func WalkTree(root string) ([]string, error) {
+	var out []string
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if p != root && d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+		out = append(out, p)
+		return nil
+	})
+	return out, err
 }
 
 // ResolveOwner maps owner/group names to ids through the system user

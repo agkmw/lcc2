@@ -1,8 +1,8 @@
 package screens
 
 import (
+	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -38,14 +38,13 @@ func (f Files) openChown() (ui.Screen, tea.Cmd) {
 	})
 	fch.SetWidth(clampInt(f.w-8, 44, 60))
 	f.chownForm = &fch
-	f.chownTarget = e.Path
 	return f, cmd
 }
 
-// chownSubmit resolves the entered names and stages the op.
+// chownSubmit resolves the entered names and stages one op per
+// target: the marked set, or the entry the form opened on.
 func (f Files) chownSubmit() (ui.Screen, tea.Cmd) {
 	vals := f.chownForm.Values()
-	target := f.chownTarget
 	f.chownForm = nil
 	owner, group := strings.TrimSpace(vals[0]), strings.TrimSpace(vals[1])
 	if owner == "" && group == "" {
@@ -55,13 +54,14 @@ func (f Files) chownSubmit() (ui.Screen, tea.Cmd) {
 	if err != nil {
 		return f, ui.ErrToast("chown: " + err.Error())
 	}
-	if err := f.stager.Stage(files.Op{
-		Kind: files.OpChown, Path: target, UID: uid, GID: gid,
-		Arg: strings.Trim(owner+":"+group, ":"),
-	}); err != nil {
-		return f, ui.ErrToast(err.Error())
+	arg := strings.Trim(owner+":"+group, ":")
+	ts := f.targets()
+	ops := make([]files.Op, 0, len(ts))
+	for _, e := range ts {
+		ops = append(ops, files.Op{
+			Kind: files.OpChown, Path: e.Path, UID: uid, GID: gid, Arg: arg,
+		})
 	}
-	f.syncTable()
-	return f, ui.InfoToast("staged chown " + strings.Trim(owner+":"+group, ":") +
-		" " + filepath.Base(target))
+	cmd := f.stageOps(ops, fmt.Sprintf("staged chown %s - %d paths", arg, len(ops)))
+	return f, cmd
 }
