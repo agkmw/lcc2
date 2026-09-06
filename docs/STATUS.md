@@ -4,24 +4,22 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-Permission & access management landed (2026-09-06, ADR-0013):
+UX clarity batch landed (2026-09-06, backlog U1-U8), on top of the
+access-management feature from earlier today:
 
-- `internal/ui` gained `Form`, a multi-field modal (tab/enter/esc,
-  password masking) alongside ConfirmDialog.
-- `internal/accounts` gained a mutation layer: user/group CRUD,
-  membership, lock, password (`chpasswd`, stdin), expiry (`chage`),
-  all shelled out through an `execer` test seam with provider-level
-  guard rails — root check, name regex + `--` argv separator,
-  system accounts (uid/gid < 1000) and primary groups protected,
-  membership applied as gpasswd diffs. Plus `AdminGroup`/`HasAdmin`.
-- Users & Groups screen (6): `n` create, `e` edit, `p` password,
-  `L`/`u` lock, `x`/`X` delete (± home), `E` expiry; groups tab
-  `n`/`x`/`a`/`d`. Every action confirms, is root-gated (read-only
-  badge when unprivileged), user cards show a sudo flag.
-- Files screen: staged `OpChown` via `O` (owner/group form),
-  perm editor (`P`) gained a special-bit row, typed-octal entry and
-  a recursive toggle (dir → one op per entry, > 100 ops confirm),
-  multi-target staging for marked sets, and a group column.
+- Status bar no longer overflows: StatusSource screens show state only
+  (sort, marks, staged counts, root pointer) plus `? keys (n)`; the
+  full key list lives in the ? overlay. Files shows sort/marks/review;
+  unprivileged Users collapses to a single sudo pointer.
+- Staged changes are now visible everywhere: `w` opens a scrollable
+  review of the whole queue (old -> new per op) before anything
+  applies; the preview overlays pending chmod/chown/delete/rename with
+  `(staged ...)` tags; staged creates get phantom rows with their own
+  preview. The >100-op stage-time confirm is gone - review is the one
+  gate.
+- Small clarity fixes: sort + direction in the files pane header (and
+  fileSort actually initialized), marks-cleared toast, ASCII sort
+  direction. Dialog danger-band audit found nothing to change.
 
 Full suite + gauntlets green (`scripts/check.sh`).
 
@@ -31,9 +29,8 @@ Nothing.
 
 ## Next action
 
-User live-pass of the feature under `sudo go run ./cmd/lcc2`:
-create/lock/delete a scratch user, toggle wheel membership, chown +
-recursive chmod in Files, then save. Root-gated toasts should appear
-when running without sudo. Afterwards: procfs `time.Tick` leak (last
-L6 remnant), then P1 (membership checkbox editor) if the comma-list
-form feels too raw in practice.
+User live-pass: stage several mixed ops in Files (mkdir, rename, chmod,
+chown, trash), check glyphs/preview tags, then `w` — the review should
+list everything with old -> new before save. Then confirm the status
+bar reads cleanly at 80 and 120 columns. Afterwards: procfs time.Tick
+leak (last L6 remnant).

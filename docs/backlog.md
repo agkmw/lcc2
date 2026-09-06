@@ -665,3 +665,52 @@ in the groups filter fed the users table's input. Regression:
 glyph refresh mutated a discarded copy, so staged-trash rows did not
 paint their glyph until the next resync. Methods now take pointers;
 call sites return `f` only after they run. Ptr: `internal/screens/files.go`.
+
+## 2026-09-06 UX clarity batch (user findings + audit)
+
+### U1 · closed (a9adfd2)
+Status bar rendered every hint and truncated at the width budget -
+crowded sections silently lost their tail (including `save N`).
+Screens may now implement `ui.StatusSource`: the bar shows only
+state-bearing hints plus `? keys (n)`; the full list stays in the ?
+overlay. Ptr: `internal/ui/messages.go`, `internal/app/root.go`.
+
+### U2 · closed (aadd8a0)
+Preview ignored staged state: a queued chmod/chown/delete/rename still
+showed on-disk metadata. Meta line, metaCard and preview title now
+overlay `old -> new (staged ...)` for paths with pending ops. Ptr:
+`internal/screens/files.go` entryMetaLine/metaCard/previewTitle.
+
+### U3 · closed (e9331c7)
+`w` applied the whole queue instantly with no way to review it. `w`
+now opens a scrollable review listing every op with old -> new values
+(y save / u undo last / U discard / esc back). Supersedes the >100-op
+stage-time ConfirmDialog as the single gate. Ptr: `files_review.go`.
+
+### U4 · closed (f8e93e7)
+Staged creates were invisible: rows come from disk, so a staged
+mkdir's glyph could never render, and its prompt closure staged into a
+discarded copy so even the resync never ran. Phantom rows + a
+staged-create preview added; prompt callbacks now take *Files so
+mkdir/rename glyphs paint immediately. Ptr: files.go syncTable.
+
+### U5 · closed (357be34)
+The active sort was only visible in the status bar hint (first casualty
+of crowding) and `fileSort` was never initialized - the header would
+have rendered an empty label. Sort now shows in the pane header; sort
+direction is ASCII (`name desc`, ADR-0010). Ptr: files_sort.go.
+
+### U6 · closed (a9adfd2)
+Unprivileged users screen advertised 8 mutation keys that all just
+error. StatusHints collapses to one `! needs root` pointer; ? still
+lists everything. Ptr: `internal/screens/users.go`.
+
+### U7 · closed (357be34)
+Marks were cleared silently on esc/navigation. `dropMarks` toasts
+`marks cleared (n)`; silent when there were none. Ptr: files.go.
+
+### U8 · closed (audit, no change)
+Dialog danger-band audit: services stop/disable/restart red with
+start/enable neutral; users lock/delete red with unlock neutral; the
+new review overlay is neutral (reversible until applied). Existing
+styles were already correct; no code changed.
