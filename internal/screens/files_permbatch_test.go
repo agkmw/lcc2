@@ -98,9 +98,6 @@ func TestFilesPermsRecursive(t *testing.T) {
 	}
 	s, cmd := f.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	f = s.(Files)
-	if f.confirm != nil {
-		t.Fatal("small expansion must not confirm")
-	}
 	ops := f.stager.Ops()
 	if len(ops) != 5 { // dir + a.txt + sub + b.txt + c.txt
 		t.Fatalf("staged %d ops, want 5", len(ops))
@@ -111,9 +108,9 @@ func TestFilesPermsRecursive(t *testing.T) {
 	}
 }
 
-func TestFilesPermsRecursiveConfirm(t *testing.T) {
+func TestFilesPermsRecursiveReviewGate(t *testing.T) {
 	dir := t.TempDir()
-	for i := 0; i < permConfirmFloor+1; i++ { // 101 files: over the floor
+	for i := 0; i < 101; i++ { // big batch: staging is dialog-free now
 		p := filepath.Join(dir, fmt.Sprintf("f%03d", i))
 		if err := os.WriteFile(p, nil, 0o644); err != nil {
 			t.Fatal(err)
@@ -134,34 +131,32 @@ func TestFilesPermsRecursiveConfirm(t *testing.T) {
 	f = s.(Files)
 	s, _ = f.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	f = s.(Files)
-	if f.confirm == nil || len(f.pendingOps) != permConfirmFloor+2 {
-		t.Fatalf("confirm = %v, pending = %d", f.confirm != nil, len(f.pendingOps))
+	// no stage-time dialog: all 102 ops queued directly
+	if len(f.stager.Ops()) != 102 {
+		t.Fatalf("staged %d ops, want 102", len(f.stager.Ops()))
 	}
-	if len(f.stager.Ops()) != 0 {
-		t.Fatal("ops staged before confirm")
+	if f.review != nil {
+		t.Fatal("review opened at stage time")
 	}
-	s, cmd := f.Update(runeKey("y"))
+
+	// w opens the review listing the whole batch
+	s, _ = f.Update(runeKey("w"))
 	f = s.(Files)
-	if f.confirm != nil || len(f.pendingOps) != 0 {
-		t.Fatal("confirm not consumed")
+	if f.review == nil {
+		t.Fatal("w did not open the review")
 	}
-	if len(f.stager.Ops()) != permConfirmFloor+2 {
-		t.Fatalf("staged %d after y", len(f.stager.Ops()))
+	if !f.CapturingInput() {
+		t.Fatal("review open but CapturingInput false")
 	}
-	if cmd == nil {
-		t.Fatal("y produced no toast cmd")
+	body := stripANSI(f.View())
+	if !strings.Contains(body, "102 staged changes") || !strings.Contains(body, "chmod") {
+		t.Fatal("review view missing batch summary")
 	}
-	// decline leaves the queue untouched
-	s, _ = f.Update(runeKey("P"))
+	// esc backs out without applying
+	s, _ = f.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	f = s.(Files)
-	s, _ = f.Update(runeKey("r"))
-	f = s.(Files)
-	s, _ = f.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	f = s.(Files)
-	s, _ = f.Update(runeKey("n"))
-	f = s.(Files)
-	if len(f.stager.Ops()) != permConfirmFloor+2 {
-		t.Fatalf("decline changed the queue: %d", len(f.stager.Ops()))
+	if f.review != nil || len(f.stager.Ops()) != 102 {
+		t.Fatal("esc must close review and keep the queue")
 	}
 }
 

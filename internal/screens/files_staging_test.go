@@ -57,8 +57,16 @@ func TestStagedDeleteSavesOnW(t *testing.T) {
 
 	sc, cmd := f.Update(keyRunes("w"))
 	f = sc.(Files)
+	if f.review == nil {
+		t.Fatal("w did not open the review")
+	}
+	sc, cmd = f.Update(keyRunes("y"))
+	f = sc.(Files)
+	if f.review != nil {
+		t.Fatal("review still open after y")
+	}
 	if cmd == nil {
-		t.Fatal("w produced no save command")
+		t.Fatal("y produced no save command")
 	}
 
 	// run the whole save chain synchronously

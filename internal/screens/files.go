@@ -61,9 +61,8 @@ type Files struct {
 	permOctal  string // typed-octal entry buffer; enter applies it
 	permRec    bool   // recursive: dirs expand to one op per entry
 
-	confirm    *ui.ConfirmDialog
-	pendingOps []files.Op // ops waiting behind a confirm
-	chownForm  *ui.Form
+	review    *reviewPane // staged-op list behind `w`
+	chownForm *ui.Form
 
 	prevPath  string // path whose preview is displayed
 	prevBody  string // rendered body lines
@@ -169,7 +168,7 @@ func (f Files) Hints() []key.Binding {
 	}
 	if n := f.stager.Len(); n > 0 {
 		h = append(h,
-			key.NewBinding(key.WithKeys("w"), key.WithHelp("w", fmt.Sprintf("save %d", n))),
+			key.NewBinding(key.WithKeys("w"), key.WithHelp("w", fmt.Sprintf("review %d", n))),
 			key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "undo op")))
 	}
 	if len(f.backStack) > 0 {
@@ -213,7 +212,7 @@ func (f Files) Badge() string {
 // CapturingInput implements ui.Screen.
 func (f Files) CapturingInput() bool {
 	return f.tbl.Filtering() || f.prompt != nil || f.permEdit != nil ||
-		f.chownForm != nil || f.confirm != nil || f.mode != "list"
+		f.chownForm != nil || f.review != nil || f.mode != "list"
 }
 
 // Init loads the starting directory.
@@ -696,19 +695,8 @@ func (f Files) handleMouse(m tea.MouseMsg) (ui.Screen, tea.Cmd) {
 }
 
 func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
-	if f.confirm != nil {
-		dlg, yes, done := f.confirm.Update(m)
-		*f.confirm = dlg
-		if done {
-			f.confirm = nil
-			ops := f.pendingOps
-			f.pendingOps = nil
-			if yes {
-				cmd := f.stageOps(ops, fmt.Sprintf("staged - %d paths", len(ops)))
-				return f, cmd
-			}
-		}
-		return f, nil
+	if f.review != nil {
+		return f.handleReviewKeys(m)
 	}
 
 	if f.permEdit != nil {
@@ -917,7 +905,7 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		f.syncTable()
 		return f, ui.InfoToast(fmt.Sprintf("discarded %d change%s", n, plural(n)))
 	case "w":
-		return f, f.startSave()
+		return f.openReview()
 	}
 
 	moved := false
@@ -988,12 +976,9 @@ func (f *Files) stageOps(ops []files.Op, okMsg string) tea.Cmd {
 	return f.afterStage(errs, okMsg)
 }
 
-// permConfirmFloor is the staged-op count above which a recursive
-// chmod asks before joining the queue.
-const permConfirmFloor = 100
-
 // stagePerms turns the editor's mode into chmod ops for the marked
-// set (or cursor entry), expanding directories when recursive.
+// set (or cursor entry), expanding directories when recursive. No
+// staging dialog: `w` reviews the full queue before anything applies.
 func (f *Files) stagePerms(octal string, mode os.FileMode, recursive bool) tea.Cmd {
 	var ops []files.Op
 	for _, e := range f.targets() {
@@ -1012,16 +997,7 @@ func (f *Files) stagePerms(octal string, mode os.FileMode, recursive bool) tea.C
 	if len(ops) == 0 {
 		return nil
 	}
-	if len(ops) > permConfirmFloor {
-		dlg := ui.NewConfirm("Recursive chmod",
-			fmt.Sprintf("Stage chmod %s for %d paths?", octal, len(ops)), "")
-		dlg.SetWidth(clampInt(f.w-8, 44, 70))
-		f.confirm = &dlg
-		f.pendingOps = ops
-		f.syncTable()
-		return nil
-	}
-	return f.stageOps(ops, fmt.Sprintf("staged chmod %s - %d paths", octal, len(ops)))
+	return f.stageOps(ops, fmt.Sprintf("staged chmod %s - %d paths (w to review)", octal, len(ops)))
 }
 
 func dirFileWord(isDir bool) string {
@@ -1221,8 +1197,8 @@ func (f Files) View() string {
 	}
 
 	view := strings.Join(lines, "\n")
-	if f.confirm != nil {
-		return overlayCenter(view, f.confirm.View(), f.w)
+	if f.review != nil {
+		return overlayCenter(view, reviewView(f), f.w)
 	}
 	if f.permEdit != nil {
 		return overlayCenter(view, f.permEditorView(), f.w)
