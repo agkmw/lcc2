@@ -132,10 +132,10 @@ PID 1 is refused. Colours: cpu% goes amber ≥70 / red ≥90; mem% goes amber
 ### 3 · Disks
 
 Two modes. **Filesystem list**: mount, device, type, size, use%. Press
-`enter` on a mount to **analyze** it — an ncdu-style directory scan that
-lists children by size and share %. Drill into directories with `enter`;
-`esc` or `h` goes back up and also cancels an in-flight scan; `r`
-re-scans. The preview pane shows a usage gauge and facts for the selected
+`enter` or `l` on a mount to **analyze** it — an ncdu-style directory
+scan that lists children by size and share %. Drill into directories
+with `enter` / `l`; `esc` or `h` goes back up and also cancels an
+in-flight scan; `r` re-scans. The preview pane shows a usage gauge and facts for the selected
 filesystem or entry.
 
 ### 4 · Files
@@ -153,9 +153,10 @@ entries of a directory, or a metadata card for binary files.
 | `enter` / `l` | enter directory |
 | `h` | parent directory |
 | `ctrl+o` / `ctrl+i` | back / forward through visited directories |
-| `a` | toggle hidden files (persisted) |
+| `t` | open the trash as a listing (once it exists) |
+| `a` | view hidden files (persisted; head shows `view hidden`) |
 | `s` / `S` | cycle sort (name → size → mtime) / reverse; dirs always first |
-| `e` | open file in `$EDITOR`/`$VISUAL`/`$PAGER` (lcc2 suspends cleanly) |
+| `e` | open file in `$EDITOR`/`$VISUAL`, else a found vi/nvim/nano (lcc2 suspends cleanly) |
 | `f` | find files by name under the current dir (uses `fd`) |
 | `F` | grep file contents (uses `rg`, case-insensitive) |
 | `space` | mark / unmark entry (multi-select; esc clears) |
@@ -210,7 +211,8 @@ Saving stops at the first failing op with an error toast; the not-yet-
 applied remainder stays staged so you can fix and retry. Deleted files go
 to the freedesktop trash (gio when present, else `~/.local/share/Trash`
 with proper `.trashinfo` records) and are restorable from any file
-manager. Cross-filesystem deletes are refused rather than silently
+manager. `t` opens the trash as a normal listing; deleting an entry
+**inside** the trash purges it permanently. Cross-filesystem deletes are refused rather than silently
 destroying data.
 
 #### Permission editor (`P`)

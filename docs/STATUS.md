@@ -4,6 +4,14 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
+- User bug batch 2 (B1-B7, 2026-09-07): session restore lands on the
+  section the user actually quit in (save-after-flip + q saves);
+  Disks drills with enter/l like Files; ctrl+o/ctrl+i always in help;
+  `fd` falls back to `fdfind` at runtime; `t` opens the trash as a
+  listing (deletes inside it are permanent purges); head meta says
+  `view hidden`; the editor chain never opens a pager — $EDITOR,
+  $VISUAL, then vi/nvim/nano, else a toast, and install.sh adds nano
+  when no editor exists.
 - Help-content sync batch (backlog H4-H8 + N1/N2, 2026-09-07): the
   help panel no longer advertises keys the active screen ignores.
   Globals are exactly what root binds; the j/k row shows only on

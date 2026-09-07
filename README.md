@@ -31,12 +31,12 @@ TODO
 ### Dependencies
 - **Build toolchain**: Go 1.26+ (compiles as a single pure Go binary with `CGO_ENABLED=0`, no C runtime dependencies).
 - **Helper tools (optional, recommended for full features)**:
-  - [`fd`](https://github.com/sharkdp/fd): Enables fast filename search (Files screen `f`). On Debian/Ubuntu, packages provide `fdfind`—the installer automatically creates a symlink to `fd`.
+  - [`fd`](https://github.com/sharkdp/fd): Enables fast filename search (Files screen `f`). On Debian/Ubuntu the binary is `fdfind` — the app falls back to it automatically, and the installer also links `fd`.
   - [`ripgrep`](https://github.com/BurntSushi/ripgrep) (`rg`): Enables fast regex/text content search (Files screen `F`).
   - `gio` (via GLib): Enables cross-filesystem Freedesktop trash support (Files screen `d`). Without `gio`, deletions fall back to `~/.local/share/Trash` within the same filesystem.
   - `wl-clipboard` (`wl-copy`) or `xclip`: System clipboard support (Files screen `Y`). Falls back to terminal OSC 52 if missing.
   - `systemctl` & `journalctl` (systemd): Powers the Services screen. Without systemd, the screen displays a notice that service inspection is unavailable.
-  - `$EDITOR` / `$VISUAL` / `$PAGER`: External file and unit opener (Files `e`, Services `E`), falling back to `less -R`.
+  - `$EDITOR` / `$VISUAL`: External file and unit editor (Files `e`, Services `E`). Without them the app probes `nvim`/`vim`/`vi`/`nano`/`editor`; with none installed it shows a hint instead of opening a read-only pager.
 
 ## Installation
 
@@ -57,7 +57,7 @@ Or if you have already cloned the repository:
 **What the automated installer does:**
 1. Verifies the host is running Linux and checks architecture.
 2. Detects the system package manager (`apt`, `dnf`, `pacman`, `zypper`, `apk`).
-3. Automatically installs missing dependencies (`go`, `fd`/`fd-find`, `ripgrep`, `gio`/GLib, clipboard utilities `wl-clipboard`/`xclip`, `less`).
+3. Automatically installs missing dependencies (`go`, `fd`/`fd-find`, `ripgrep`, `gio`/GLib, clipboard utilities `wl-clipboard`/`xclip`, `less`, `nano` when no editor exists).
 4. Automatically resolves the Debian/Ubuntu `fdfind` binary name by linking `fd` in the binary path.
 5. Builds a standalone, trimmed binary (`CGO_ENABLED=0`) and installs it into `~/.local/bin/lcc2` (or `/usr/local/bin` if run as root).
 6. Verifies your `$PATH` and suggests shell configuration if needed.

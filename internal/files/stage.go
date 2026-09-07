@@ -169,6 +169,9 @@ func ApplyOp(op Op) error {
 	case OpMkdir:
 		return Mkdir(filepath.Dir(op.Path), filepath.Base(op.Path))
 	case OpDelete:
+		if InTrash(op.Path) {
+			return os.RemoveAll(op.Path) // already trashed: purge for good
+		}
 		return Trash(op.Path)
 	case OpRename:
 		return Rename(op.Path, op.Arg)

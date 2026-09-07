@@ -194,6 +194,15 @@ if [ "$SKIP_DEPS" -eq 0 ]; then
     NEEDED_PKGS="$NEEDED_PKGS less"
   fi
 
+  # Check a terminal editor: the files 'e' and services 'E' gestures
+  # need one that can save; the app probes $EDITOR/$VISUAL, then
+  # nvim/vim/vi/nano/editor.
+  if ! command -v nvim >/dev/null 2>&1 && ! command -v vim >/dev/null 2>&1 \
+     && ! command -v vi >/dev/null 2>&1 && ! command -v nano >/dev/null 2>&1 \
+     && ! command -v editor >/dev/null 2>&1; then
+    NEEDED_PKGS="$NEEDED_PKGS nano"
+  fi
+
   # Trim leading spaces
   NEEDED_PKGS="$(echo "$NEEDED_PKGS" | sed 's/^[[:space:]]*//')"
   if [ -n "$NEEDED_PKGS" ]; then

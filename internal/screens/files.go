@@ -1,6 +1,7 @@
 package screens
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -155,7 +156,7 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "find")),
 		key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "grep")),
 		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "mark")),
-		key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "hidden")),
+		key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "view hidden files")),
 		key.NewBinding(key.WithKeys("enter/l"), key.WithHelp("enter/l", "open dir")),
 		key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "parent dir")),
 		key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "open")),
@@ -169,6 +170,10 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "perms")),
 		key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "owner")),
 	}
+	if _, ok := files.TrashDir(); ok {
+		h = append(h, key.NewBinding(key.WithKeys("t"),
+			key.WithHelp("t", "open trash")))
+	}
 	if len(f.marked) > 0 {
 		h = append(h, key.NewBinding(key.WithKeys("esc"),
 			key.WithHelp("esc", "clear marks")))
@@ -178,15 +183,9 @@ func (f Files) Hints() []key.Binding {
 			key.NewBinding(key.WithKeys("w"), key.WithHelp("w", fmt.Sprintf("review %d", n))),
 			key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "undo op")))
 	}
-	if len(f.backStack) > 0 {
-		h = append(h, key.NewBinding(key.WithKeys("ctrl+o"),
-			key.WithHelp("ctrl+o", "back")))
-	}
-	if len(f.fwdStack) > 0 {
-		h = append(h, key.NewBinding(key.WithKeys("ctrl+i"),
-			key.WithHelp("ctrl+i", "forward")))
-	}
-	return h
+	return append(h,
+		key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "back")),
+		key.NewBinding(key.WithKeys("ctrl+i"), key.WithHelp("ctrl+i", "forward")))
 }
 
 // StatusHints implements ui.StatusSource: the bar shows only live
@@ -654,22 +653,32 @@ func (f *Files) goForward() tea.Cmd {
 }
 
 // resolveViewer picks the external opener: $EDITOR, then $VISUAL,
-// then $PAGER, then plain less.
-func resolveViewer() []string {
-	for _, env := range []string{"EDITOR", "VISUAL", "PAGER"} {
+// then the first installed terminal editor. It never falls back to a
+// pager — less cannot save, and both edit gestures (files `e`,
+// services `E`) need a real editor. An error means none exists.
+func resolveViewer() ([]string, error) {
+	for _, env := range []string{"EDITOR", "VISUAL"} {
 		if v := os.Getenv(env); v != "" {
-			return strings.Fields(v)
+			return strings.Fields(v), nil
 		}
 	}
-	return []string{"less", "-R"}
+	for _, ed := range []string{"nvim", "vim", "vi", "nano", "editor"} {
+		if p, err := exec.LookPath(ed); err == nil {
+			return []string{p}, nil
+		}
+	}
+	return nil, errors.New("no editor found - install one or set $EDITOR")
 }
 
 type viewerDoneMsg struct{ err error }
 
-// openInViewer suspends the TUI and runs the user's editor or pager
-// on path (tea.ExecProcess hands the terminal over cleanly).
+// openInViewer suspends the TUI and runs the user's editor on path
+// (tea.ExecProcess hands the terminal over cleanly).
 func (f Files) openInViewer(path string) tea.Cmd {
-	argv := resolveViewer()
+	argv, err := resolveViewer()
+	if err != nil {
+		return ui.ErrToast(err.Error())
+	}
 	c := exec.Command(argv[0], append(argv[1:], path)...)
 	return tea.ExecProcess(c, func(err error) tea.Msg {
 		return viewerDoneMsg{err}
@@ -836,16 +845,26 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	case "esc":
 		cmd := f.dropMarks()
 		return f, cmd
+	case "t":
+		if td, ok := files.TrashDir(); ok {
+			cmd := f.dropMarks()
+			return f, tea.Batch(cmd, f.navigate(td))
+		}
+		return f, nil
 	case "d":
 		ts := f.targets()
 		var errs []string
+		perm := false // deleting from inside the trash is not re-trashed
 		for _, e := range ts {
+			if files.InTrash(e.Path) {
+				perm = true
+			}
 			if err := f.stager.Stage(files.Op{Kind: files.OpDelete, Path: e.Path}); err != nil {
 				errs = append(errs, err.Error())
 			}
 		}
 		verb := "trash"
-		if !files.TrashAvailable() {
+		if perm || !files.TrashAvailable() {
 			verb = "delete (permanent)"
 		}
 		cmd := f.afterStage(errs, fmt.Sprintf("staged %s %d", verb, len(ts)))
@@ -1224,7 +1243,7 @@ func (f Files) View() string {
 			f.mode, f.auxInput.Value(), f.auxCount())
 	}
 	if meta == "" && f.showHidden {
-		meta = "hidden on"
+		meta = "view hidden"
 	}
 	if f.mode == "list" {
 		if n := f.stager.Len(); n > 0 {

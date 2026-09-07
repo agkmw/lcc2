@@ -325,7 +325,10 @@ func (s Services) editUnitFile() tea.Cmd {
 		return ui.ErrToast("no unit file to edit")
 	}
 	path := s.det.FragmentPath
-	argv := resolveViewer()
+	argv, err := resolveViewer()
+	if err != nil {
+		return ui.ErrToast(err.Error())
+	}
 	c := exec.Command(argv[0], append(argv[1:], path)...)
 	return tea.ExecProcess(c, func(err error) tea.Msg {
 		return editorDoneMsg{err}

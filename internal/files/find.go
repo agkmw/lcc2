@@ -3,6 +3,7 @@ package files
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,12 +16,15 @@ import (
 // not installed; screens surface it as a toast.
 var ErrMissingTool = errors.New("required tool not found")
 
-func findTool(name string) (string, error) {
-	p, err := exec.LookPath(name)
-	if err != nil {
-		return "", ErrMissingTool
+// findTool resolves the first installed binary among names. Debian
+// and Ubuntu ship fd as fdfind, so callers pass both spellings.
+func findTool(names ...string) (string, error) {
+	for _, n := range names {
+		if p, err := exec.LookPath(n); err == nil {
+			return p, nil
+		}
 	}
-	return p, nil
+	return "", fmt.Errorf("%w: %s", ErrMissingTool, strings.Join(names, "/"))
 }
 
 // Find locates paths under root whose name matches pattern using fd.
@@ -30,7 +34,7 @@ func Find(ctx context.Context, root, pattern string, hidden bool, limit int) ([]
 	if strings.TrimSpace(pattern) == "" {
 		return []Entry{}, nil
 	}
-	bin, err := findTool("fd")
+	bin, err := findTool("fd", "fdfind")
 	if err != nil {
 		return nil, err
 	}

@@ -22,6 +22,39 @@ func TrashAvailable() bool {
 	return err == nil
 }
 
+// TrashDir returns the user's home trash "files" directory when it
+// exists — lookup only, never creates.
+func TrashDir() (string, bool) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", false
+	}
+	d := filepath.Join(home, ".local", "share", "Trash", "files")
+	if _, err := os.Stat(d); err != nil {
+		return "", false
+	}
+	return d, true
+}
+
+// InTrash reports whether path lives inside the home trash. Such
+// paths are already deleted: applying a delete op to them is a
+// permanent remove, not a re-trash.
+func InTrash(path string) bool {
+	d, ok := TrashDir()
+	if !ok {
+		return false
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(d, abs)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
 // osRename is indirected so tests can simulate cross-device failures.
 var osRename = os.Rename
 

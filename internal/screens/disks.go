@@ -86,13 +86,13 @@ func (d Disks) Hints() []key.Binding {
 	if d.mode == "fs" {
 		return []key.Binding{
 			ui.Keys.Filter,
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "analyze")),
+			key.NewBinding(key.WithKeys("enter/l"), key.WithHelp("enter/l", "analyze")),
 			ui.Keys.Refresh,
 		}
 	}
 	return []key.Binding{
 		ui.Keys.Filter,
-		key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "drill down")),
+		key.NewBinding(key.WithKeys("enter/l"), key.WithHelp("enter/l", "drill down")),
 		key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 		ui.Keys.Refresh,
 	}
@@ -205,7 +205,7 @@ func (d Disks) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		if d.mode == "scan" {
 			return d.backOut()
 		}
-	case "enter":
+	case "enter", "l":
 		if d.mode == "fs" {
 			if idx, ok := d.fsTbl.Selected(); ok && idx < len(d.fss) {
 				return d.startScan(d.fss[idx].Mountpoint)

@@ -795,3 +795,62 @@ Digit switching accepts only the literal keys "1".."6"
 the help panel renders the range from `len(r.order)` — a seventh
 screen would advertise a dead "7". Move the digit set somewhere shared
 if sections ever grow.
+
+## 2026-09-07 user bug batch 2 (restore, disks, trash, editor)
+
+### B1 · closed
+Restoring landed on the wrong section (4 -> 2 -> 6, quit, restart ->
+2). switchTo snapshotted the session BEFORE flipping r.active, so the
+file always held the outgoing screen; the q quit path never saved at
+all (only the per-minute clock tick and ctrl+c did). Save now happens
+after the flip and q saves like ctrl+c. Files prefs were never at
+risk: snapshot() reads them from the screen map, not from current().
+Tests: `internal/app/session_restore_test.go` (quit persists current
+section; every switch persists the destination).
+Ptr: `internal/app/root.go` switchTo + q case.
+
+### B2 · closed
+Disks ignored `l`: only enter analyzed/drilled, unlike Files where l
+is the vim twin. `enter/l` now analyzes a mount and drills into dirs;
+hints updated. Ptr: `internal/screens/disks.go` handleKey + Hints.
+
+### B3 · closed
+ctrl+o/ctrl+i were missing from help until the first navigation
+(hints were gated on non-empty back/fwd stacks), so a fresh Files
+session advertised no history keys. Now unconditional rows - the keys
+are always handled, they just no-op on empty history.
+Ptr: `internal/screens/files.go` Hints.
+
+### B4 · closed
+`fd not found` on Ubuntu/Kali: the binary is `fdfind` there and the
+app only probed `fd` (the installer symlink was a workaround, not a
+fix). findTool now takes aliases - Find probes `fd` then `fdfind` -
+and the error names what was looked for.
+Test: `TestFindToolAlias`. Ptr: `internal/files/find.go`.
+
+### B5 · closed
+No way to see the trash. `t` opens `~/.local/share/Trash/files` as a
+normal Files listing (key advertised only once the dir exists), and
+deleting an entry inside the trash purges it permanently instead of
+re-trashing it into itself (`files.InTrash` + OpDelete branch in
+ApplyOp; staged label says `delete (permanent)`).
+Tests: `internal/files/trash_dir_test.go` (boundaries incl. the
+`Trash/files-x` sibling-prefix trap, lookup never creates, purge).
+Ptrs: `internal/files/trash.go`, `internal/files/stage.go`,
+`internal/screens/files.go`.
+
+### B6 · closed
+Head meta `hidden on` read as "files are hidden". Now `view hidden`,
+and the `a` hint says `view hidden files`.
+Ptr: `internal/screens/files.go` View + Hints.
+
+### B7 · closed
+The edit gestures could open a pager: resolveViewer fell back to
+$PAGER then `less -R`, which cannot save - on boxes without
+vi/nvim/$EDITOR, `e`/`E` were read-only. Env order is $EDITOR then
+$VISUAL, then the first installed terminal editor (nvim/vim/vi/nano/
+editor); with none, both callers toast instead of launching a pager.
+install.sh now installs `nano` when no editor binary exists.
+Tests: `TestResolveViewer`, `TestResolveViewerNoneFound`. Ptrs:
+`internal/screens/files.go` resolveViewer/openInViewer,
+`internal/screens/services.go` editUnitFile, `scripts/install.sh`.

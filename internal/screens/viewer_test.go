@@ -3,35 +3,50 @@ package screens
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"lcc2/internal/ui"
 )
 
-// $EDITOR wins, then $VISUAL, then $PAGER, then less -R. Arguments in
-// the env value (e.g. "code -w") must survive the split.
+// $EDITOR wins, then $VISUAL, then the first installed terminal
+// editor. Arguments in the env value (e.g. "code -w") must survive
+// the split. There is deliberately no pager fallback: less cannot
+// save, and both callers are edit gestures.
 func TestResolveViewer(t *testing.T) {
+	fakeBin := t.TempDir()
+	writeExe := func(name string) {
+		p := filepath.Join(fakeBin, name)
+		os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755)
+	}
+	writeExe("nvim")
+	writeExe("nano")
+	t.Setenv("PATH", fakeBin)
+
 	t.Setenv("EDITOR", "")
 	t.Setenv("VISUAL", "")
-	t.Setenv("PAGER", "")
-	if v := resolveViewer(); strings.Join(v, " ") != "less -R" {
-		t.Fatalf("default = %v", v)
-	}
-
-	t.Setenv("PAGER", "moar")
-	if v := resolveViewer(); strings.Join(v, " ") != "moar" {
-		t.Fatalf("pager = %v", v)
+	if v, err := resolveViewer(); err != nil || v[0] != filepath.Join(fakeBin, "nvim") {
+		t.Fatalf("first installed editor = %v, err %v", v, err)
 	}
 
 	t.Setenv("VISUAL", "code -w")
-	if v := resolveViewer(); len(v) != 2 || v[0] != "code" || v[1] != "-w" {
-		t.Fatalf("visual = %v", v)
+	if v, err := resolveViewer(); err != nil || len(v) != 2 || v[0] != "code" || v[1] != "-w" {
+		t.Fatalf("visual = %v, err %v", v, err)
 	}
 
 	t.Setenv("EDITOR", "nvim")
-	if v := resolveViewer(); v[0] != "nvim" {
-		t.Fatalf("editor = %v", v)
+	if v, err := resolveViewer(); err != nil || v[0] != "nvim" {
+		t.Fatalf("editor = %v, err %v", v, err)
+	}
+}
+
+// With no env and no editor binary on PATH, the viewer refuses with a
+// hint instead of silently opening a pager that cannot edit.
+func TestResolveViewerNoneFound(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("EDITOR", "")
+	t.Setenv("VISUAL", "")
+	if _, err := resolveViewer(); err == nil {
+		t.Fatal("expected an error with no editor anywhere")
 	}
 }
 

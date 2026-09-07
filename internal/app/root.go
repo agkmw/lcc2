@@ -104,8 +104,11 @@ func (r *Root) switchTo(i int) tea.Cmd {
 	if i < 0 || i >= len(r.order) || i == r.active {
 		return nil
 	}
-	r.saveSession() // capture the outgoing screen's prefs first
 	r.active = i
+	// Snapshot after the flip: Screen must record the destination, and
+	// Files prefs come from the screen map regardless of which section
+	// is active.
+	r.saveSession()
 	return tea.Batch(r.current().Init(), r.sendSize())
 }
 
@@ -253,6 +256,7 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.String() {
 			case "q":
 				r.quitting = true
+				r.saveSession()
 				return r, tea.Quit
 			case "?":
 				r.helpOpen = true
