@@ -768,8 +768,30 @@ of `len(r.order)` (actual wiring). Ptr: `internal/app/root.go`
 helpContent.
 
 ### N1 · open
-Files cannot clear a committed filter with esc, unlike every other
-table screen: `files.go` handleKey routes esc to dropMarks and only
-forwards keys to the FilterTable while filtering is active, so
-FilterTable's esc-clear branch (`internal/ui/table.go`) is unreachable
-there. Found during H4; not fixed.
+Files cannot clear a committed filter with esc: `files.go` handleKey
+routes esc to dropMarks and only forwards keys to the FilterTable while
+filtering is active, so FilterTable's esc-clear branch
+(`internal/ui/table.go`) is unreachable there. Disks scan mode has the
+same gap (esc -> backOut, `disks.go` backOut never clears dirTbl's
+committed filter). Processes/Services/Users do forward esc. Found
+during H4; not fixed.
+
+### H8 · closed (review follow-up to H4, R1/R2 pass)
+Services hints advertised `[r] refresh` while r actually opens the
+restart confirm; refresh is R. The lie showed in the status bar and,
+since H4, in the help panel. Services.Hints now binds
+`R refresh` explicitly and ui.Keys.Refresh is dropped there; new
+dup-keycap audit test forbids any key advertised twice in one panel
+(`TestHelpNoDuplicateKeycaps`). Also from review: ctrl+c under the
+overlay now saves the session like the normal quit path, the panel
+footer reads `esc/q close`, and the manual List-keys section was
+reworded (g/G and esc are not advertised on every table screen).
+Ptrs: `internal/screens/services.go` Hints, `internal/app/root.go`,
+`internal/app/help_test.go`, `docs/manual.md`.
+
+### N2 · open
+Digit switching accepts only the literal keys "1".."6"
+(`internal/app/root.go` helpTarget + both KeyPressMsg branches) while
+the help panel renders the range from `len(r.order)` — a seventh
+screen would advertise a dead "7". Move the digit set somewhere shared
+if sections ever grow.

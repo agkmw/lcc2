@@ -4,11 +4,12 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
-- Help-content sync batch (backlog H4-H7 + N1, 2026-09-07): the help
-  panel no longer advertises keys the active screen ignores. Globals
-  are exactly what root binds; the j/k row shows only on FilterTable
-  screens; enter/esc verbs come from each screen's hints (Files gained
-  enter/l, h, conditional esc). While help is open, q closes it and
+- Help-content sync batch (backlog H4-H8 + N1/N2, 2026-09-07): the
+  help panel no longer advertises keys the active screen ignores.
+  Globals are exactly what root binds; the j/k row shows only on
+  FilterTable screens; enter/esc verbs come from each screen's hints
+  (Files gained enter/l, h, conditional esc; Services refresh
+  rebound to R after review). While help is open, q closes it and
   tab/1-6 switch sections with the panel following. Manual globals
   section split into global vs list keys.
 - Automated installer & README Installation overhaul (2026-09-07):

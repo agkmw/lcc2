@@ -226,6 +226,7 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				r.helpOpen = false
 			case "ctrl+c":
 				r.quitting = true
+				r.saveSession()
 				return r, tea.Quit
 			case "ctrl+d", "pgdown":
 				r.clampHelpScroll(r.helpViewport())
@@ -618,7 +619,7 @@ func (r Root) helpPanel() string {
 		Render("Keys") + faintSty.Render("  "+section) + "\n\n" +
 		strings.Join(view, "\n") + "\n\n" +
 		faintSty.Render(fmt.Sprintf("%d-%d of %d", top+1, end, len(content))) +
-		faintSty.Render("   ctrl+d/u scroll   esc close")
+		faintSty.Render("   ctrl+d/u scroll   esc/q close")
 
 	return ui.Panel().
 		BorderForeground(ui.Palette.Surface).

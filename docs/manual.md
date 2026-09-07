@@ -45,7 +45,7 @@ Delete the file to reset.
  ────────────────────────────────────────────────────────────
                     (section body)
  ────────────────────────────────────────────────────────────
- [s] sort: name  [w] review 2  [?] keys (17)     ~/demo - 14:03
+ [s] sort: name  [w] review 2  [?] keys (19)     ~/demo - 14:03
 ```
 
 - **Tab strip** (top): six numbered sections; the active one is a bright
@@ -76,17 +76,18 @@ Root binds exactly this set, on every screen:
 
 ### List keys
 
-Every screen with a table also answers to these. The help overlay
-lists them only on screens where they apply, with each screen's own
-`enter` / `esc` verb.
+Every screen with a table answers to `j`/`k`, `g`/`G` and `/`; the
+`enter` and `esc` gestures differ per screen. The help overlay shows
+only what applies on the current screen, using each screen's own
+wording.
 
 | key | action |
 |---|---|
 | `j`/`k` or arrows | move selection |
 | `g` / `G` | jump to top / bottom |
 | `/` | filter the list (type to narrow) |
-| `enter` | open / confirm |
-| `esc` | back, cancel, clear filter or marks |
+| `enter` | open / confirm (per-screen verb in help) |
+| `esc` | back / cancel where the screen defines one |
 
 Mouse works too: click tabs to switch, click rows to select, wheel scrolls,
 double-click acts like `enter` on Files and Disks rows. While a filter or

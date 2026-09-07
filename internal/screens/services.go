@@ -88,7 +88,9 @@ func (s Services) ID() string { return "services" }
 // Title implements ui.Screen.
 func (s Services) Title() string { return "Services" }
 
-// Hints implements ui.Screen.
+// Hints implements ui.Screen. Refresh is shift-r here: plain r opens
+// the restart confirm, so the shared ui.Keys.Refresh binding would
+// advertise the wrong gesture.
 func (s Services) Hints() []key.Binding {
 	return []key.Binding{
 		ui.Keys.Filter,
@@ -98,7 +100,7 @@ func (s Services) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "enable")),
 		key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "edit unit")),
 		key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "disable")),
-		ui.Keys.Refresh,
+		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "refresh")),
 	}
 }
 

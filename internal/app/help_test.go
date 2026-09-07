@@ -152,6 +152,35 @@ func TestHelpQCloses(t *testing.T) {
 	if r.helpOpen {
 		t.Fatal("q did not close help")
 	}
+	m, cmd := r.Update(keyMsg("q"))
+	r = m.(Root)
+	if !r.quitting || cmd == nil {
+		t.Fatal("second q did not quit")
+	}
+}
+
+// No keycap may appear twice in one panel: a repeated cap means two
+// rows advertise the same key with different verbs (the services
+// r-restart vs r-refresh class of lie).
+func TestHelpNoDuplicateKeycaps(t *testing.T) {
+	r, m := newTestRoot(t)
+	r = m.(Root)
+	for i := range r.order {
+		r.active = i
+		m, _ := r.Update(keyMsg("?"))
+		r = m.(Root)
+		pan := stripANSIHelp(r.helpPanel())
+		seen := map[string]bool{}
+		for _, tok := range strings.Fields(pan) {
+			if len(tok) < 3 || tok[0] != '[' || tok[len(tok)-1] != ']' {
+				continue
+			}
+			if seen[tok] {
+				t.Errorf("%s: keycap %s advertised twice", r.order[i], tok)
+			}
+			seen[tok] = true
+		}
+	}
 }
 
 // tab and the digit keys switch screens while the overlay stays open,
