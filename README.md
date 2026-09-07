@@ -19,30 +19,105 @@ TODO
 | **5 Services** | systemd units with start/stop/restart/enable/disable (each confirmed). Requires `systemctl` on PATH. |
 | **6 Users** | Users and groups side by side with a detail pane; system accounts (uid/gid < 1000, except root) render dimmed. |
 
-## Requirements
+## Requirements & Prerequisites
 
-- Linux (providers read `/proc`, `systemctl`, etc.)
-- Go 1.26+ to build
-- Terminal of at least 64x16 — below that a friendly notice appears
-- Optional: [`fd`](https://github.com/sharkdp/fd) and
-  [`ripgrep`](https://github.com/BurntSushi/ripgrep) enable the Files search
-  modes; systemd enables the Services screen
-- Privileges apply naturally: signalling other users' processes, service
-  control and writing outside your home need the usual rights
+### Platform Requirements & Limitations
+- **Linux only**: `lcc2` directly inspects Linux `/proc` (CPU, memory, load, processes) and `/sys` (disk I/O rates), interacts with `systemd`, and executes standard Linux account management utilities. macOS, Windows, and BSDs are not supported.
+- **Terminal geometry**: Minimum size of **64×16** characters (a graceful fallback notice is displayed below this floor). A truecolor terminal is recommended.
+- **Permissions**:
+  - Unprivileged user: Monitoring (Overview dashboard, Processes, Disks, Files browsing/staging, read-only Users view).
+  - Elevated (`sudo` / root): Required for service management (`systemctl`), user & group administration (`useradd`, `usermod`, etc.), and sending signals to processes owned by other users.
 
-## Install & Run
+### Dependencies
+- **Build toolchain**: Go 1.26+ (compiles as a single pure Go binary with `CGO_ENABLED=0`, no C runtime dependencies).
+- **Helper tools (optional, recommended for full features)**:
+  - [`fd`](https://github.com/sharkdp/fd): Enables fast filename search (Files screen `f`). On Debian/Ubuntu, packages provide `fdfind`—the installer automatically creates a symlink to `fd`.
+  - [`ripgrep`](https://github.com/BurntSushi/ripgrep) (`rg`): Enables fast regex/text content search (Files screen `F`).
+  - `gio` (via GLib): Enables cross-filesystem Freedesktop trash support (Files screen `d`). Without `gio`, deletions fall back to `~/.local/share/Trash` within the same filesystem.
+  - `wl-clipboard` (`wl-copy`) or `xclip`: System clipboard support (Files screen `Y`). Falls back to terminal OSC 52 if missing.
+  - `systemctl` & `journalctl` (systemd): Powers the Services screen. Without systemd, the screen displays a notice that service inspection is unavailable.
+  - `$EDITOR` / `$VISUAL` / `$PAGER`: External file and unit opener (Files `e`, Services `E`), falling back to `less -R`.
+
+## Installation
+
+### Automated Installation (Recommended)
+
+To install everything required (missing package dependencies, helper tools, and the compiled `lcc2` binary) in a single command, run:
 
 ```sh
-make run        # go run ./cmd/lcc2
-make build      # binary lands in bin/lcc2
-make install    # go install ./cmd/lcc2 (respects $GOBIN)
+git clone https://github.com/agkmw/lcc2.git && cd lcc2 && ./scripts/install.sh
 ```
 
-Or without make:
+Or if you have already cloned the repository:
 
 ```sh
-go run ./cmd/lcc2
-go build -o lcc2 ./cmd/lcc2
+./scripts/install.sh
+```
+
+**What the automated installer does:**
+1. Verifies the host is running Linux and checks architecture.
+2. Detects the system package manager (`apt`, `dnf`, `pacman`, `zypper`, `apk`).
+3. Automatically installs missing dependencies (`go`, `fd`/`fd-find`, `ripgrep`, `gio`/GLib, clipboard utilities `wl-clipboard`/`xclip`, `less`).
+4. Automatically resolves the Debian/Ubuntu `fdfind` binary name by linking `fd` in the binary path.
+5. Builds a standalone, trimmed binary (`CGO_ENABLED=0`) and installs it into `~/.local/bin/lcc2` (or `/usr/local/bin` if run as root).
+6. Verifies your `$PATH` and suggests shell configuration if needed.
+
+**Installer options:**
+```sh
+./scripts/install.sh --help              # Show usage and options
+./scripts/install.sh --bin-dir /usr/bin  # Custom binary destination
+./scripts/install.sh --no-deps           # Build and install without invoking package manager
+./scripts/install.sh -y                  # Non-interactive mode
+```
+
+### Manual Installation
+
+If you prefer installing dependencies manually:
+
+1. **Install required packages for your distribution:**
+
+   - **Debian / Ubuntu**:
+     ```sh
+     sudo apt update && sudo apt install -y golang fd-find ripgrep libglib2.0-bin wl-clipboard xclip less
+     # Ensure 'fd' is callable (Debian names it 'fdfind'):
+     mkdir -p ~/.local/bin && ln -sf "$(which fdfind)" ~/.local/bin/fd
+     ```
+   - **Fedora / RHEL**:
+     ```sh
+     sudo dnf install -y golang fd-find ripgrep glib2 wl-clipboard xclip less
+     ```
+   - **Arch Linux**:
+     ```sh
+     sudo pacman -S --needed go fd ripgrep glib2 wl-clipboard xclip less
+     ```
+   - **openSUSE**:
+     ```sh
+     sudo zypper install -y go fd ripgrep glib2 wl-clipboard xclip less
+     ```
+   - **Alpine Linux**:
+     ```sh
+     sudo apk add go fd ripgrep glib-tools wl-clipboard xclip less
+     ```
+
+2. **Build and install the binary:**
+
+   ```sh
+   # Using Make:
+   make build      # outputs to bin/lcc2
+   make install    # installs to $GOBIN
+
+   # Or directly using Go:
+   go build -trimpath -o ~/.local/bin/lcc2 ./cmd/lcc2
+   ```
+
+### Running lcc2
+
+```sh
+# Normal mode (monitoring, browsing, staging changes)
+lcc2
+
+# Elevated mode (service control, account/group management, killing other users' processes)
+sudo lcc2
 ```
 
 ## Keybindings
@@ -136,8 +211,7 @@ Repository docs: `docs/STATUS.md` (current state),
 
 ## Limitations
 
-- Linux only
-- Fixed Catppuccin Mocha palette; no theme switching or `NO_COLOR` support yet
-- No mouse support, no CLI flags (`--version`/`--help` missing)
+- Linux only (relies on `/proc`, `/sys`, systemd, and standard Linux account tools)
+- Fixed Catppuccin Mocha palette; no runtime theme switching yet (`NO_COLOR` and `CLICOLOR` are supported)
 - Large single-file copies show no byte-level progress and cannot be cancelled
   once started (whole staged batches are stop-on-error per operation)
