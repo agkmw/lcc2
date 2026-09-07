@@ -107,6 +107,91 @@ func TestHelpPanelShowsPosition(t *testing.T) {
 	}
 }
 
+// Help may only advertise keys the current screen answers to: no
+// phantom globals on the list-less Overview, no duplicated or
+// contradictory rows on table screens.
+func TestHelpContentMatchesScreen(t *testing.T) {
+	r, m := newTestRoot(t)
+	r = m.(Root)
+	open := func(i int) Root {
+		r.active = i
+		m, _ := r.Update(keyMsg("?"))
+		return m.(Root)
+	}
+
+	pan := stripANSIHelp(open(0).helpPanel()) // overview
+	for _, phantom := range []string{"move selection", "filter list",
+		"select / open", "back / cancel"} {
+		if strings.Contains(pan, phantom) {
+			t.Errorf("overview help advertises %q, which overview does not bind", phantom)
+		}
+	}
+	if !strings.Contains(pan, "graph") {
+		t.Errorf("overview help missing its own g hint: %q", pan)
+	}
+
+	pan = stripANSIHelp(open(1).helpPanel()) // processes
+	if !strings.Contains(pan, "move selection") {
+		t.Error("process help missing the j/k list row")
+	}
+	if n := strings.Count(pan, "[/]"); n != 1 {
+		t.Errorf("process help shows %d '/' rows, want 1 (screen hint only)", n)
+	}
+
+	pan = stripANSIHelp(open(2).helpPanel()) // disks
+	if !strings.Contains(pan, "analyze") || strings.Contains(pan, "select / open") {
+		t.Errorf("disks help enter verb wrong: %q", pan)
+	}
+}
+
+// q closes the overlay; a second q then quits from the base screen.
+func TestHelpQCloses(t *testing.T) {
+	r := openHelp(t)
+	m, _ := r.Update(keyMsg("q"))
+	r = m.(Root)
+	if r.helpOpen {
+		t.Fatal("q did not close help")
+	}
+}
+
+// tab and the digit keys switch screens while the overlay stays open,
+// and the panel content follows the new active screen.
+func TestHelpFollowsScreenSwitch(t *testing.T) {
+	r := openHelp(t) // files
+	if !strings.Contains(stripANSIHelp(r.helpPanel()), "Files") {
+		t.Fatal("panel should start on Files")
+	}
+	if r.helpScroll != 0 {
+		t.Fatal("test needs help opened at scroll 0")
+	}
+	m, _ := r.Update(keyMsg("ctrl+d"))
+	r = m.(Root)
+	if r.helpScroll == 0 {
+		t.Fatal("scroll did not move")
+	}
+
+	m, _ = r.Update(keyMsg("tab"))
+	r = m.(Root)
+	if !r.helpOpen {
+		t.Fatal("tab closed the overlay")
+	}
+	if !strings.Contains(stripANSIHelp(r.helpPanel()), "Services") {
+		t.Fatalf("panel did not follow the switch: %q", stripANSIHelp(r.helpPanel()))
+	}
+	if r.helpScroll != 0 {
+		t.Fatalf("scroll = %d after switch, want reset to 0", r.helpScroll)
+	}
+	if strings.Contains(strings.Join(r.helpContent(), "\n"), "open dir") {
+		t.Error("content still lists files-only keys after switching")
+	}
+
+	m, _ = r.Update(keyMsg("1"))
+	r = m.(Root)
+	if !strings.Contains(stripANSIHelp(r.helpPanel()), "Overview") {
+		t.Fatal("digit switch did not follow")
+	}
+}
+
 func stripANSIHelp(s string) string {
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {

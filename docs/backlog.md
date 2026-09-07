@@ -728,3 +728,48 @@ position line, scrolled by wheel, ctrl+d/ctrl+u (half page), j/k and
 pgup/pgdn; scroll resets on reopen. Tests:
 `help_test.go` (height parity, clamping, wheel, reset, position). Ptr:
 `internal/app/root.go` helpPanel/helpContent/clampHelpScroll.
+
+## 2026-09-07 help-content sync batch (user findings)
+
+### H4 · closed
+The help panel's "global" key block was hardcoded (j/k, /, enter, esc)
+and rendered identically on every screen, so the panel advertised keys
+the view under it ignores: all four are dead on Overview (binds only
+r/g); enter is dead on Processes/Services/Users; Disks showed both
+"enter select / open" and "enter analyze" at once; "/" was duplicated
+on every table screen. Globals are now exactly what root binds
+(tab, 1-N, ?, q); the j/k row appears only when the active screen
+advertises the shared "/" Filter binding (`screenHasList`); enter/esc
+verbs come solely from each screen's hints - Files.Hints gained
+enter/l open dir, h parent dir and a conditional esc clear marks row
+(the manual already documented them; help was behind).
+Test: `TestHelpContentMatchesScreen`. Ptr: `internal/app/root.go`
+helpContent, `internal/screens/files.go` Hints.
+
+### H5 · closed
+The mouse reference row sat between globals and screen hints (its own
+doc comment promised it last) and claimed "click rows - click tabs"
+while the overlay is open, where H2 blocks all clicks. Moved after the
+hints, reworded "mouse (after esc): ...". Ptr: `internal/app/root.go`
+helpContent.
+
+### H6 · closed
+The open panel advertised q/tab/1-6 yet the overlay swallowed them.
+q now closes help (second q quits); tab/shift+tab and 1-6 switch
+sections while the overlay stays open and the content follows the new
+active screen (scroll resets) - helpContent rebuilds from r.current()
+every render. Mouse clicks on tabs stay blocked per H2.
+Tests: `TestHelpQCloses`, `TestHelpFollowsScreenSwitch`. Ptr:
+`internal/app/root.go` KeyPressMsg case.
+
+### H7 · closed
+"1-%d jump to screen" formatted `len(sections)` (label table) instead
+of `len(r.order)` (actual wiring). Ptr: `internal/app/root.go`
+helpContent.
+
+### N1 · open
+Files cannot clear a committed filter with esc, unlike every other
+table screen: `files.go` handleKey routes esc to dropMarks and only
+forwards keys to the FilterTable while filtering is active, so
+FilterTable's esc-clear branch (`internal/ui/table.go`) is unreachable
+there. Found during H4; not fixed.

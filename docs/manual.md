@@ -59,9 +59,13 @@ Delete the file to reset.
   accepts. Scroll it with the mouse wheel or `ctrl+d` / `ctrl+u`
   (half page), `j`/`k` (line), `pgup`/`pgdn`. While it is open the
   wheel and keys scroll only the help — the screen behind does not
-  move, and clicks do nothing. `?` or `esc` closes it.
+  move, and clicks do nothing. `tab`, `shift+tab` and `1`–`6` still
+  switch sections and the list follows the new screen; `?`, `esc` or
+  `q` closes it.
 
 ### Global keys
+
+Root binds exactly this set, on every screen:
 
 | key | action |
 |---|---|
@@ -69,7 +73,16 @@ Delete the file to reset.
 | `tab` / `shift+tab` | next / previous section |
 | `?` | help overlay |
 | `q`, `ctrl+c` | quit (session is saved) |
-| `j`/`k` or arrows | move selection in lists |
+
+### List keys
+
+Every screen with a table also answers to these. The help overlay
+lists them only on screens where they apply, with each screen's own
+`enter` / `esc` verb.
+
+| key | action |
+|---|---|
+| `j`/`k` or arrows | move selection |
 | `g` / `G` | jump to top / bottom |
 | `/` | filter the list (type to narrow) |
 | `enter` | open / confirm |
@@ -79,7 +92,8 @@ Mouse works too: click tabs to switch, click rows to select, wheel scrolls,
 double-click acts like `enter` on Files and Disks rows. While a filter or
 dialog has focus, the keyboard belongs to it — screen shortcuts are
 suppressed so typing `d` in a filter never deletes anything. With the
-help overlay open, the wheel scrolls the help instead of the list.
+help overlay open, the wheel scrolls the help and clicks do nothing
+until you close it.
 
 ## 3. Sections
 

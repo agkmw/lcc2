@@ -4,6 +4,7 @@ package app
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -221,7 +222,7 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		if r.helpOpen {
 			switch m.String() {
-			case "?", "esc":
+			case "?", "esc", "q":
 				r.helpOpen = false
 			case "ctrl+c":
 				r.quitting = true
@@ -234,6 +235,11 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				r.clampHelpScroll(1)
 			case "k", "up":
 				r.clampHelpScroll(-1)
+			case "tab", "shift+tab", "1", "2", "3", "4", "5", "6":
+				// The overlay follows the active screen: helpContent
+				// rebuilds from r.current() on every render.
+				r.helpScroll = 0
+				return r, r.switchTo(helpTarget(m.String(), r.active, len(r.order)))
 			}
 			return r, nil
 		}
@@ -252,12 +258,11 @@ func (r Root) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				r.helpScroll = 0
 				return r, nil
 			case "tab":
-				return r, r.switchTo((r.active + 1) % len(r.order))
+				return r, r.switchTo(helpTarget("tab", r.active, len(r.order)))
 			case "shift+tab":
-				return r, r.switchTo((r.active - 1 + len(r.order)) % len(r.order))
+				return r, r.switchTo(helpTarget("shift+tab", r.active, len(r.order)))
 			case "1", "2", "3", "4", "5", "6":
-				n := int(m.String()[0] - '1')
-				return r, r.switchTo(n)
+				return r, r.switchTo(helpTarget(m.String(), r.active, len(r.order)))
 			}
 		}
 	}
@@ -492,8 +497,11 @@ func (r Root) View() tea.View {
 	return v
 }
 
-// helpContent builds the scrollable key list: global keys first, then
-// the active screen's actions, then the mouse reference.
+// helpContent builds the scrollable key list. Every row is derived
+// from what actually handles the key: root's own bindings first, the
+// shared list-navigation row when the current screen drives a
+// FilterTable, then the screen's actions, then the mouse reference.
+// Nothing here may advertise a key the view under the overlay ignores.
 func (r Root) helpContent() []string {
 	rows := func(pairs ...[2]string) []string {
 		out := make([]string, 0, len(pairs))
@@ -504,22 +512,48 @@ func (r Root) helpContent() []string {
 	}
 	content := rows(
 		[2]string{"tab / shift+tab", "next / previous screen"},
-		[2]string{fmt.Sprintf("1-%d", len(sections)), "jump to screen"},
-		[2]string{"j/k", "move selection"},
-		[2]string{"/", "filter list"},
-		[2]string{"enter", "select / open"},
-		[2]string{"esc", "back / cancel"},
+		[2]string{fmt.Sprintf("1-%d", len(r.order)), "jump to screen"},
 		[2]string{"?", "help"},
 		[2]string{"q", "quit"},
 	)
-	content = append(content, "", faintSty.Render("mouse: click rows - wheel scrolls - click tabs to switch"))
+	if screenHasList(r.current()) {
+		content = append(content, rows([2]string{"j/k", "move selection"})...)
+	}
 	for _, kb := range r.current().Hints() {
 		if kb.Enabled() {
 			content = append(content, "  "+keycap(kb.Help().Key)+
 				faintSty.Render(" "+kb.Help().Desc))
 		}
 	}
+	content = append(content, "", faintSty.Render(
+		"mouse (after esc): click rows - wheel scrolls - click tabs to switch"))
 	return content
+}
+
+// screenHasList reports whether the screen drives a FilterTable: it
+// advertises the shared "/" filter binding, whose list answers to j/k.
+// Screens without a list (Overview) skip the shared rows.
+func screenHasList(s ui.Screen) bool {
+	for _, kb := range s.Hints() {
+		if kb.Enabled() && slices.Contains(kb.Keys(), "/") {
+			return true
+		}
+	}
+	return false
+}
+
+// helpTarget maps a section-switch key to the target index; -1 (a
+// no-op for switchTo) for anything else.
+func helpTarget(k string, active, n int) int {
+	switch k {
+	case "tab":
+		return (active + 1) % n
+	case "shift+tab":
+		return (active - 1 + n) % n
+	case "1", "2", "3", "4", "5", "6":
+		return int(k[0] - '1')
+	}
+	return -1
 }
 
 // helpViewport is the visible row count of the key list: the content

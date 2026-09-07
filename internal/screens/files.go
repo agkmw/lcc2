@@ -156,6 +156,8 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "grep")),
 		key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "mark")),
 		key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "hidden")),
+		key.NewBinding(key.WithKeys("enter/l"), key.WithHelp("enter/l", "open dir")),
+		key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "parent dir")),
 		key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "open")),
 		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "trash")),
 		key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mkdir")),
@@ -166,6 +168,10 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "paste")),
 		key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "perms")),
 		key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "owner")),
+	}
+	if len(f.marked) > 0 {
+		h = append(h, key.NewBinding(key.WithKeys("esc"),
+			key.WithHelp("esc", "clear marks")))
 	}
 	if n := f.stager.Len(); n > 0 {
 		h = append(h,
