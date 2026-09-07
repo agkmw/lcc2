@@ -158,7 +158,7 @@ POINT AT: share-% gauges in the preview, the cancel story.
 ### Beat 6 · Services (9:45–11:00)
 
 DO: `5`. Move to a harmless unit you picked in rehearsal (a user timer
-or ssh on a VM). `r` for restart, confirm.
+or ssh on a VM). `R` for restart, confirm.
 
 POINT AT: the live status card (state, since, pid, memory, restarts),
 last journal lines under it, failed units in red, `E` opening the unit

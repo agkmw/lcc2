@@ -160,6 +160,7 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("enter/l"), key.WithHelp("enter/l", "open dir")),
 		key.NewBinding(key.WithKeys("h"), key.WithHelp("h", "parent dir")),
 		key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "open")),
+		ui.Keys.Refresh,
 		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "trash")),
 		key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mkdir")),
 		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "rename")),
@@ -808,6 +809,11 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		sortEntries(f.entries, f.sort)
 		f.syncTable()
 		return f, nil
+	case "r":
+		// Refresh like the other screens: re-list and force the
+		// preview to refetch (it skips identical paths otherwise).
+		f.prevPath = ""
+		return f, listDir(f.cwd, f.showHidden)
 	case "S":
 		f.sort.desc = !f.sort.desc
 		sortEntries(f.entries, f.sort)

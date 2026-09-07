@@ -157,6 +157,7 @@ entries of a directory, or a metadata card for binary files.
 | `a` | view hidden files (persisted; head shows `view hidden`) |
 | `s` / `S` | cycle sort (name → size → mtime) / reverse; dirs always first |
 | `e` | open file in `$EDITOR`/`$VISUAL`, else a found vi/nvim/nano (lcc2 suspends cleanly) |
+| `r` | re-list the current directory and refresh the preview |
 | `f` | find files by name under the current dir (uses `fd`) |
 | `F` | grep file contents (uses `rg`, case-insensitive) |
 | `space` | mark / unmark entry (multi-select; esc clears) |
@@ -237,11 +238,11 @@ FAILED banner. Auto-refreshes every 15 s.
 
 | key | action |
 |---|---|
-| `s` / `t` / `r` | start / stop / restart (confirm dialog) |
+| `s` / `t` / `R` | start / stop / restart (confirm dialog) |
 | `e` / `D` | enable / disable (confirm dialog) |
 | `E` | edit the unit file in your editor (toast reminds you about
   `systemctl daemon-reload`) |
-| `R` | refresh the unit list now |
+| `r` | refresh the unit list now |
 
 Stop / disable / restart get the danger-styled confirm. Requires
 `systemctl`; elsewhere the section degrades to a notice.

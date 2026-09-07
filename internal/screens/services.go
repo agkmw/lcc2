@@ -88,19 +88,18 @@ func (s Services) ID() string { return "services" }
 // Title implements ui.Screen.
 func (s Services) Title() string { return "Services" }
 
-// Hints implements ui.Screen. Refresh is shift-r here: plain r opens
-// the restart confirm, so the shared ui.Keys.Refresh binding would
-// advertise the wrong gesture.
+// Hints implements ui.Screen. r is refresh on every screen; the
+// r-related action (restart) lives on shift-r.
 func (s Services) Hints() []key.Binding {
 	return []key.Binding{
 		ui.Keys.Filter,
 		key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "start")),
 		key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "stop")),
-		key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "restart")),
+		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "restart")),
 		key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "enable")),
 		key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "edit unit")),
 		key.NewBinding(key.WithKeys("D"), key.WithHelp("D", "disable")),
-		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "refresh")),
+		ui.Keys.Refresh,
 	}
 }
 
@@ -385,9 +384,9 @@ func (s Services) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 
 	switch m.String() {
 	case "r":
-		return s.askAction("restart")
-	case "R":
 		return s, refreshSvcCmd()
+	case "R":
+		return s.askAction("restart")
 	case "s":
 		return s.askAction("start")
 	case "t":

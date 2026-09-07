@@ -4,6 +4,10 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
+- Refresh convention (C1, 2026-09-08): `r` refreshes on every screen;
+  Services restart moved to `R`, Files gained `r` (re-list + preview
+  refetch). Recorded N3: ellipsis truncation residue after shrinking
+  then growing the window - user opted to leave it.
 - User bug batch 2 (B1-B7, 2026-09-07): session restore lands on the
   section the user actually quit in (save-after-flip + q saves);
   Disks drills with enter/l like Files; ctrl+o/ctrl+i always in help;

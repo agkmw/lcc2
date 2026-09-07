@@ -854,3 +854,23 @@ install.sh now installs `nano` when no editor binary exists.
 Tests: `TestResolveViewer`, `TestResolveViewerNoneFound`. Ptrs:
 `internal/screens/files.go` resolveViewer/openInViewer,
 `internal/screens/services.go` editUnitFile, `scripts/install.sh`.
+
+## 2026-09-08 refresh convention batch (user findings)
+
+### C1 · closed (a1dd559 follow-up)
+Key convention made uniform: `r` refreshes on every screen, r-related
+actions move to shift-r. Services was the outlier (r = restart
+confirm, R = refresh) - swapped; Files had no refresh at all - `r`
+now re-lists the current directory and forces the preview to refetch
+(it skips identical paths otherwise, so prevPath resets). Overview,
+Processes, Disks and Users already used r.
+Test: `TestRefreshKeyConvention`. Ptrs: `internal/screens/services.go`
+Hints/handleKey, `internal/screens/files.go` Hints/handleKey.
+
+### N3 · open (user-visible, deliberately unfixed for now)
+Shrinking the terminal truncates table cells with an ellipsis
+(`internal/ui/table.go` clipCells/fitColumns clip the stored row
+strings at set/render time), and growing the window back does not
+restore the full text - the `..` stays until the rows are replaced by
+a refresh. User asked to record, not fix: a pristine-row + clip-at-
+render split would remove the residue.
