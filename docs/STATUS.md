@@ -4,6 +4,11 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
+- Paste + create-file batch (D1-D2, 2026-09-08): same-dir paste
+  dedupes the name (stem.2.ext, claim-aware across queued copies)
+  instead of erroring; copy/move ops now carry full destination paths.
+  New `n` key stages an empty-file create with phantom-row preview;
+  mkdir is dirs-only and the review queue labels are distinct.
 - Refresh convention (C1, 2026-09-08): `r` refreshes on every screen;
   Services restart moved to `R`, Files gained `r` (re-list + preview
   refetch). Recorded N3: ellipsis truncation residue after shrinking

@@ -148,16 +148,22 @@ func nestingErr(src, dstDir string) error {
 	return nil
 }
 
-// Copy recursively copies src into dstDir keeping its base name.
-// Refuses same-path pastes, self-nesting copies and overwrites.
-func Copy(src, dstDir string) error {
-	dst := filepath.Join(dstDir, filepath.Base(src))
-	if filepath.Clean(dst) == filepath.Clean(src) {
+// Copy copies src to the full destination path dst. Refuses
+// same-path copies, self-nesting copies and overwrites.
+func Copy(src, dst string) error {
+	dst = filepath.Clean(dst)
+	if dst == filepath.Clean(src) {
 		return fmt.Errorf("cannot copy %s onto itself", filepath.Base(src))
 	}
-	if err := nestingErr(src, dstDir); err != nil {
+	if err := nestingErr(src, filepath.Dir(dst)); err != nil {
 		return err
 	}
+	return copyTree(src, dst)
+}
+
+// copyTree copies src (file or directory) to dst, walking
+// directories depth-first and preserving child names.
+func copyTree(src, dst string) error {
 	info, err := os.Stat(src)
 	if err != nil {
 		return err
@@ -176,24 +182,35 @@ func Copy(src, dstDir string) error {
 		return err
 	}
 	for _, e := range entries {
-		if err := Copy(filepath.Join(src, e.Name()), dst); err != nil {
+		if err := copyTree(filepath.Join(src, e.Name()),
+			filepath.Join(dst, e.Name())); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Move moves src into dstDir; refuses overwrites. Falls back to
-// copy+delete across filesystems only after all guards pass.
-func Move(src, dstDir string) error {
-	dst := filepath.Join(dstDir, filepath.Base(src))
+// CreateFile makes a new empty file; it refuses to clobber.
+func CreateFile(path string) error {
+	fh, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	return fh.Close()
+}
+
+// Move moves src to the full destination path dst; refuses
+// overwrites. Falls back to copy+delete across filesystems only after
+// all guards pass.
+func Move(src, dst string) error {
+	dst = filepath.Clean(dst)
 	if _, err := os.Lstat(dst); err == nil {
 		return fmt.Errorf("%s already exists", filepath.Base(dst))
 	}
 	if err := os.Rename(src, dst); err == nil {
 		return nil
 	}
-	if err := Copy(src, dstDir); err != nil {
+	if err := Copy(src, dst); err != nil {
 		return err
 	}
 	return os.RemoveAll(src)

@@ -178,9 +178,11 @@ editable, and reversible at any time.
 |---|---|
 | `d` | stage trash for cursor / marked entries |
 | `m` | stage directory create (a phantom row appears immediately) |
+| `n` | stage empty-file create (same phantom model; `m` makes dirs only) |
 | `R` | stage rename (prompt pre-filled with the current name) |
 | `y` / `x` | copy / cut to the internal clipboard |
-| `p` | stage paste (copy or move) of the clipboard into this directory |
+| `p` | stage paste (copy or move) of the clipboard into this directory; a
+  name collision dedupes instead of erroring (`report`, `report.2`, …) |
 | `P` | permission editor (below) |
 | `O` | owner form — chown owner and/or group (root only) |
 | `u` | undo the most recent staged op |

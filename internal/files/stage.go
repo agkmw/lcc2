@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // OpKind classifies a staged filesystem operation.
@@ -13,10 +14,11 @@ const (
 	OpMkdir OpKind = iota
 	OpDelete
 	OpRename // Arg = new base name (same directory)
-	OpCopy   // Arg = destination directory
-	OpMove   // Arg = destination directory
+	OpCopy   // Arg = full destination path (deduped at stage time)
+	OpMove   // Arg = full destination path (deduped at stage time)
 	OpChmod  // Mode = new permission bits
 	OpChown  // UID/GID = new owner/group, -1 = unchanged; Arg = display string
+	OpCreate // Path = full new empty-file path
 )
 
 func (k OpKind) String() string {
@@ -35,6 +37,8 @@ func (k OpKind) String() string {
 		return "chmod"
 	case OpChown:
 		return "chown"
+	case OpCreate:
+		return "create"
 	}
 	return "?"
 }
@@ -42,7 +46,7 @@ func (k OpKind) String() string {
 // Op is one staged operation, applied later on save.
 type Op struct {
 	Kind OpKind
-	Path string // subject path (for OpMkdir: the full new path)
+	Path string // subject path (for OpMkdir/OpCreate: the full new path)
 	Arg  string // kind-dependent argument
 	Mode os.FileMode
 	UID  int // OpChown: new uid, -1 = unchanged
@@ -53,6 +57,8 @@ type Op struct {
 func (o Op) Label() string {
 	switch o.Kind {
 	case OpMkdir:
+		return "mkdir " + filepath.Base(o.Path)
+	case OpCreate:
 		return "create " + filepath.Base(o.Path)
 	case OpDelete:
 		return "delete " + filepath.Base(o.Path)
@@ -103,21 +109,32 @@ func (s *Stager) Stage(op Op) error {
 		if _, err := os.Lstat(dst); err == nil {
 			return fmt.Errorf("%s already exists", op.Arg)
 		}
+	case OpCreate:
+		base := filepath.Base(op.Path)
+		if base == "" || base == "." || base == ".." || base == "/" {
+			return fmt.Errorf("bad name %q", base)
+		}
+		if _, err := os.Lstat(op.Path); err == nil {
+			return fmt.Errorf("%s already exists", base)
+		}
+		if _, err := os.Lstat(filepath.Dir(op.Path)); err != nil {
+			return fmt.Errorf("missing directory %s", filepath.Base(filepath.Dir(op.Path)))
+		}
 	case OpCopy, OpMove:
 		if _, err := os.Lstat(op.Path); err != nil {
 			return fmt.Errorf("%s vanished", filepath.Base(op.Path))
 		}
-		dst := filepath.Join(op.Arg, filepath.Base(op.Path))
+		dst := filepath.Clean(op.Arg)
 		if filepath.Clean(dst) == filepath.Clean(op.Path) {
 			return fmt.Errorf("cannot %s %s onto itself",
 				op.Kind, filepath.Base(op.Path))
 		}
 		if _, err := os.Lstat(dst); err == nil {
 			return fmt.Errorf("%s already exists in %s",
-				filepath.Base(op.Path), filepath.Base(op.Arg))
+				filepath.Base(dst), filepath.Base(filepath.Dir(dst)))
 		}
 		if op.Kind == OpCopy {
-			if err := nestingErr(op.Path, op.Arg); err != nil {
+			if err := nestingErr(op.Path, filepath.Dir(dst)); err != nil {
 				return err
 			}
 		}
@@ -133,6 +150,32 @@ func (s *Stager) Ops() []Op {
 	out := make([]Op, len(s.ops))
 	copy(out, s.ops)
 	return out
+}
+
+// UniqueDst resolves the paste destination for src inside dir: the
+// plain base name when free, else name.2, name.3, ... skipping names
+// that exist on disk or are already claimed by queued copy/move ops
+// (the save applies in order, so both would clobber). Pasting into
+// the same directory is the ordinary case, not an error.
+func (s *Stager) UniqueDst(src, dir string) string {
+	claimed := map[string]bool{}
+	for _, op := range s.ops {
+		if op.Kind == OpCopy || op.Kind == OpMove {
+			claimed[filepath.Clean(op.Arg)] = true
+		}
+	}
+	base := filepath.Base(src)
+	ext := filepath.Ext(base)
+	stem := strings.TrimSuffix(base, ext)
+	p := filepath.Join(dir, base)
+	for i := 2; ; i++ {
+		if !claimed[filepath.Clean(p)] {
+			if _, err := os.Lstat(p); err != nil {
+				return p
+			}
+		}
+		p = filepath.Join(dir, fmt.Sprintf("%s.%d%s", stem, i, ext))
+	}
 }
 
 // Len reports how many operations are queued.
@@ -168,6 +211,8 @@ func ApplyOp(op Op) error {
 	switch op.Kind {
 	case OpMkdir:
 		return Mkdir(filepath.Dir(op.Path), filepath.Base(op.Path))
+	case OpCreate:
+		return CreateFile(op.Path)
 	case OpDelete:
 		if InTrash(op.Path) {
 			return os.RemoveAll(op.Path) // already trashed: purge for good

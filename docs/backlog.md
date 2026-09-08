@@ -874,3 +874,35 @@ strings at set/render time), and growing the window back does not
 restore the full text - the `..` stays until the rows are replaced by
 a refresh. User asked to record, not fix: a pristine-row + clip-at-
 render split would remove the residue.
+
+## 2026-09-08 paste + create-file batch (user findings)
+
+### D1 · closed
+Pasting into the same directory errored with "X already exists" - the
+ordinary case was treated as a mistake. OpCopy/OpMove now carry the
+full destination path (Arg was a directory), and the paste handler
+resolves it via the new `Stager.UniqueDst`: the plain name when free,
+else stem.2.ext / stem.3.ext (the trash uniqueTarget convention),
+skipping names already claimed by queued copy/move ops so a double
+paste stages two distinct copies that both apply. Stage keeps an
+exists backstop for races between stage and save. Same-dir cut+paste
+now renames to a fresh name instead of refusing.
+Tests: `internal/files/paste_dedup_test.go`,
+`internal/screens/files_create_test.go`. Ptrs: `internal/files/stage.go`,
+`internal/files/ops.go` (Copy/Move signatures), `internal/screens/files.go` p.
+
+### D2 · closed
+Files had no way to create a file; typing "notes.txt" at the mkdir
+prompt made a directory named notes.txt. New `n` key stages
+`OpCreate` (empty file, 0644, refuses clobber, parent must exist),
+with the same phantom-row model as mkdir (no trailing slash on file
+phantoms; mkdir label is now "mkdir X", create is "create X" so the
+review queue tells them apart).
+Tests: `TestCreateFileOp`, `TestNewFileStagesCreate`. Ptrs:
+`internal/files/stage.go` OpCreate, `internal/files/ops.go` CreateFile,
+`internal/screens/files.go` n + syncTable/phantom machinery.
+
+Review note: a mid-batch regression - showPhantom accidentally
+rewritten with a value receiver, silently dropping its prevPath write
+- was caught immediately by `TestPhantomPreview` and fixed (pointer
+receiver restored, comment added).

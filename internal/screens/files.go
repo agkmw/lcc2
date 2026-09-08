@@ -163,6 +163,7 @@ func (f Files) Hints() []key.Binding {
 		ui.Keys.Refresh,
 		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "trash")),
 		key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mkdir")),
+		key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new file")),
 		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "rename")),
 		key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy")),
 		key.NewBinding(key.WithKeys("Y"), key.WithHelp("Y", "copy path")),
@@ -472,14 +473,14 @@ func (f *Files) pruneMarks() {
 
 // syncTable rebuilds rows; marks and staged glyphs live in the name
 // cell so the name column keeps its full width. Cursor follows.
-// Staged creates (OpMkdir) have no disk row yet, so phantom rows are
-// appended - a staged create must be visible and cursor-addressable
-// like every other op.
+// Staged creates (OpMkdir, OpCreate) have no disk row yet, so phantom
+// rows are appended - a staged create must be visible and
+// cursor-addressable like every other op.
 func (f *Files) syncTable() {
 	stagedAt := map[string]files.OpKind{}
 	for _, op := range f.stager.Ops() {
 		switch op.Kind {
-		case files.OpMkdir:
+		case files.OpMkdir, files.OpCreate:
 			stagedAt[op.Path] = op.Kind
 		case files.OpDelete, files.OpRename, files.OpChmod, files.OpChown:
 			stagedAt[op.Path] = op.Kind
@@ -509,19 +510,32 @@ func (f *Files) syncTable() {
 		keys[i] = e.Path
 	}
 	for _, op := range f.stager.Ops() {
-		if op.Kind != files.OpMkdir || have[op.Path] {
+		if op.Kind != files.OpMkdir && op.Kind != files.OpCreate {
+			continue
+		}
+		if have[op.Path] {
 			continue
 		}
 		have[op.Path] = true
-		rows = append(rows, ui.Row{
-			stagedGlyph(files.OpMkdir) + " " +
-				lipgloss.NewStyle().Bold(true).Foreground(ui.Accent("files")).
-					Render(filepathBase(op.Path)+"/"),
-			"-",
-			modeCell(0o755 | os.ModeDir),
-			mutedSty.Render("-"),
-			mutedSty.Render("-"),
-		})
+		name := lipgloss.NewStyle().Bold(true).
+			Foreground(ui.Accent("files")).Render(filepathBase(op.Path))
+		if op.Kind == files.OpMkdir {
+			rows = append(rows, ui.Row{
+				stagedGlyph(files.OpMkdir) + " " + name + "/",
+				"-",
+				modeCell(0o755 | os.ModeDir),
+				mutedSty.Render("-"),
+				mutedSty.Render("-"),
+			})
+		} else {
+			rows = append(rows, ui.Row{
+				stagedGlyph(files.OpCreate) + " " + name,
+				"0",
+				modeCell(0o644),
+				mutedSty.Render("-"),
+				mutedSty.Render("-"),
+			})
+		}
 		keys = append(keys, op.Path)
 	}
 	f.tbl.SetRowsTracked(rows, keys)
@@ -568,7 +582,7 @@ func entryNameCell(e files.Entry) string {
 func stagedGlyph(k files.OpKind) string {
 	var s string
 	switch k {
-	case files.OpMkdir:
+	case files.OpMkdir, files.OpCreate:
 		s = "+"
 	case files.OpDelete:
 		s = "-"
@@ -882,6 +896,15 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 				return ui.ErrToast(err.Error())
 			}
 			ff.syncTable()
+			return ui.InfoToast("staged mkdir " + name)
+		})
+	case "n":
+		return f.startPrompt("new file: ", func(ff *Files, name string) tea.Cmd {
+			p := filepath.Join(ff.cwd, name)
+			if err := ff.stager.Stage(files.Op{Kind: files.OpCreate, Path: p}); err != nil {
+				return ui.ErrToast(err.Error())
+			}
+			ff.syncTable()
 			return ui.InfoToast("staged create " + name)
 		})
 	case "R":
@@ -943,8 +966,10 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		var errs []string
 		n := 0
 		for _, src := range f.clip {
-			err := f.stager.Stage(files.Op{Kind: kind, Path: src, Arg: f.cwd})
-			if err != nil {
+			// Dedupe the destination: pasting into the same directory
+			// is the ordinary case (name, name.2, ...).
+			op := files.Op{Kind: kind, Path: src, Arg: f.stager.UniqueDst(src, f.cwd)}
+			if err := f.stager.Stage(op); err != nil {
 				errs = append(errs, err.Error())
 			} else {
 				n++
@@ -987,7 +1012,7 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 
 // phantomSelected reports the staged-create path under the cursor:
 // a row whose key is neither on disk nor fetchable, but is queued as
-// an OpMkdir.
+// a create (dir or empty file).
 func (f Files) phantomSelected() (string, bool) {
 	key, ok := f.tbl.SelectedKey()
 	if !ok {
@@ -997,7 +1022,8 @@ func (f Files) phantomSelected() (string, bool) {
 		return "", false
 	}
 	for _, op := range f.stager.Ops() {
-		if op.Kind == files.OpMkdir && op.Path == key {
+		if (op.Kind == files.OpMkdir || op.Kind == files.OpCreate) &&
+			op.Path == key {
 			return key, true
 		}
 	}
@@ -1005,11 +1031,19 @@ func (f Files) phantomSelected() (string, bool) {
 }
 
 // showPhantom renders the preview for a staged create: there is no
-// disk content, so the pane states the pending fact instead.
+// disk content, so the pane states the pending fact instead. Only
+// directories get the trailing slash. Pointer receiver: it stores
+// state on the model.
 func (f *Files) showPhantom(path string) {
 	f.fetching = false
 	f.prevPath = path
-	f.prevTitle = filepathBase(path) + "/"
+	title := filepathBase(path)
+	for _, op := range f.stager.Ops() {
+		if op.Path == path && op.Kind == files.OpMkdir {
+			title += "/"
+		}
+	}
+	f.prevTitle = title
 	f.prevMeta = "staged create"
 	f.prevBody = faintSty.Render("will be created on save (w)")
 	f.prevHit = 0

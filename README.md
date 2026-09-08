@@ -157,7 +157,8 @@ sudo lcc2
 | `d` | Files | stage delete |
 | `m` | Files | stage create directory |
 | `R` | Files | stage rename |
-| `y` / `x` / `p` | Files | copy / cut / paste (staged at current directory) |
+| `m` / `n` | Files | stage a new directory / new empty file (applied on save) |
+| `y` / `x` / `p` | Files | copy / cut / paste (staged; same-dir paste dedupes the name) |
 | `P` | Files | permission editor (applied on save) |
 | `u` / `U` | Files | undo last staged op / discard all staged |
 | `w` | Files | save — apply everything staged |

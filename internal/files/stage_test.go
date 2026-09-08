@@ -41,7 +41,7 @@ func TestStageValidation(t *testing.T) {
 		t.Fatal("separator in rename target must be refused")
 	}
 	// copying a dir onto itself refused
-	if err := s.Stage(Op{Kind: OpCopy, Path: d, Arg: d}); err == nil {
+	if err := s.Stage(Op{Kind: OpCopy, Path: d, Arg: filepath.Join(d, "self")}); err == nil {
 		t.Fatal("copy onto itself must be refused")
 	}
 }
@@ -74,7 +74,7 @@ func TestApplyOpRoundTrip(t *testing.T) {
 	dstDir := filepath.Join(root, "out")
 	os.Mkdir(dstDir, 0755)
 
-	if err := ApplyOp(Op{Kind: OpCopy, Path: src, Arg: dstDir}); err != nil {
+	if err := ApplyOp(Op{Kind: OpCopy, Path: src, Arg: filepath.Join(dstDir, "x.txt")}); err != nil {
 		t.Fatal(err)
 	}
 	copied := filepath.Join(dstDir, "x.txt")
@@ -84,7 +84,7 @@ func TestApplyOpRoundTrip(t *testing.T) {
 	// move the copy elsewhere under a fresh dir to avoid clobbering src
 	other := filepath.Join(root, "other")
 	os.Mkdir(other, 0755)
-	if err := ApplyOp(Op{Kind: OpMove, Path: copied, Arg: other}); err != nil {
+	if err := ApplyOp(Op{Kind: OpMove, Path: copied, Arg: filepath.Join(other, "x.txt")}); err != nil {
 		t.Fatal(err)
 	}
 	moved := filepath.Join(other, "x.txt")

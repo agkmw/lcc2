@@ -37,7 +37,7 @@ func TestCopyMoveDelete(t *testing.T) {
 	dst := t.TempDir()
 	os.WriteFile(src+"/f.txt", []byte("hello"), 0644)
 
-	if err := Copy(src+"/f.txt", dst); err != nil {
+	if err := Copy(src+"/f.txt", dst+"/f.txt"); err != nil {
 		t.Fatal(err)
 	}
 	data, _ := os.ReadFile(dst + "/f.txt")
@@ -46,7 +46,7 @@ func TestCopyMoveDelete(t *testing.T) {
 	}
 
 	os.Remove(src + "/f.txt") // move back must not overwrite
-	if err := Move(dst+"/f.txt", src); err != nil {
+	if err := Move(dst+"/f.txt", src+"/f.txt"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(src + "/f.txt"); err != nil {
@@ -66,7 +66,7 @@ func TestCopyOntoItselfRefused(t *testing.T) {
 	src := dir + "/keep.txt"
 	os.WriteFile(src, []byte("precious"), 0644)
 
-	if err := Copy(src, dir); err == nil {
+	if err := Copy(src, src); err == nil {
 		t.Fatal("same-path paste must be refused")
 	}
 	data, err := os.ReadFile(src)
@@ -81,10 +81,10 @@ func TestOverwritesRefused(t *testing.T) {
 	os.WriteFile(srcDir+"/f", []byte("new"), 0644)
 	os.WriteFile(dstDir+"/f", []byte("old"), 0644)
 
-	if err := Copy(srcDir+"/f", dstDir); err == nil {
+	if err := Copy(srcDir+"/f", dstDir+"/f"); err == nil {
 		t.Fatal("copy overwrite must fail")
 	}
-	if err := Move(srcDir+"/f", dstDir); err == nil {
+	if err := Move(srcDir+"/f", dstDir+"/f"); err == nil {
 		t.Fatal("move overwrite must fail")
 	}
 	if string(mustRead(t, dstDir+"/f")) != "old" {
@@ -101,7 +101,7 @@ func TestCopyIntoOwnSubtreeRefused(t *testing.T) {
 	if err := os.Mkdir(root+"/sub", 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := Copy(root, root+"/sub"); err == nil {
+	if err := Copy(root, root+"/sub/root"); err == nil {
 		t.Fatal("dir into own subtree must be refused")
 	}
 	if entries, _ := os.ReadDir(root + "/sub"); len(entries) != 0 {
