@@ -4,6 +4,10 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
+- Find UX batch (E1-E2, 2026-09-08): `enter` on a search result lands
+  the cursor ON the entry in the target listing (directories still
+  open; the grep hit-line preview survives); the query-bar tally shows
+  `1000+` / `500+` when the result cap truncated the search.
 - Paste + create-file batch (D1-D2, 2026-09-08): same-dir paste
   dedupes the name (stem.2.ext, claim-aware across queued copies)
   instead of erroring; copy/move ops now carry full destination paths.

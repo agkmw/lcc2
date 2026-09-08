@@ -166,7 +166,10 @@ entries of a directory, or a metadata card for binary files.
 In find/grep mode a query bar sits above live results: type to search
 (debounced), arrows steer the result cursor while every other key feeds
 the query, the preview follows the cursor (grep highlights the hit line),
-`enter` reveals the hit's directory in the listing, `esc` exits the search.
+`enter` jumps to the hit — directories open, files and grep hits land the
+cursor on the entry in the listing (the grep hit-line preview is kept) —
+and `esc` exits the search. Results are capped (1000 filenames / 500
+grep hits); the tally shows `1000+` when the cap truncated the list.
 
 #### The staged-changes model
 

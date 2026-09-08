@@ -72,6 +72,8 @@ type Files struct {
 	prevHit   int // highlighted line number in the preview (0 = none)
 	fetching  bool
 
+	reveal string // entry to land the cursor on after the next listing
+
 	saving   bool
 	saveOps  []files.Op
 	saveDone int
@@ -143,9 +145,13 @@ func (f Files) Title() string { return "Files" }
 // Hints implements ui.Screen.
 func (f Files) Hints() []key.Binding {
 	if f.mode != "list" { // aux search: the query bar owns everything
+		verb := "reveal hit"
+		if f.mode == "find" {
+			verb = "reveal / enter dir"
+		}
 		return []key.Binding{
 			key.NewBinding(key.WithKeys("up/down"), key.WithHelp("up/down", "results")),
-			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "reveal dir")),
+			key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", verb)),
 			key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "exit search")),
 		}
 	}
@@ -249,6 +255,12 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		sortEntries(f.entries, f.sort)
 		f.pruneMarks()
 		f.syncTable()
+		// A search reveal lands the cursor on the found entry, not at
+		// the top of the directory.
+		if f.reveal != "" {
+			f.tbl.SelectKey(f.reveal)
+			f.reveal = ""
+		}
 		if e, ok := f.selected(); ok && e.Path != f.prevPath && !f.fetching {
 			f.fetching = true
 			return f, fetchPreview(e)

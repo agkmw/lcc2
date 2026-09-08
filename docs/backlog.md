@@ -906,3 +906,25 @@ Review note: a mid-batch regression - showPhantom accidentally
 rewritten with a value receiver, silently dropping its prevPath write
 - was caught immediately by `TestPhantomPreview` and fixed (pointer
 receiver restored, comment added).
+
+## 2026-09-08 find UX batch (user request)
+
+### E1 · closed
+Revealing a search result dropped the cursor at the top of the target
+directory - the user had to re-find the file they had just found.
+`enter` now lands the cursor ON the entry (new `Files.reveal` +
+`ui.FilterTable.SelectKey`): find-file and grep hits reveal their
+directory with the cursor on the entry, find directories open as
+before. The preview follows automatically; a grep hit keeps its
+hit-line preview (same path, so the refetch is skipped). A vanished
+entry degrades to the top of the listing.
+Tests: `internal/screens/files_aux_ux_test.go` (find + grep reveal,
+cursor assertions). Ptrs: `internal/screens/files_aux.go` auxOpen,
+`internal/screens/files.go` dirListMsg, `internal/ui/table.go`.
+
+### E2 · closed
+Search result caps (1000 filenames / 500 grep hits) were silent -
+"1000 results" read as "everything found". The query-bar tally now
+shows `1000+` / `500+` when the cap truncated the list.
+Test: `TestAuxStatusMarksTruncation`. Ptr: `internal/screens/files_aux.go`
+auxStatus.

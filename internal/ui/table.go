@@ -339,6 +339,19 @@ func (f *FilterTable) SetCursor(i int) {
 	f.syncScroll()
 }
 
+// SelectKey puts the cursor on the row with the given identity key;
+// silent no-op when absent (the row may have vanished between the
+// search and the reveal).
+func (f *FilterTable) SelectKey(key string) {
+	for vi, oi := range f.origIdx {
+		if oi < len(f.keys) && f.keys[oi] == key {
+			f.cursor = vi
+			f.syncScroll()
+			return
+		}
+	}
+}
+
 // Focus is a no-op kept for interface symmetry.
 func (f *FilterTable) Focus() {}
 

@@ -139,20 +139,26 @@ func (f Files) handleAuxKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	return f, cmd
 }
 
-// auxOpen acts on the cursor: both modes reveal the hit's directory in
-// list mode (find enters directories themselves).
+// auxOpen acts on the cursor. Directories in find mode open; files
+// and grep hits reveal their directory with the cursor ON the entry —
+// landing at the top of the listing would undo the search.
 func (f Files) auxOpen() (ui.Screen, tea.Cmd) {
-	dir := ""
-	if f.mode == "find" {
+	reveal, dir := "", ""
+	switch f.mode {
+	case "find":
 		if idx, ok := f.findTbl.Selected(); ok && idx < len(f.findRes) {
 			e := f.findRes[idx]
-			dir = e.Path
-			if !e.IsDir {
-				dir = filepath.Dir(e.Path)
+			if e.IsDir {
+				dir = e.Path // entering the directory is the reveal
+			} else {
+				reveal, dir = e.Path, filepath.Dir(e.Path)
 			}
 		}
-	} else if idx, ok := f.grepTbl.Selected(); ok && idx < len(f.grepRes) {
-		dir = filepath.Dir(f.grepRes[idx].Path)
+	case "grep":
+		if idx, ok := f.grepTbl.Selected(); ok && idx < len(f.grepRes) {
+			reveal = f.grepRes[idx].Path
+			dir = filepath.Dir(reveal)
+		}
 	}
 	if dir == "" {
 		return f, nil
@@ -161,6 +167,7 @@ func (f Files) auxOpen() (ui.Screen, tea.Cmd) {
 	sc.mode = "list"
 	sc.auxInput.Blur()
 	sc.prevHit = 0
+	sc.reveal = reveal
 	return sc, sc.navigate(dir)
 }
 
@@ -256,12 +263,20 @@ func (f Files) auxCount() int {
 }
 
 // auxStatus is the right-hand query-bar slot: live feedback while a
-// search runs, the tally otherwise.
+// search runs, the tally otherwise — marked when the result cap
+// truncated the list so "1000 results" never reads as "all of them".
 func (f Files) auxStatus() string {
 	if f.auxSearch {
 		return warnSty.Render("searching..")
 	}
-	return faintSty.Render(strconv.Itoa(f.auxCount()) + " results")
+	n := f.auxCount()
+	capped := (f.mode == "find" && n >= findLimit) ||
+		(f.mode == "grep" && n >= grepLimit)
+	suffix := " results"
+	if capped {
+		suffix = "+ results"
+	}
+	return faintSty.Render(strconv.Itoa(n) + suffix)
 }
 
 // auxBar renders the query row above the results.
