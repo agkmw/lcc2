@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -47,6 +49,19 @@ func main() {
 		screens.NewUsersGroups(),
 	)
 	p := tea.NewProgram(m) // v2: altscreen + mouse are View/renderer-owned
+
+	// Bubbletea restores the terminal on SIGINT/SIGTERM, but a closed
+	// terminal or tmux pane sends SIGHUP unhandled: route it through
+	// the same graceful shutdown. (SIGKILL is uncatchable by any
+	// program - that residue is the terminal's, not ours.)
+	sighup := make(chan os.Signal, 1)
+	signal.Notify(sighup, syscall.SIGHUP)
+	defer signal.Stop(sighup)
+	go func() {
+		<-sighup
+		p.Kill()
+	}()
+
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "lcc:", err)
 		os.Exit(1)

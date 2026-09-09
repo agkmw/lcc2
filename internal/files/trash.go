@@ -3,6 +3,7 @@ package files
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -131,5 +132,52 @@ func Trash(path string) error {
 		"\nDeletionDate=" + time.Now().Format("2006-01-02T15:04:05") + "\n"
 	_ = os.WriteFile(filepath.Join(infoDir, filepath.Base(target)+".trashinfo"),
 		[]byte(info), 0o600)
+	return nil
+}
+
+// TrashInfo reads a trashed entry's record: its original path and the
+// deletion time. ok is false when the entry has no (readable) record.
+func TrashInfo(trashed string) (origin string, deleted time.Time, ok bool) {
+	info := filepath.Join(filepath.Dir(trashed), "..", "info",
+		filepath.Base(trashed)+".trashinfo")
+	data, err := os.ReadFile(info)
+	if err != nil {
+		return "", time.Time{}, false
+	}
+	for _, ln := range strings.Split(string(data), "\n") {
+		switch {
+		case strings.HasPrefix(ln, "Path="):
+			if p, err := url.PathUnescape(strings.TrimPrefix(ln, "Path=")); err == nil {
+				origin = p
+			}
+		case strings.HasPrefix(ln, "DeletionDate="):
+			deleted, _ = time.Parse("2006-01-02T15:04:05",
+				strings.TrimPrefix(ln, "DeletionDate="))
+		}
+	}
+	return origin, deleted, origin != ""
+}
+
+// Restore moves a trashed entry back to its recorded original path,
+// recreating any directories that vanished with it, and drops the
+// .trashinfo record. Refuses to overwrite whatever now sits at the
+// origin.
+func Restore(trashed string) error {
+	origin, _, ok := TrashInfo(trashed)
+	if !ok {
+		return fmt.Errorf("no trash record for %s", filepath.Base(trashed))
+	}
+	if _, err := os.Lstat(origin); err == nil {
+		return fmt.Errorf("%s already exists at the original location", filepath.Base(origin))
+	}
+	if err := os.MkdirAll(filepath.Dir(origin), 0o755); err != nil {
+		return err
+	}
+	if err := osRename(trashed, origin); err != nil {
+		return err
+	}
+	info := filepath.Join(filepath.Dir(trashed), "..", "info",
+		filepath.Base(trashed)+".trashinfo")
+	_ = os.Remove(info)
 	return nil
 }

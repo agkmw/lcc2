@@ -4,6 +4,12 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
+- Trash + terminal-restore batch (G1-G4, 2026-09-10): SIGHUP now
+  shuts down gracefully (terminal restores on SIGINT/SIGTERM/SIGHUP;
+  SIGKILL is uncatchable); `R` inside the trash stages restore via
+  .trashinfo records, `esc`/`h` return to the pre-trash directory,
+  and previews show each entry's origin. Same-name trash collisions
+  (`foobar.2`) are per freedesktop spec - origin now visible.
 - Kill-flow review follow-up (2026-09-09): double-y no longer fires a
   second signal (dialog cleared at confirmation time); killDoneMsg
   carries its own signal and matches on pid, so a stale completion

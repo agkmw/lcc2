@@ -992,3 +992,44 @@ switching screens before killDoneMsg lands delivers it to the new
 screen and loses only the toast (the list self-heals via the 3s
 tick). Pre-existing delivery-model hole, slightly widened. Ptrs:
 `internal/app/root.go:279-284` delegate, `internal/screens/processes.go:219`.
+
+## 2026-09-10 trash restore + terminal restore batch (user findings)
+
+### G1 · closed (partial by design)
+Force-killed app left ANSI state (altscreen, hidden cursor, mouse
+reporting) on the terminal. Bubbletea already restores on SIGINT and
+SIGTERM; SIGHUP (closed terminal, tmux pane, dropped SSH) was
+unhandled and is now routed through the same graceful shutdown
+(p.Kill). SIGKILL is uncatchable by any program - residue after
+kill -9 cannot be fixed in-process. Ptr: `cmd/lcc/main.go`.
+
+### G2 · closed
+Trash had no restore. New `files.TrashInfo`/`files.Restore` parse the
+freedesktop `.trashinfo` record and move the entry back to its
+recorded path (recreating vanished directories, refusing to
+overwrite). `OpRestore` joins the staged model: inside the trash `R`
+stages restore for the marked/cursor entries (rename is contextually
+replaced - restoring beats renaming trashed entries), applied on save
+like every mutation. The preview meta now shows the origin and
+deletion date of trashed entries.
+Tests: `internal/files/restore_test.go` (TrashInfo/Restore/guards,
+subagent-authored), `internal/screens/files_trash_ux_test.go` (hints +
+staging + esc, subagent-authored; caught a real receiver inconsistency
+- exitTrash/stageRestores initially returned *Files into the
+Screen interface). Ptrs: `internal/files/trash.go`,
+`internal/files/stage.go`, `internal/screens/files.go`.
+
+### G3 · closed (trash navigation)
+From the trash, `h` went to `Trash/` (raw files/info dirs) and only
+ctrl+o remembered the explorer. Now `t` remembers the origin dir
+(`trashFrom`) and `esc`/`h` inside the trash return straight to it
+(home when unknown).
+Test: `TestTrashEscReturnsToExplorer`. Ptr: `internal/screens/files.go`.
+
+### G4 · no change (spec-correct, UX now explains it)
+Trashing `foobar` from A, then another `foobar` from B, stores the
+second as `foobar.2`: the freedesktop trash requires unique names in
+`Trash/files` (gio and every file manager behave the same); the
+original locations live in the per-entry `.trashinfo`. The rename was
+never a bug - what was missing was visibility, which G2's preview
+origin line now provides.

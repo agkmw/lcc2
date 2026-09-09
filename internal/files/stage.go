@@ -13,12 +13,13 @@ type OpKind uint8
 const (
 	OpMkdir OpKind = iota
 	OpDelete
-	OpRename // Arg = new base name (same directory)
-	OpCopy   // Arg = full destination path (deduped at stage time)
-	OpMove   // Arg = full destination path (deduped at stage time)
-	OpChmod  // Mode = new permission bits
-	OpChown  // UID/GID = new owner/group, -1 = unchanged; Arg = display string
-	OpCreate // Path = full new empty-file path
+	OpRename  // Arg = new base name (same directory)
+	OpCopy    // Arg = full destination path (deduped at stage time)
+	OpMove    // Arg = full destination path (deduped at stage time)
+	OpChmod   // Mode = new permission bits
+	OpChown   // UID/GID = new owner/group, -1 = unchanged; Arg = display string
+	OpCreate  // Path = full new empty-file path
+	OpRestore // Path = trashed path; Arg = recorded original path
 )
 
 func (k OpKind) String() string {
@@ -39,6 +40,8 @@ func (k OpKind) String() string {
 		return "chown"
 	case OpCreate:
 		return "create"
+	case OpRestore:
+		return "restore"
 	}
 	return "?"
 }
@@ -60,6 +63,8 @@ func (o Op) Label() string {
 		return "mkdir " + filepath.Base(o.Path)
 	case OpCreate:
 		return "create " + filepath.Base(o.Path)
+	case OpRestore:
+		return "restore " + filepath.Base(o.Path) + " -> " + filepath.Dir(o.Arg)
 	case OpDelete:
 		return "delete " + filepath.Base(o.Path)
 	case OpRename:
@@ -99,6 +104,20 @@ func (s *Stager) Stage(op Op) error {
 	case OpDelete, OpChmod, OpChown:
 		if _, err := os.Lstat(op.Path); err != nil {
 			return fmt.Errorf("%s vanished", filepath.Base(op.Path))
+		}
+	case OpRestore:
+		if !InTrash(op.Path) {
+			return fmt.Errorf("%s is not in the trash", filepath.Base(op.Path))
+		}
+		if _, err := os.Lstat(op.Path); err != nil {
+			return fmt.Errorf("%s vanished", filepath.Base(op.Path))
+		}
+		if op.Arg == "" {
+			return fmt.Errorf("no trash record for %s", filepath.Base(op.Path))
+		}
+		if _, err := os.Lstat(op.Arg); err == nil {
+			return fmt.Errorf("%s already exists at the original location",
+				filepath.Base(op.Arg))
 		}
 	case OpRename:
 		if op.Arg == "" || op.Arg == "." || op.Arg == ".." ||
@@ -213,6 +232,8 @@ func ApplyOp(op Op) error {
 		return Mkdir(filepath.Dir(op.Path), filepath.Base(op.Path))
 	case OpCreate:
 		return CreateFile(op.Path)
+	case OpRestore:
+		return Restore(op.Path)
 	case OpDelete:
 		if InTrash(op.Path) {
 			return os.RemoveAll(op.Path) // already trashed: purge for good

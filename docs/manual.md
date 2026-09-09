@@ -218,7 +218,14 @@ applied remainder stays staged so you can fix and retry. Deleted files go
 to the freedesktop trash (gio when present, else `~/.local/share/Trash`
 with proper `.trashinfo` records) and are restorable from any file
 manager. `t` opens the trash as a normal listing; deleting an entry
-**inside** the trash purges it permanently. Cross-filesystem deletes are refused rather than silently
+**inside** the trash purges it permanently. Inside the trash `R`
+stages restore (the entry returns to its recorded original path,
+recreating vanished directories; refuses to overwrite), and `esc` or
+`h` returns straight to the directory you came from. The preview
+shows where a trashed entry came from — two files trashed from
+different places may both appear (the second as `foobar.2`: the
+freedesktop trash requires unique names, records keep the originals)
+— and the tally of a capped search shows `1000+` / `500+`. Cross-filesystem deletes are refused rather than silently
 destroying data.
 
 #### Permission editor (`P`)

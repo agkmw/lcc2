@@ -74,6 +74,8 @@ type Files struct {
 
 	reveal string // entry to land the cursor on after the next listing
 
+	trashFrom string // explorer dir to return to from the trash (esc/h)
+
 	saving   bool
 	saveOps  []files.Op
 	saveDone int
@@ -170,7 +172,6 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "trash")),
 		key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "mkdir")),
 		key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new file")),
-		key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "rename")),
 		key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy")),
 		key.NewBinding(key.WithKeys("Y"), key.WithHelp("Y", "copy path")),
 		key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "cut")),
@@ -178,11 +179,19 @@ func (f Files) Hints() []key.Binding {
 		key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "perms")),
 		key.NewBinding(key.WithKeys("O"), key.WithHelp("O", "owner")),
 	}
-	if _, ok := files.TrashDir(); ok {
+	inTrash := files.InTrash(f.cwd)
+	if !inTrash {
+		h = append(h, key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "rename")))
+	}
+	if _, ok := files.TrashDir(); ok && !inTrash {
 		h = append(h, key.NewBinding(key.WithKeys("t"),
 			key.WithHelp("t", "open trash")))
 	}
-	if len(f.marked) > 0 {
+	if inTrash {
+		h = append(h,
+			key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "restore")),
+			key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back to explorer")))
+	} else if len(f.marked) > 0 {
 		h = append(h, key.NewBinding(key.WithKeys("esc"),
 			key.WithHelp("esc", "clear marks")))
 	}
@@ -294,6 +303,9 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			}
 			name := f.prevTitle
 			f.prevBody = previewBodyForFile(name, m.p.Lines, m.p.First, m.hit, m.p.Truncated)
+			if o, when, ok := files.TrashInfo(m.path); ok {
+				f.prevMeta = trashOriginNote(f.prevMeta, o, when)
+			}
 		case m.err != nil:
 			f.prevTitle = filepathBase(m.path)
 			f.prevMeta = ""
@@ -316,6 +328,9 @@ func (f Files) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		f.prevPath = m.path
 		f.prevBody = dirListingCard(m.list)
 		f.prevMeta = itoa(len(m.list)) + " entries"
+		if o, when, ok := files.TrashInfo(m.path); ok {
+			f.prevMeta = trashOriginNote(f.prevMeta, o, when)
+		}
 		if e != nil {
 			f.prevTitle, f.prevMeta = e.Name,
 				entryMetaLine(*e, f.stagedFor(e.Path))+" - "+itoa(len(m.list))+" entries"
@@ -492,7 +507,7 @@ func (f *Files) syncTable() {
 	stagedAt := map[string]files.OpKind{}
 	for _, op := range f.stager.Ops() {
 		switch op.Kind {
-		case files.OpMkdir, files.OpCreate:
+		case files.OpMkdir, files.OpCreate, files.OpRestore:
 			stagedAt[op.Path] = op.Kind
 		case files.OpDelete, files.OpRename, files.OpChmod, files.OpChown:
 			stagedAt[op.Path] = op.Kind
@@ -594,7 +609,7 @@ func entryNameCell(e files.Entry) string {
 func stagedGlyph(k files.OpKind) string {
 	var s string
 	switch k {
-	case files.OpMkdir, files.OpCreate:
+	case files.OpMkdir, files.OpCreate, files.OpRestore:
 		s = "+"
 	case files.OpDelete:
 		s = "-"
@@ -856,6 +871,9 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		}
 		return f, nil
 	case "h":
+		if files.InTrash(f.cwd) {
+			return f.exitTrash()
+		}
 		parent := parentDir(f.cwd)
 		if parent != f.cwd {
 			cmd := f.dropMarks()
@@ -875,11 +893,17 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		}
 		return f, nil
 	case "esc":
+		if files.InTrash(f.cwd) {
+			return f.exitTrash()
+		}
 		cmd := f.dropMarks()
 		return f, cmd
 	case "t":
 		if td, ok := files.TrashDir(); ok {
 			cmd := f.dropMarks()
+			if !files.InTrash(f.cwd) {
+				f.trashFrom = f.cwd // remember where the explorer was
+			}
 			return f, tea.Batch(cmd, f.navigate(td))
 		}
 		return f, nil
@@ -920,6 +944,9 @@ func (f Files) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 			return ui.InfoToast("staged create " + name)
 		})
 	case "R":
+		if files.InTrash(f.cwd) {
+			return f.stageRestores()
+		}
 		if e, ok := f.selected(); ok {
 			cur := e.Name
 			target := e.Path
@@ -1042,6 +1069,14 @@ func (f Files) phantomSelected() (string, bool) {
 	return "", false
 }
 
+// trashOriginNote extends a preview meta line with where a trashed
+// entry came from - "foobar.2" alone hides that it is the foobar once
+// at /path/A.
+func trashOriginNote(meta, origin string, deleted time.Time) string {
+	return ui.Truncate(meta+" - was "+origin+
+		" (deleted "+deleted.Format("2006-01-02")+")", 96)
+}
+
 // showPhantom renders the preview for a staged create: there is no
 // disk content, so the pane states the pending fact instead. Only
 // directories get the trailing slash. Pointer receiver: it stores
@@ -1100,6 +1135,40 @@ func (f *Files) copyTargets(move bool) tea.Cmd {
 		what = fmt.Sprintf("%d paths", len(ts))
 	}
 	return ui.InfoToast(verb + " " + what)
+}
+
+// exitTrash returns from the trash listing to the directory the
+// explorer was in before `t`; without a remembered origin it falls
+// back to the home directory. In-trash esc/h route here.
+func (f Files) exitTrash() (ui.Screen, tea.Cmd) {
+	target := f.trashFrom
+	if target == "" || files.InTrash(target) {
+		target = files.Home()
+	}
+	f.trashFrom = ""
+	cmd := f.dropMarks()
+	return f, tea.Batch(cmd, f.navigate(target))
+}
+
+// stageRestores queues restore ops for the marked entries (or the
+// cursor entry) while browsing the trash.
+func (f Files) stageRestores() (ui.Screen, tea.Cmd) {
+	ts := f.targets()
+	var errs []string
+	n := 0
+	for _, e := range ts {
+		origin, _, ok := files.TrashInfo(e.Path)
+		if !ok {
+			errs = append(errs, "no trash record for "+e.Name)
+			continue
+		}
+		if err := f.stager.Stage(files.Op{Kind: files.OpRestore, Path: e.Path, Arg: origin}); err != nil {
+			errs = append(errs, err.Error())
+		} else {
+			n++
+		}
+	}
+	return f, f.afterStage(errs, fmt.Sprintf("staged restore %d", n))
 }
 
 // afterStage refreshes the table and reports the batch outcome. It
