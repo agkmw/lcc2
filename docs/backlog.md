@@ -972,3 +972,23 @@ still dirty: `internal/app/routing_test.go`,
 `internal/ui/ui_test.go`). Fix: add `gofmt -l . | grep . && exit 1`
 (or a gofmt -w pass) to `scripts/check.sh`, then normalize the
 remaining 8 in one formatting-only commit.
+
+### N1 · open
+A stale FAILED killDoneMsg (pid mismatch, m.err != nil) is silently
+swallowed: an EPERM failure on an older in-flight target produces no
+error toast. Possible fix: toast errors regardless of match, gate
+only dialog/state on match. Ptr: `internal/screens/processes.go:175-177`.
+
+### N2 · open
+Same-pid re-ask ambiguity: pid is not a request id, so the old
+completion for A matches a re-opened dialog for A and swallows the
+user's re-ask confirmation. Possible fix: sequence counter instead of
+pid matching. Ptr: `internal/screens/processes.go:175-179`.
+
+### N3 · open
+A completion can be dropped by an instant tab-away: clearing the
+dialog at confirm makes CapturingInput() false during the flight, so
+switching screens before killDoneMsg lands delivers it to the new
+screen and loses only the toast (the list self-heals via the 3s
+tick). Pre-existing delivery-model hole, slightly widened. Ptrs:
+`internal/app/root.go:279-284` delegate, `internal/screens/processes.go:219`.
