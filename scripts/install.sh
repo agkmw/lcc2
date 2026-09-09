@@ -86,8 +86,8 @@ if [ ! -f "$REPO_DIR/go.mod" ] || ! grep -q "module lcc" "$REPO_DIR/go.mod" 2>/d
     echo "Error: git is required to clone the lcc repository." >&2
     exit 1
   fi
-  git clone https://github.com/agkmw/lcc.git "$CLONE_DIR/lcc"
-  REPO_DIR="$CLONE_DIR/lcc"
+  git clone https://github.com/agkmw/lcc2.git "$CLONE_DIR/lcc2"
+  REPO_DIR="$CLONE_DIR/lcc2"
 fi
 
 # --- 4. Package Manager & Dependency Resolution ---

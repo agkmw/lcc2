@@ -45,7 +45,7 @@ TODO
 To install everything required (missing package dependencies, helper tools, and the compiled `lcc` binary) in a single command, run:
 
 ```sh
-git clone https://github.com/agkmw/lcc.git && cd lcc && ./scripts/install.sh
+git clone https://github.com/agkmw/lcc2.git && cd lcc2 && ./scripts/install.sh
 ```
 
 Or if you have already cloned the repository:
