@@ -1,8 +1,10 @@
 package screens
 
 import (
+	"errors"
 	"fmt"
 	"image/color"
+	"os"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -169,13 +171,20 @@ func (p Processes) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 	case killDoneMsg:
 		p.confirm = nil
 		if m.err != nil {
-			return p, ui.ErrToast("cannot signal " + itoa(int(m.pid)))
+			msg := "cannot signal " + itoa(int(m.pid)) + ": " + m.err.Error()
+			if errors.Is(m.err, os.ErrPermission) {
+				msg += " - not your process (sudo for others)"
+			}
+			return p, ui.ErrToast(msg)
 		}
 		sig := "terminated"
 		if p.pendingSig == syscall.SIGKILL {
 			sig = "killed"
 		}
-		return p, ui.OkToast(sig + " " + itoa(int(m.pid)))
+		// Refresh immediately: a killed row that lingers until the next
+		// tick reads as "the kill did nothing".
+		return p, tea.Batch(ui.OkToast(sig+" "+itoa(int(m.pid))),
+			p.refresh(), p.inspectSelected())
 
 	case tea.MouseMsg:
 		if p.confirm != nil || p.tbl.Filtering() {
@@ -221,11 +230,11 @@ func (p Processes) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 	case "r":
 		return p, tea.Batch(p.refresh(), p.inspectSelected())
 	case "x":
-		_, cmd := p.askSignal(syscall.SIGTERM)
-		return p, cmd
+		// askSignal mutates a value receiver: its returned screen IS
+		// the dialog - discarding it silently swallowed x and K.
+		return p.askSignal(syscall.SIGTERM)
 	case "K":
-		_, cmd := p.askSignal(syscall.SIGKILL)
-		return p, cmd
+		return p.askSignal(syscall.SIGKILL)
 	}
 
 	moved := false

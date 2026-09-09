@@ -4,6 +4,11 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
+- Terminate/kill fix (F1, 2026-09-09): x and K were silent no-ops
+  (askSignal's dialog screen was discarded at both call sites - broken
+  since the first commit). Dialog now opens, failed signals explain
+  why (EPERM gets a sudo hint), and a successful kill refreshes the
+  list immediately.
 - Find UX batch (E1-E2, 2026-09-08): `enter` on a search result lands
   the cursor ON the entry in the target listing (directories still
   open; the grep hit-line preview survives); the query-bar tally shows

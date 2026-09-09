@@ -928,3 +928,21 @@ Search result caps (1000 filenames / 500 grep hits) were silent -
 shows `1000+` / `500+` when the cap truncated the list.
 Test: `TestAuxStatusMarksTruncation`. Ptr: `internal/screens/files_aux.go`
 auxStatus.
+
+## 2026-09-09 terminate/kill batch (user findings)
+
+### F1 · closed
+Terminate (x) and force kill (K) did nothing at all: askSignal sets
+the confirm dialog on its value receiver and returns the updated
+screen, but both call sites threw that screen away
+(`_, cmd := p.askSignal(...); return p, cmd`) - the dialog lived on a
+copy and was never shown. Broken since the initial commit; services
+and users always returned their ask* screens correctly.
+Also hardened the path: a failed signal toast now includes the syscall
+reason with a sudo hint on EPERM (was an opaque "cannot signal N"),
+and a successful kill refreshes the list immediately so the dead row
+does not linger until the next 3s tick reading as "the kill did
+nothing".
+Tests: `internal/screens/kill_flow_test.go` (end-to-end: x -> dialog
+-> y -> real child process dies; K stages SIGKILL). Ptr:
+`internal/screens/processes.go` handleKey x/K + killDoneMsg.
