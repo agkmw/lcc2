@@ -8,8 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/files"
-	"lcc2/internal/ui"
+	"lcc/internal/files"
+	"lcc/internal/ui"
 )
 
 // enter on a find hit must land the cursor ON the entry in the target

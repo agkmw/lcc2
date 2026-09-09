@@ -10,11 +10,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"lcc2/internal/accounts"
-	"lcc2/internal/files"
-	"lcc2/internal/proc"
-	"lcc2/internal/services"
-	"lcc2/internal/ui"
+	"lcc/internal/accounts"
+	"lcc/internal/files"
+	"lcc/internal/proc"
+	"lcc/internal/services"
+	"lcc/internal/ui"
 )
 
 // Preview-mode layouts must fit inside the SizeMsg box they were

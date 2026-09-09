@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/colorprofile"
 
-	"lcc2/internal/ui"
+	"lcc/internal/ui"
 )
 
 func forceTrueColorHl(t *testing.T) {

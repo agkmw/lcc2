@@ -13,8 +13,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"lcc2/internal/session"
-	"lcc2/internal/ui"
+	"lcc/internal/session"
+	"lcc/internal/ui"
 )
 
 type section struct {
@@ -353,7 +353,7 @@ func (r Root) viewString() string {
 // Narrow terminals degrade by priority instead of clipping mid-tab
 // (backlog L9): drop badges, then numbers, then shrink all labels.
 func (r Root) viewTabStrip() string {
-	logo := lipgloss.NewStyle().Bold(true).Render("lcc2")
+	logo := lipgloss.NewStyle().Bold(true).Render("lcc")
 
 	type tabInfo struct {
 		id    string

@@ -6,7 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/screens"
+	"lcc/internal/screens"
 )
 
 func newTestRoot(t *testing.T) (Root, tea.Model) {

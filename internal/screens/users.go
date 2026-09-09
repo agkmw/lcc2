@@ -8,8 +8,8 @@ import (
 	"charm.land/lipgloss/v2"
 	"charm.land/bubbles/v2/key"
 
-	"lcc2/internal/accounts"
-	"lcc2/internal/ui"
+	"lcc/internal/accounts"
+	"lcc/internal/ui"
 )
 
 type accountsMsg struct {

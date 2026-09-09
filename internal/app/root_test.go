@@ -6,8 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/screens"
-	"lcc2/internal/ui"
+	"lcc/internal/screens"
+	"lcc/internal/ui"
 )
 
 // The footer must sit on the very last terminal line and the header
@@ -31,7 +31,7 @@ func TestFooterPinnedToLastLine(t *testing.T) {
 				tc.w, tc.h, got, tc.h)
 			continue
 		}
-		if !strings.Contains(lines[0], "lcc2") {
+		if !strings.Contains(lines[0], "lcc") {
 			t.Errorf("w=%d h=%d: header not on line 0: %q", tc.w, tc.h, lines[0])
 		}
 		if !strings.Contains(lines[tc.h-1], "quit") {

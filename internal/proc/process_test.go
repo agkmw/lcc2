@@ -25,13 +25,13 @@ func TestParseStat(t *testing.T) {
 }
 
 func TestParseStatRealistic(t *testing.T) {
-	line := []byte("79277 (lcc2) S 1234 79277 79277 0 -1 4194560 0 0 0 0 250 100 0 0 20 0 1 0 " +
+	line := []byte("79277 (lcc) S 1234 79277 79277 0 -1 4194560 0 0 0 0 250 100 0 0 20 0 1 0 " +
 		"18446744073709551615 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0")
 	pr, ticks, ok := parseStat(line, 79277)
 	if !ok {
 		t.Fatal("parse failed")
 	}
-	if pr.Name != "lcc2" || pr.State != "S" || pr.PPID != 1234 {
+	if pr.Name != "lcc" || pr.State != "S" || pr.PPID != 1234 {
 		t.Fatalf("pr = %+v", pr)
 	}
 	if ticks[0] != 250 || ticks[1] != 100 {

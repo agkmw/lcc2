@@ -18,10 +18,10 @@ func TestResolveOwner(t *testing.T) {
 	if uid != 0 || gid != 0 {
 		t.Fatalf("root resolved to %d:%d, want 0:0", uid, gid)
 	}
-	if _, _, err := ResolveOwner("zz-lcc2-nouser", ""); err == nil {
+	if _, _, err := ResolveOwner("zz-lcc-nouser", ""); err == nil {
 		t.Fatal("unknown user accepted")
 	}
-	if _, _, err := ResolveOwner("", "zz-lcc2-nogroup"); err == nil {
+	if _, _, err := ResolveOwner("", "zz-lcc-nogroup"); err == nil {
 		t.Fatal("unknown group accepted")
 	}
 }
@@ -45,7 +45,7 @@ func TestStageAndApplyOpChown(t *testing.T) {
 
 func TestStageOpChownVanished(t *testing.T) {
 	st := NewStager()
-	err := st.Stage(Op{Kind: OpChown, Path: "/nonexistent/lcc2", UID: 0, GID: 0})
+	err := st.Stage(Op{Kind: OpChown, Path: "/nonexistent/lcc", UID: 0, GID: 0})
 	if err == nil {
 		t.Fatal("staged a chown on a missing path")
 	}

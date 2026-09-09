@@ -7,11 +7,11 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/accounts"
-	"lcc2/internal/files"
-	"lcc2/internal/proc"
-	"lcc2/internal/services"
-	"lcc2/internal/ui"
+	"lcc/internal/accounts"
+	"lcc/internal/files"
+	"lcc/internal/proc"
+	"lcc/internal/services"
+	"lcc/internal/ui"
 )
 
 // Regression for BACKLOG-C2 / ADR-0004: while a FilterTable owns focus,

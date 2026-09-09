@@ -17,10 +17,10 @@ import (
 	"charm.land/lipgloss/v2"
 	"charm.land/bubbles/v2/key"
 
-	"lcc2/internal/disk"
-	"lcc2/internal/proc"
-	"lcc2/internal/sysinfo"
-	"lcc2/internal/ui"
+	"lcc/internal/disk"
+	"lcc/internal/proc"
+	"lcc/internal/sysinfo"
+	"lcc/internal/ui"
 )
 
 const overviewInterval = time.Second
@@ -75,7 +75,7 @@ type Overview struct {
 	txHist     []float64
 	netWin     []float64 // recent rx/tx maxima; the auto-scale source
 	netPeak    float64   // bytes/s; max of netWin (rolling window)
-	graphStyle string    // "braille" or "block"; g toggles, LCC2_GRAPH seeds
+	graphStyle string    // "braille" or "block"; g toggles, LCC_GRAPH seeds
 	loaded     bool
 	widthSet   bool
 	epoch      *atomic.Uint64 // tick-chain generation; stale chains die
@@ -83,7 +83,7 @@ type Overview struct {
 
 // NewOverview builds the dashboard screen.
 func NewOverview() Overview {
-	style := os.Getenv("LCC2_GRAPH")
+	style := os.Getenv("LCC_GRAPH")
 	if style != "block" {
 		style = "braille" // default and anything unknown
 	}

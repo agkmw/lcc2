@@ -6,8 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/accounts"
-	"lcc2/internal/ui"
+	"lcc/internal/accounts"
+	"lcc/internal/ui"
 )
 
 func runeKey(s string) tea.KeyPressMsg {

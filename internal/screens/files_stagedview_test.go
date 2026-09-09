@@ -8,7 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/files"
+	"lcc/internal/files"
 )
 
 // The preview meta line must show old -> new for staged chmod/chown

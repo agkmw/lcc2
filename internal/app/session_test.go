@@ -7,8 +7,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/screens"
-	"lcc2/internal/session"
+	"lcc/internal/screens"
+	"lcc/internal/session"
 )
 
 // Switching screens persists the index; the Files screen contributes

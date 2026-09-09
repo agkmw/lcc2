@@ -6,7 +6,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/ui"
+	"lcc/internal/ui"
 )
 
 // recScreen records how often Init fired.

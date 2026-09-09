@@ -1,5 +1,5 @@
-BINARY := lcc2
-PKG    := ./cmd/lcc2
+BINARY := lcc
+PKG    := ./cmd/lcc
 BIN    := bin
 
 .PHONY: all run build install check vet test fmt cover clean

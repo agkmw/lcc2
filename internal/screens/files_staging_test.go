@@ -8,8 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/files"
-	"lcc2/internal/ui"
+	"lcc/internal/files"
+	"lcc/internal/ui"
 )
 
 func seedDir(t *testing.T) (string, []files.Entry) {

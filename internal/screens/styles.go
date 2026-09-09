@@ -6,7 +6,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"lcc2/internal/ui"
+	"lcc/internal/ui"
 )
 
 // Shared styles for all screens, derived from the central palette.

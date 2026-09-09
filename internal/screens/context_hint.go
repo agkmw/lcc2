@@ -1,6 +1,6 @@
 package screens
 
-import "lcc2/internal/ui"
+import "lcc/internal/ui"
 
 // ContextSource implementations: one line of context for the status
 // bar's right slot, per screen.

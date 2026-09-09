@@ -65,7 +65,7 @@ func TestCreateUserArgv(t *testing.T) {
 	t.Cleanup(func() { execer = realExec })
 
 	err := CreateUser(UserOpts{
-		Name: "zz-lcc2-t", Shell: "/bin/zsh", Home: "/srv/zz",
+		Name: "zz-lcc-t", Shell: "/bin/zsh", Home: "/srv/zz",
 		PrimaryGroup: "ops", Groups: []string{"docker", "wheel"},
 	})
 	if err != nil {
@@ -75,7 +75,7 @@ func TestCreateUserArgv(t *testing.T) {
 	if c.name != "useradd" {
 		t.Fatalf("tool = %s", c.name)
 	}
-	want := "-m -s /bin/zsh -d /srv/zz -g ops -G docker,wheel -- zz-lcc2-t"
+	want := "-m -s /bin/zsh -d /srv/zz -g ops -G docker,wheel -- zz-lcc-t"
 	if got := strings.Join(c.args, " "); got != want {
 		t.Fatalf("argv = %q, want %q", got, want)
 	}
@@ -87,11 +87,11 @@ func TestCreateUserSystemArgv(t *testing.T) {
 	execer = rec.stub()
 	t.Cleanup(func() { execer = realExec })
 
-	if err := CreateUser(UserOpts{Name: "zz-lcc2-s", System: true}); err != nil {
+	if err := CreateUser(UserOpts{Name: "zz-lcc-s", System: true}); err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
 	c := rec.one(t)
-	want := "-r -- zz-lcc2-s"
+	want := "-r -- zz-lcc-s"
 	if got := strings.Join(c.args, " "); got != want {
 		t.Fatalf("argv = %q, want %q", got, want)
 	}
@@ -142,7 +142,7 @@ func TestDeleteUserNotFound(t *testing.T) {
 	var rec recorder
 	execer = rec.stub()
 	t.Cleanup(func() { execer = realExec })
-	if err := DeleteUser("zz-lcc2-none", false); err == nil ||
+	if err := DeleteUser("zz-lcc-none", false); err == nil ||
 		!strings.Contains(err.Error(), "not found") {
 		t.Fatalf("DeleteUser = %v, want not-found", err)
 	}

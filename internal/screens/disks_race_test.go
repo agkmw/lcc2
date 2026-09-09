@@ -5,7 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/disk"
+	"lcc/internal/disk"
 )
 
 // A completion from a superseded scan must not clobber the newer

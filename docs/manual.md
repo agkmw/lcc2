@@ -1,6 +1,6 @@
-# lcc2 user manual
+# lcc user manual
 
-lcc2 is a keyboard-first Linux system utility TUI: one terminal app with six
+lcc is a keyboard-first Linux system utility TUI: one terminal app with six
 sections — Overview, Processes, Disks, Files, Services, Users & Groups.
 Everything is reachable from the keyboard, destructive actions ask first, and
 the Files section never touches the disk until you tell it to.
@@ -11,8 +11,8 @@ Requirements:
 
 - Linux, a terminal at least **64×16** characters (more is better; the layout
   goes wide above 80 columns and stacked below).
-- Go to build: `go build -o lcc2 ./cmd/lcc2`, then `./lcc2`. For development,
-  `go run ./cmd/lcc2`.
+- Go to build: `go build -o lcc ./cmd/lcc`, then `./lcc`. For development,
+  `go run ./cmd/lcc`.
 - Optional helpers, used when present:
   - `fd` — recursive filename search (Files: `f`)
   - `rg` (ripgrep) — content search (Files: `F`)
@@ -22,7 +22,7 @@ Requirements:
   - `$EDITOR` / `$VISUAL` / `$PAGER` — external opener (Files: `e`,
     Services: `E`); falls back to `less -R`
 
-Flags: `lcc2 --version` prints the version. `NO_COLOR` / `CLICOLOR` are
+Flags: `lcc --version` prints the version. `NO_COLOR` / `CLICOLOR` are
 honored; a truecolor terminal looks best.
 
 Root: run as your normal user for monitoring. Actions that need uid 0
@@ -33,15 +33,15 @@ Users section is read-only until you are root.
 
 ### Session restore
 
-On quit (and every minute) lcc2 saves the last active screen plus the Files
+On quit (and every minute) lcc saves the last active screen plus the Files
 working state (directory, hidden-files flag, sort) to
-`~/.config/lcc2/state.json`. The next launch reopens where you left off.
+`~/.config/lcc/state.json`. The next launch reopens where you left off.
 Delete the file to reset.
 
 ## 2. The frame
 
 ```
- lcc2 │ 1 Overview │ 2 Processes │ 3 Disks │ 4 Files │ ...
+ lcc │ 1 Overview │ 2 Processes │ 3 Disks │ 4 Files │ ...
  ────────────────────────────────────────────────────────────
                     (section body)
  ────────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ disk read/write rates.
 | `r` | refresh immediately |
 | `g` | toggle graph style: braille ↔ block |
 
-`LCC2_GRAPH=block` starts with block graphs.
+`LCC_GRAPH=block` starts with block graphs.
 
 ### 2 · Processes
 
@@ -156,7 +156,7 @@ entries of a directory, or a metadata card for binary files.
 | `t` | open the trash as a listing (once it exists) |
 | `a` | view hidden files (persisted; head shows `view hidden`) |
 | `s` / `S` | cycle sort (name → size → mtime) / reverse; dirs always first |
-| `e` | open file in `$EDITOR`/`$VISUAL`, else a found vi/nvim/nano (lcc2 suspends cleanly) |
+| `e` | open file in `$EDITOR`/`$VISUAL`, else a found vi/nvim/nano (lcc suspends cleanly) |
 | `r` | re-list the current directory and refresh the preview |
 | `f` | find files by name under the current dir (uses `fd`) |
 | `F` | grep file contents (uses `rg`, case-insensitive) |
@@ -173,7 +173,7 @@ grep hits); the tally shows `1000+` when the cap truncated the list.
 
 #### The staged-changes model
 
-lcc2 borrows oil.nvim's idea: **nothing touches the disk until you
+lcc borrows oil.nvim's idea: **nothing touches the disk until you
 review and save.** Every mutation is queued; the queue is visible,
 editable, and reversible at any time.
 

@@ -8,8 +8,8 @@ import (
 
 	"github.com/charmbracelet/colorprofile"
 
-	"lcc2/internal/files"
-	"lcc2/internal/ui"
+	"lcc/internal/files"
+	"lcc/internal/ui"
 )
 
 // Regression: stagedAt[path] on an unstaged row returned the zero

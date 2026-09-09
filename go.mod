@@ -1,4 +1,4 @@
-module lcc2
+module lcc
 
 go 1.26.3
 

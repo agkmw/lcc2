@@ -15,9 +15,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"lcc2/internal/disk"
-	"lcc2/internal/sysinfo"
-	"lcc2/internal/ui"
+	"lcc/internal/disk"
+	"lcc/internal/sysinfo"
+	"lcc/internal/ui"
 )
 
 type fsListMsg []disk.Filesystem

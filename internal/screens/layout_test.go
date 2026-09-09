@@ -7,13 +7,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"lcc2/internal/accounts"
-	"lcc2/internal/disk"
-	"lcc2/internal/files"
-	"lcc2/internal/proc"
-	"lcc2/internal/services"
-	"lcc2/internal/sysinfo"
-	"lcc2/internal/ui"
+	"lcc/internal/accounts"
+	"lcc/internal/disk"
+	"lcc/internal/files"
+	"lcc/internal/proc"
+	"lcc/internal/services"
+	"lcc/internal/sysinfo"
+	"lcc/internal/ui"
 )
 
 var sizes = [][2]int{{60, 20}, {80, 24}, {100, 30}, {140, 40}, {200, 50}}

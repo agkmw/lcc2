@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"lcc2/internal/files"
+	"lcc/internal/files"
 )
 
 // `n` stages an empty-file create with a phantom row (no trailing

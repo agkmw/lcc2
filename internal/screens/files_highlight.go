@@ -10,7 +10,7 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 
-	"lcc2/internal/ui"
+	"lcc/internal/ui"
 )
 
 // highlightCode syntax-highlights a text sample for languages chroma

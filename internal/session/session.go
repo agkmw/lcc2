@@ -18,13 +18,13 @@ type State struct {
 	SortDesc bool   `json:"sortDesc"`
 }
 
-// Path returns the state file location ($XDG_CONFIG_HOME/lcc2/...).
+// Path returns the state file location ($XDG_CONFIG_HOME/lcc/...).
 func Path() (string, error) {
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "lcc2", "state.json"), nil
+	return filepath.Join(dir, "lcc", "state.json"), nil
 }
 
 // Load reads the state file; any error yields defaults.

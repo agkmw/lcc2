@@ -4,7 +4,7 @@ set -euo pipefail
 
 DURATION="${2:-8}"
 ACTION="${1:-pulse}"
-LOCK_FILE="/tmp/lcc2_demo_load.pid"
+LOCK_FILE="/tmp/lcc_demo_load.pid"
 
 stop_load() {
     if [ -f "$LOCK_FILE" ]; then
@@ -14,7 +14,7 @@ stop_load() {
         fi
         rm -f "$LOCK_FILE"
     fi
-    pkill -f "lcc2-load-pulse" 2>/dev/null || true
+    pkill -f "lcc-load-pulse" 2>/dev/null || true
 }
 
 run_pulse() {
@@ -25,7 +25,7 @@ run_pulse() {
 
     # 1. CPU load generator: 2 threads spinning on sha256
     (
-        exec -a lcc2-load-pulse-cpu bash -c "
+        exec -a lcc-load-pulse-cpu bash -c "
             END=\$((SECONDS + $DURATION))
             while [ \$SECONDS -lt \$END ]; do
                 echo \$RANDOM | sha256sum >/dev/null
@@ -35,7 +35,7 @@ run_pulse() {
     PID_CPU1=$!
 
     (
-        exec -a lcc2-load-pulse-cpu bash -c "
+        exec -a lcc-load-pulse-cpu bash -c "
             END=\$((SECONDS + $DURATION))
             while [ \$SECONDS -lt \$END ]; do
                 echo \$RANDOM | sha256sum >/dev/null
@@ -46,9 +46,9 @@ run_pulse() {
 
     # 2. Disk I/O generator: writes small blocks to /tmp and removes them
     (
-        exec -a lcc2-load-pulse-io bash -c "
+        exec -a lcc-load-pulse-io bash -c "
             END=\$((SECONDS + $DURATION))
-            TMP_FILE=\$(mktemp /tmp/lcc2_load_XXXXXX)
+            TMP_FILE=\$(mktemp /tmp/lcc_load_XXXXXX)
             while [ \$SECONDS -lt \$END ]; do
                 dd if=/dev/urandom of=\"\$TMP_FILE\" bs=64k count=16 conv=fdatasync status=none 2>/dev/null || true
                 sleep 0.2
@@ -60,7 +60,7 @@ run_pulse() {
 
     # 3. Localhost network activity: ping burst to loopback
     (
-        exec -a lcc2-load-pulse-net bash -c "
+        exec -a lcc-load-pulse-net bash -c "
             ping -i 0.1 -c \$(( $DURATION * 10 )) 127.0.0.1 >/dev/null 2>&1 || true
         "
     ) &

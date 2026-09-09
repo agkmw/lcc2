@@ -1,4 +1,4 @@
-# Permission & Access Management for lcc2
+# Permission & Access Management for lcc
 
 ## Locked-in requirements (from your answers)
 - Privileges: app runs as root (`sudo`); privileged actions error with a clear toast when euid != 0. No sudo/polkit machinery.

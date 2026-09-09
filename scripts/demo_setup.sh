@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# scripts/demo_setup.sh — Prepare a clean, deterministic demo environment for LCC2
+# scripts/demo_setup.sh — Prepare a clean, deterministic demo environment for LCC
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEMO_DIR="${DEMO_DIR:-$HOME/lcc2-demo}"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lcc2"
+DEMO_DIR="${DEMO_DIR:-$HOME/lcc-demo}"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lcc"
 STATE_FILE="$CONFIG_DIR/state.json"
 BAK_FILE="$CONFIG_DIR/state.json.demo-bak"
 PID_FILE="$DEMO_DIR/.demo_worker.pid"
@@ -17,20 +17,20 @@ CYAN="\033[36m"
 RED="\033[31m"
 RESET="\033[0m"
 
-echo -e "${BOLD}${CYAN}=== LCC2 Controlled Demo Environment Setup ===${RESET}"
+echo -e "${BOLD}${CYAN}=== LCC Controlled Demo Environment Setup ===${RESET}"
 
 # 1. Check prerequisites and compile binary if needed
-echo -e "\n${BOLD}[1/5] Checking tools and building LCC2...${RESET}"
+echo -e "\n${BOLD}[1/5] Checking tools and building LCC...${RESET}"
 
 if ! command -v go >/dev/null 2>&1; then
-    echo -e "${RED}[ERROR] 'go' is required to compile LCC2.${RESET}"
+    echo -e "${RED}[ERROR] 'go' is required to compile LCC.${RESET}"
     exit 1
 fi
 
 mkdir -p "$ROOT_DIR/bin"
-echo "Building bin/lcc2..."
-go build -trimpath -o "$ROOT_DIR/bin/lcc2" "$ROOT_DIR/cmd/lcc2"
-echo -e "${GREEN}[OK] Binary compiled at bin/lcc2${RESET}"
+echo "Building bin/lcc..."
+go build -trimpath -o "$ROOT_DIR/bin/lcc" "$ROOT_DIR/cmd/lcc"
+echo -e "${GREEN}[OK] Binary compiled at bin/lcc${RESET}"
 
 # Check optional accelerators
 check_tool() {
@@ -70,13 +70,13 @@ if [ -f "$PID_FILE" ]; then
     rm -f "$PID_FILE"
 fi
 
-# Also pkill any lingering lcc2-demo-worker
-pkill -f "lcc2-demo-worker" 2>/dev/null || true
+# Also pkill any lingering lcc-demo-worker
+pkill -f "lcc-demo-worker" 2>/dev/null || true
 
 # Spawn deterministic background worker process for Processes screen demo
-bash -c 'exec -a lcc2-demo-worker sleep 7200' &
+bash -c 'exec -a lcc-demo-worker sleep 7200' &
 WORKER_PID=$!
-echo -e "${GREEN}[OK] Spawned demo target process:${RESET} 'lcc2-demo-worker' (PID: $WORKER_PID)"
+echo -e "${GREEN}[OK] Spawned demo target process:${RESET} 'lcc-demo-worker' (PID: $WORKER_PID)"
 
 # 3. Create sandbox directory structure and fixtures
 echo -e "\n${BOLD}[3/5] Setting up sandbox fixtures in ${DEMO_DIR}...${RESET}"
@@ -101,7 +101,7 @@ func main() {
 		fmt.Fprintf(w, "status: ok - %s\n", time.Now().Format(time.RFC3339))
 	})
 
-	fmt.Println("LCC2 demo web service listening on :8080...")
+	fmt.Println("LCC demo web service listening on :8080...")
 	_ = http.ListenAndServe(":8080", mux)
 }
 EOF
@@ -109,7 +109,7 @@ EOF
 # Fixture 2: Python worker script
 cat << 'EOF' > "$DEMO_DIR/src/worker.py"
 #!/usr/bin/env python3
-"""LCC2 demo background task worker."""
+"""LCC demo background task worker."""
 import sys
 import time
 
@@ -124,9 +124,9 @@ EOF
 
 # Fixture 3: Markdown architecture document
 cat << 'EOF' > "$DEMO_DIR/docs/architecture.md"
-# LCC2 System Architecture
+# LCC System Architecture
 
-LCC2 is a keyboard-first Linux utility TUI engineered for speed, safety, and reliability.
+LCC is a keyboard-first Linux utility TUI engineered for speed, safety, and reliability.
 
 ## Key Architectural Principles
 
@@ -139,7 +139,7 @@ EOF
 # Fixture 4: JSON configuration
 cat << 'EOF' > "$DEMO_DIR/config/service.json"
 {
-  "service": "lcc2-demo-worker",
+  "service": "lcc-demo-worker",
   "environment": "demo-presentation",
   "log_level": "info",
   "limits": {
@@ -158,7 +158,7 @@ cat << 'EOF' > "$DEMO_DIR/scripts/deploy.sh"
 #!/usr/bin/env bash
 # Demonstration deployment script
 set -euo pipefail
-echo "Deploying LCC2 demo services..."
+echo "Deploying LCC demo services..."
 exit 0
 EOF
 chmod +x "$DEMO_DIR/scripts/deploy.sh"
@@ -168,7 +168,7 @@ cat << 'EOF' > "$DEMO_DIR/notes.txt"
 Presentation Runbook Notes
 ==========================
 - Overview: show braille & block sparklines, toggle with 'g'
-- Processes: filter for 'lcc2-demo-worker' and terminate safely
+- Processes: filter for 'lcc-demo-worker' and terminate safely
 - Disks: show ncdu drilldown and graceful esc cancel
 - Files: stage mkdir, rename notes.txt, recursive chmod, stage trash, then 'w' review!
 - TODO: deploy v0.3.0 to production cluster
@@ -185,7 +185,7 @@ touch "$DEMO_DIR/src/nested/deep/tree/gamma.go"
 
 echo -e "${GREEN}[OK] Fixtures populated in ${DEMO_DIR}${RESET}"
 
-# 4. Preset LCC2 session state for a deterministic initial screen
+# 4. Preset LCC session state for a deterministic initial screen
 echo -e "\n${BOLD}[4/5] Configuring session state...${RESET}"
 mkdir -p "$CONFIG_DIR"
 
@@ -208,7 +208,7 @@ echo -e "${GREEN}[OK] Session preset: Start screen = 0 (Overview), Files CWD = $
 # 5. Ready!
 echo -e "\n${BOLD}[5/5] Setup complete!${RESET}"
 echo -e "\n${BOLD}${GREEN}Ready for presentation:${RESET}"
-echo -e "  1. Run: ${BOLD}./bin/lcc2${RESET}"
+echo -e "  1. Run: ${BOLD}./bin/lcc${RESET}"
 echo -e "  2. (Optional) Generate live CPU/Net activity in a side terminal:"
 echo -e "     ${BOLD}./scripts/demo_load.sh pulse${RESET}"
 echo -e "  3. Clean up after demo:"

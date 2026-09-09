@@ -1,12 +1,12 @@
 #!/usr/bin/env sh
-# install.sh — Automated installer for lcc2
-# Checks platform prerequisites, installs dependencies, compiles, and installs lcc2.
+# install.sh — Automated installer for lcc
+# Checks platform prerequisites, installs dependencies, compiles, and installs lcc.
 set -e
 
 # --- 1. Platform Verification ---
 OS="$(uname -s)"
 if [ "$OS" != "Linux" ]; then
-  echo "Error: lcc2 requires Linux (/proc, /sys, systemd, Linux process semantics)." >&2
+  echo "Error: lcc requires Linux (/proc, /sys, systemd, Linux process semantics)." >&2
   echo "Detected OS: $OS" >&2
   exit 1
 fi
@@ -34,7 +34,7 @@ print_usage() {
 Usage: ./scripts/install.sh [options]
 
 Options:
-  --bin-dir <dir>   Installation directory for lcc2 binary (default: $DEFAULT_BIN_DIR)
+  --bin-dir <dir>   Installation directory for lcc binary (default: $DEFAULT_BIN_DIR)
   --no-deps         Skip installing system package dependencies
   -y, --yes         Non-interactive mode (pass yes to package manager)
   -h, --help        Show this help message
@@ -78,16 +78,16 @@ mkdir -p "$BIN_DIR"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-if [ ! -f "$REPO_DIR/go.mod" ] || ! grep -q "module lcc2" "$REPO_DIR/go.mod" 2>/dev/null; then
-  echo "=> go.mod not found in parent directory. Cloning lcc2 repository..."
+if [ ! -f "$REPO_DIR/go.mod" ] || ! grep -q "module lcc" "$REPO_DIR/go.mod" 2>/dev/null; then
+  echo "=> go.mod not found in parent directory. Cloning lcc repository..."
   CLONE_DIR="$(mktemp -d)"
   trap 'rm -rf "$CLONE_DIR"' EXIT
   if ! command -v git >/dev/null 2>&1; then
-    echo "Error: git is required to clone the lcc2 repository." >&2
+    echo "Error: git is required to clone the lcc repository." >&2
     exit 1
   fi
-  git clone https://github.com/agkmw/lcc2.git "$CLONE_DIR/lcc2"
-  REPO_DIR="$CLONE_DIR/lcc2"
+  git clone https://github.com/agkmw/lcc.git "$CLONE_DIR/lcc"
+  REPO_DIR="$CLONE_DIR/lcc"
 fi
 
 # --- 4. Package Manager & Dependency Resolution ---
@@ -213,7 +213,7 @@ if [ "$SKIP_DEPS" -eq 0 ]; then
 fi
 
 # --- 5. Fix Debian/Ubuntu fd symlink if needed ---
-# On Debian/Ubuntu systems, fd is installed as 'fdfind'. lcc2 searches for 'fd'.
+# On Debian/Ubuntu systems, fd is installed as 'fdfind'. lcc searches for 'fd'.
 if ! command -v fd >/dev/null 2>&1 && command -v fdfind >/dev/null 2>&1; then
   FDFIND_PATH="$(command -v fdfind)"
   echo "=> Creating symlink for fd -> $FDFIND_PATH in $BIN_DIR..."
@@ -232,20 +232,20 @@ GO_MINOR="$(echo "$GO_VERSION" | cut -d. -f2)"
 
 if [ -n "$GO_MAJOR" ] && [ -n "$GO_MINOR" ]; then
   if [ "$GO_MAJOR" -lt 1 ] || { [ "$GO_MAJOR" -eq 1 ] && [ "$GO_MINOR" -lt 26 ]; }; then
-    echo "Warning: lcc2 specifies Go 1.26+ (detected go$GO_VERSION). Build will be attempted, but newer Go features may be required." >&2
+    echo "Warning: lcc specifies Go 1.26+ (detected go$GO_VERSION). Build will be attempted, but newer Go features may be required." >&2
   fi
 fi
 
-# --- 7. Build and Install lcc2 ---
-echo "=> Building lcc2 binary from $REPO_DIR..."
-TARGET_BIN="$BIN_DIR/lcc2"
+# --- 7. Build and Install lcc ---
+echo "=> Building lcc binary from $REPO_DIR..."
+TARGET_BIN="$BIN_DIR/lcc"
 (
   cd "$REPO_DIR"
-  CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "$TARGET_BIN" ./cmd/lcc2
+  CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "$TARGET_BIN" ./cmd/lcc
 )
 
 chmod +x "$TARGET_BIN"
-echo "=> Successfully installed lcc2 to $TARGET_BIN"
+echo "=> Successfully installed lcc to $TARGET_BIN"
 
 # --- 8. PATH Verification & Notes ---
 case ":$PATH:" in
@@ -260,7 +260,7 @@ case ":$PATH:" in
 esac
 
 echo ""
-echo "lcc2 is ready to run!"
-echo "  Run:         lcc2"
-echo "  With root:   sudo lcc2 (required for service control and account management)"
+echo "lcc is ready to run!"
+echo "  Run:         lcc"
+echo "  With root:   sudo lcc (required for service control and account management)"
 echo "  Help overlay: press '?' at any time inside the app"

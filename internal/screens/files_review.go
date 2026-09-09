@@ -7,8 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"lcc2/internal/files"
-	"lcc2/internal/ui"
+	"lcc/internal/files"
+	"lcc/internal/ui"
 )
 
 // reviewPane is the staged-change list behind `w`: every queued op

@@ -12,9 +12,9 @@ import (
 	"charm.land/lipgloss/v2"
 	"charm.land/bubbles/v2/key"
 
-	"lcc2/internal/proc"
-	"lcc2/internal/sysinfo"
-	"lcc2/internal/ui"
+	"lcc/internal/proc"
+	"lcc/internal/sysinfo"
+	"lcc/internal/ui"
 )
 
 const procInterval = 3 * time.Second

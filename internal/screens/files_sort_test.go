@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"lcc2/internal/files"
+	"lcc/internal/files"
 )
 
 func mkEntry(name string, size int64, mod time.Time, dir bool) files.Entry {

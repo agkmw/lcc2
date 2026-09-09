@@ -7,7 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/screens"
+	"lcc/internal/screens"
 )
 
 var clockRe = regexp.MustCompile(`[0-9]{2}:[0-9]{2}`)

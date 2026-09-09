@@ -6,10 +6,10 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"lcc2/internal/disk"
-	"lcc2/internal/proc"
-	"lcc2/internal/sysinfo"
-	"lcc2/internal/ui"
+	"lcc/internal/disk"
+	"lcc/internal/proc"
+	"lcc/internal/sysinfo"
+	"lcc/internal/ui"
 )
 
 func overviewFixture() Overview {

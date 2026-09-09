@@ -5,7 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/screens"
+	"lcc/internal/screens"
 )
 
 // denyGlyphs are East-Asian-Ambiguous codepoints: tmux and CJK-locale

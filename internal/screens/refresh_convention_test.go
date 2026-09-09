@@ -5,8 +5,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/services"
-	"lcc2/internal/ui"
+	"lcc/internal/services"
+	"lcc/internal/ui"
 )
 
 // r refreshes on every screen; the r-related action (services

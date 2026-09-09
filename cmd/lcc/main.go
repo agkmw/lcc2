@@ -1,4 +1,4 @@
-// Command lcc2 is a keyboard-first Linux system utility TUI.
+// Command lcc is a keyboard-first Linux system utility TUI.
 package main
 
 import (
@@ -8,9 +8,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/app"
-	"lcc2/internal/screens"
-	"lcc2/internal/session"
+	"lcc/internal/app"
+	"lcc/internal/screens"
+	"lcc/internal/session"
 )
 
 // Version is stamped here; --version reports it.
@@ -20,7 +20,7 @@ func main() {
 	showVersion := flag.Bool("version", false, "print version and exit")
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(),
-			"lcc2 %s — keyboard-first Linux system utility TUI\n\n", Version)
+			"lcc %s — keyboard-first Linux system utility TUI\n\n", Version)
 		fmt.Fprintln(flag.CommandLine.Output(), "Flags:")
 		flag.PrintDefaults()
 		fmt.Fprintln(flag.CommandLine.Output(),
@@ -28,7 +28,7 @@ func main() {
 	}
 	flag.Parse()
 	if *showVersion {
-		fmt.Println("lcc2 " + Version)
+		fmt.Println("lcc " + Version)
 		return
 	}
 
@@ -48,7 +48,7 @@ func main() {
 	)
 	p := tea.NewProgram(m) // v2: altscreen + mouse are View/renderer-owned
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "lcc2:", err)
+		fmt.Fprintln(os.Stderr, "lcc:", err)
 		os.Exit(1)
 	}
 }

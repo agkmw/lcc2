@@ -12,9 +12,9 @@ import (
 	"charm.land/lipgloss/v2"
 	"charm.land/bubbles/v2/key"
 
-	"lcc2/internal/services"
-	"lcc2/internal/sysinfo"
-	"lcc2/internal/ui"
+	"lcc/internal/services"
+	"lcc/internal/sysinfo"
+	"lcc/internal/ui"
 )
 
 const svcRefreshInterval = 15 * time.Second

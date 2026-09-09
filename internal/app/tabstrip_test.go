@@ -8,8 +8,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"lcc2/internal/screens"
-	"lcc2/internal/ui"
+	"lcc/internal/screens"
+	"lcc/internal/ui"
 )
 
 func forceTrueColorApp(t *testing.T) {

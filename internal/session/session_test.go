@@ -17,7 +17,7 @@ func TestRoundTrip(t *testing.T) {
 	if got != want {
 		t.Fatalf("round trip: %+v != %+v", got, want)
 	}
-	p := filepath.Join(dir, "lcc2", "state.json")
+	p := filepath.Join(dir, "lcc", "state.json")
 	if _, err := os.Stat(p); err != nil {
 		t.Fatalf("state file missing: %v", err)
 	}
@@ -26,7 +26,7 @@ func TestRoundTrip(t *testing.T) {
 func TestLoadDefaultsOnCorruption(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
-	p := filepath.Join(dir, "lcc2", "state.json")
+	p := filepath.Join(dir, "lcc", "state.json")
 	os.MkdirAll(filepath.Dir(p), 0o755)
 	os.WriteFile(p, []byte("{not json"), 0o600)
 

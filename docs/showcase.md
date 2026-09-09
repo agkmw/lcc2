@@ -1,10 +1,10 @@
-# Showcasing lcc2 — a 12-minute live demo runbook
+# Showcasing lcc — a 12-minute live demo runbook
 
-This is a timed talk track for presenting lcc2 in front of an audience:
+This is a timed talk track for presenting lcc in front of an audience:
 what to say, what to type, what to point at, and what to do when the demo
 gods misbehave. A 5-minute lightning cut is at the end.
 
-The one sentence to land: **lcc2 is one keyboard-first terminal app that
+The one sentence to land: **lcc is one keyboard-first terminal app that
 replaces the six tools you keep opening — htop, ncdu, a file manager,
 systemctl, passwd — with consistent keys and a file manager that never
 touches the disk until you review and save.**
@@ -18,7 +18,7 @@ staged-files wow moment** → *trust* (confirms, trash, root gates) →
 Run this the day before AND an hour before:
 
 ```sh
-go build -o lcc2 ./cmd/lcc2 && ./lcc2 --version   # builds, prints version
+go build -o lcc ./cmd/lcc && ./lcc --version   # builds, prints version
 which fd rg gio systemctl                          # note what's missing
 echo $EDITOR                                       # set it if empty
 ```
@@ -26,11 +26,11 @@ echo $EDITOR                                       # set it if empty
 Prepare a sandbox home for the Files demo — never your real home:
 
 ```sh
-mkdir -p ~/lcc2-demo/{src,docs,assets}
-cd ~/lcc2-demo
+mkdir -p ~/lcc-demo/{src,docs,assets}
+cd ~/lcc-demo
 echo "func main() {}" > src/main.go
 echo "# demo" > docs/readme.md
-echo "TODO: present lcc2" > notes.txt            # grep target
+echo "TODO: present lcc" > notes.txt            # grep target
 dd if=/dev/urandom of=assets/blob.bin bs=1k count=64
 mkdir -p src/deep/nested/tree                    # recursive-chmod target
 touch src/deep/nested/tree/{a,b,c}.go
@@ -39,9 +39,9 @@ sleep 100000 & echo $!                           # process to kill later
 
 Stage checks:
 
-- Terminal: ≥120×35, truecolor, a Nerd-font-free monospace (lcc2 is
+- Terminal: ≥120×35, truecolor, a Nerd-font-free monospace (lcc is
   deliberately glyph-safe), notifications silenced.
-- `./lcc2` once, walk all six tabs, quit. Session restore now opens Files
+- `./lcc` once, walk all six tabs, quit. Session restore now opens Files
   in your sandbox — set it up before the audience arrives.
 - If you'll show Users mutations, decide the machine is disposable; the
   runbook below stays read-only there and makes that a feature.
@@ -54,9 +54,9 @@ not scripts — use your own words.
 
 ### Beat 1 · Hook (0:00–1:00)
 
-DO: launch `./lcc2`. Let the Overview draw. Then press `?`.
+DO: launch `./lcc`. Let the Overview draw. Then press `?`.
 
-SAY: "This is lcc2 — every Linux admin's morning routine in one TUI.
+SAY: "This is lcc — every Linux admin's morning routine in one TUI.
 Six sections, and every key you'll ever need is one keypress away —
 that's the help overlay, per screen, always current."
 
@@ -99,7 +99,7 @@ mention: "PID 1 is hard-refused."
 
 ### Beat 4 · Files — the star (4:00–8:30)
 
-DO: `4`. You are in `~/lcc2-demo` (session restore). Preview follows the
+DO: `4`. You are in `~/lcc-demo` (session restore). Preview follows the
 cursor — walk a few rows.
 
 SAY: "Now the part I actually care about. This file manager is built on
@@ -180,10 +180,10 @@ that would only fail; the bar collapses to this single `!` reminder.
 As root you get full administration: create, lock, expiry, delete with
 or without home."
 
-DO: `?` one more time, then `q`. Relaunch `./lcc2`.
+DO: `?` one more time, then `q`. Relaunch `./lcc`.
 
 SAY: "It saved my screen, my directory, my sort. I'm back exactly where
-I left off. That's lcc2 — one binary, six tools, nothing destructive
+I left off. That's lcc — one binary, six tools, nothing destructive
 without a review."
 
 ## 2. The 5-minute lightning cut
@@ -205,7 +205,7 @@ Services, Users; mention them in one breath over the tab strip.
 - **Does it work over SSH?** It's a TUI in the alt-screen — that *is*
   the SSH workflow. Mouse support is there when the terminal has it.
 - **How is this different from htop/btop/ranger/ncdu?** Those are six
-  mental models. lcc2 is one: same nav keys, same filter, same preview
+  mental models. lcc is one: same nav keys, same filter, same preview
   pattern in every section, and cross-section work (find a file → see
   its owner → check their processes) without switching apps.
 - **Safety?** Confirms on signals and service ops, danger styling on

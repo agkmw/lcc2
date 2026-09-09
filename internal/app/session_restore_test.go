@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	"lcc2/internal/session"
+	"lcc/internal/session"
 )
 
 // Switching 4 -> 2 -> 6 then quitting must persist screen 6 (the one

@@ -5,7 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/screens"
+	"lcc/internal/screens"
 )
 
 // Clicking a tab chip must switch sections: the hit spans recorded

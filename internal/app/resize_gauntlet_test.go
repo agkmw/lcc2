@@ -7,7 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"lcc2/internal/screens"
+	"lcc/internal/screens"
 )
 
 // Resize gauntlet: shrink -> grow -> shrink cycles across sections and
@@ -80,7 +80,7 @@ func TestResizeBelowFloorShowsNotice(t *testing.T) {
 	}
 	// Recovery: growing back must restore the real UI instantly.
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 110, Height: 30})
-	if first := strings.Split(viewString(m), "\n")[0]; !strings.Contains(first, "lcc2") {
+	if first := strings.Split(viewString(m), "\n")[0]; !strings.Contains(first, "lcc") {
 		t.Errorf("no recovery after grow: %q", stripANSI(first))
 	}
 }

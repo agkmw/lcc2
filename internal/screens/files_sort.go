@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"lcc2/internal/files"
+	"lcc/internal/files"
 )
 
 // fileSort is the listing order of the Files screen. Dirs always come

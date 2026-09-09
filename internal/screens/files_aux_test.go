@@ -8,8 +8,8 @@ import (
 
 	"charm.land/bubbletea/v2"
 
-	"lcc2/internal/files"
-	"lcc2/internal/ui"
+	"lcc/internal/files"
+	"lcc/internal/ui"
 )
 
 func auxScreen(t *testing.T) Files {

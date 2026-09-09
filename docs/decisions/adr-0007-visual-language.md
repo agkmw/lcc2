@@ -10,7 +10,7 @@ focus framing, foreground-only row selection, unbadged hints.
 ## Decision
 
 One polish pass, UI-layer only:
-- Header: filled `lcc2` chip + segmented section pills (active = accent
+- Header: filled `lcc` chip + segmented section pills (active = accent
   background); narrow mode reuses it as the tab strip.
 - Sidebar: unicode-safe glyph per section, active `▍` edge marker.
 - Footer: full-width surface rule + `[key] desc` badge hints.

@@ -6,7 +6,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"lcc2/internal/ui"
+	"lcc/internal/ui"
 )
 
 // The main|preview pattern shared by every data screen: the list lives

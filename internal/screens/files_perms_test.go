@@ -7,7 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"lcc2/internal/files"
+	"lcc/internal/files"
 )
 
 // parseOctal must map unix special bits onto Go's FileMode flags; a raw

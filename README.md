@@ -1,4 +1,4 @@
-# lcc2
+# lcc
 
 A keyboard-first Linux system utility TUI. Six sections — monitoring dashboard,
 processes, disks, files, services, users & groups — in a single Go binary built
@@ -22,7 +22,7 @@ TODO
 ## Requirements & Prerequisites
 
 ### Platform Requirements & Limitations
-- **Linux only**: `lcc2` directly inspects Linux `/proc` (CPU, memory, load, processes) and `/sys` (disk I/O rates), interacts with `systemd`, and executes standard Linux account management utilities. macOS, Windows, and BSDs are not supported.
+- **Linux only**: `lcc` directly inspects Linux `/proc` (CPU, memory, load, processes) and `/sys` (disk I/O rates), interacts with `systemd`, and executes standard Linux account management utilities. macOS, Windows, and BSDs are not supported.
 - **Terminal geometry**: Minimum size of **64×16** characters (a graceful fallback notice is displayed below this floor). A truecolor terminal is recommended.
 - **Permissions**:
   - Unprivileged user: Monitoring (Overview dashboard, Processes, Disks, Files browsing/staging, read-only Users view).
@@ -42,10 +42,10 @@ TODO
 
 ### Automated Installation (Recommended)
 
-To install everything required (missing package dependencies, helper tools, and the compiled `lcc2` binary) in a single command, run:
+To install everything required (missing package dependencies, helper tools, and the compiled `lcc` binary) in a single command, run:
 
 ```sh
-git clone https://github.com/agkmw/lcc2.git && cd lcc2 && ./scripts/install.sh
+git clone https://github.com/agkmw/lcc.git && cd lcc && ./scripts/install.sh
 ```
 
 Or if you have already cloned the repository:
@@ -59,7 +59,7 @@ Or if you have already cloned the repository:
 2. Detects the system package manager (`apt`, `dnf`, `pacman`, `zypper`, `apk`).
 3. Automatically installs missing dependencies (`go`, `fd`/`fd-find`, `ripgrep`, `gio`/GLib, clipboard utilities `wl-clipboard`/`xclip`, `less`, `nano` when no editor exists).
 4. Automatically resolves the Debian/Ubuntu `fdfind` binary name by linking `fd` in the binary path.
-5. Builds a standalone, trimmed binary (`CGO_ENABLED=0`) and installs it into `~/.local/bin/lcc2` (or `/usr/local/bin` if run as root).
+5. Builds a standalone, trimmed binary (`CGO_ENABLED=0`) and installs it into `~/.local/bin/lcc` (or `/usr/local/bin` if run as root).
 6. Verifies your `$PATH` and suggests shell configuration if needed.
 
 **Installer options:**
@@ -103,21 +103,21 @@ If you prefer installing dependencies manually:
 
    ```sh
    # Using Make:
-   make build      # outputs to bin/lcc2
+   make build      # outputs to bin/lcc
    make install    # installs to $GOBIN
 
    # Or directly using Go:
-   go build -trimpath -o ~/.local/bin/lcc2 ./cmd/lcc2
+   go build -trimpath -o ~/.local/bin/lcc ./cmd/lcc
    ```
 
-### Running lcc2
+### Running lcc
 
 ```sh
 # Normal mode (monitoring, browsing, staging changes)
-lcc2
+lcc
 
 # Elevated mode (service control, account/group management, killing other users' processes)
-sudo lcc2
+sudo lcc
 ```
 
 ## Keybindings
@@ -170,12 +170,12 @@ sudo lcc2
 
 | Variable | Effect |
 |---|---|
-| `LCC2_GRAPH=block` | use block-style sparkline bars instead of the default braille graphs |
+| `LCC_GRAPH=block` | use block-style sparkline bars instead of the default braille graphs |
 
 ## Project Structure
 
 ```
-cmd/lcc2          entrypoint; wires the six screens into app.New
+cmd/lcc          entrypoint; wires the six screens into app.New
 internal/app      root model: chrome (tab strip/status bar), section
                   routing, toasts, help overlay
 internal/screens  section models; own all Bubble Tea state

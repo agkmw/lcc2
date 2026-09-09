@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# scripts/demo_cleanup.sh — Safely clean up LCC2 demo environment and restore host state
+# scripts/demo_cleanup.sh — Safely clean up LCC demo environment and restore host state
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEMO_DIR="${DEMO_DIR:-$HOME/lcc2-demo}"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lcc2"
+DEMO_DIR="${DEMO_DIR:-$HOME/lcc-demo}"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/lcc"
 STATE_FILE="$CONFIG_DIR/state.json"
 BAK_FILE="$CONFIG_DIR/state.json.demo-bak"
 PID_FILE="$DEMO_DIR/.demo_worker.pid"
@@ -15,7 +15,7 @@ YELLOW="\033[33m"
 CYAN="\033[36m"
 RESET="\033[0m"
 
-echo -e "${BOLD}${CYAN}=== LCC2 Demo Environment Cleanup ===${RESET}"
+echo -e "${BOLD}${CYAN}=== LCC Demo Environment Cleanup ===${RESET}"
 
 # 1. Terminate background demo worker process
 echo -e "\n${BOLD}[1/4] Terminating demo background processes...${RESET}"
@@ -26,7 +26,7 @@ if [ -f "$PID_FILE" ]; then
         kill -9 "$PID" 2>/dev/null || true
     fi
 fi
-pkill -f "lcc2-demo-worker" 2>/dev/null || true
+pkill -f "lcc-demo-worker" 2>/dev/null || true
 
 # 2. Stop any active demo_load activity
 "$ROOT_DIR/scripts/demo_load.sh" stop 2>/dev/null || true

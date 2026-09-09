@@ -8,10 +8,10 @@ import (
 
 	"github.com/charmbracelet/colorprofile"
 
-	"lcc2/internal/ui"
+	"lcc/internal/ui"
 
-	"lcc2/internal/proc"
-	"lcc2/internal/services"
+	"lcc/internal/proc"
+	"lcc/internal/services"
 )
 
 func forceTrueColorScreens(t *testing.T) {

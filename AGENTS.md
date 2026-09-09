@@ -1,6 +1,6 @@
-# lcc2 — agent entry point
+# lcc — agent entry point
 
-Keyboard-first Linux system utility TUI (Go, Bubble Tea). Run: `go run ./cmd/lcc2`.
+Keyboard-first Linux system utility TUI (Go, Bubble Tea). Run: `go run ./cmd/lcc`.
 
 ## Standing rules
 
@@ -30,7 +30,7 @@ Keyboard-first Linux system utility TUI (Go, Bubble Tea). Run: `go run ./cmd/lcc
 
 | path | role |
 |---|---|
-| `cmd/lcc2` | entrypoint; wires the six screens into `app.New` |
+| `cmd/lcc` | entrypoint; wires the six screens into `app.New` |
 | `internal/app` | root model: chrome, section routing, toasts, help overlay |
 | `internal/screens` | section models (overview, proc, disk, files, services, users); own all UI state |
 | `internal/ui` | design system: FilterTable, ConfirmDialog, theme, keymap |

@@ -5,12 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"lcc2/internal/disk"
-	"lcc2/internal/files"
-	"lcc2/internal/proc"
-	"lcc2/internal/services"
-	"lcc2/internal/sysinfo"
-	"lcc2/internal/ui"
+	"lcc/internal/disk"
+	"lcc/internal/files"
+	"lcc/internal/proc"
+	"lcc/internal/services"
+	"lcc/internal/sysinfo"
+	"lcc/internal/ui"
 )
 
 func stripANSI(s string) string {

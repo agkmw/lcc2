@@ -14,7 +14,7 @@ safety rules were all open decisions.
 
 ## Decision
 
-- **The app runs as root** (`sudo go run ./cmd/lcc2`). There is no
+- **The app runs as root** (`sudo go run ./cmd/lcc`). There is no
   sudo/polkit/password plumbing inside the app. Every mutating entry
   point in `internal/accounts` re-checks `IsRoot()` and fails with
   `ErrNotRoot`; screens gate first so unprivileged users see a toast

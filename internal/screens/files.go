@@ -15,10 +15,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"lcc2/internal/files"
-	"lcc2/internal/session"
-	"lcc2/internal/sysinfo"
-	"lcc2/internal/ui"
+	"lcc/internal/files"
+	"lcc/internal/session"
+	"lcc/internal/sysinfo"
+	"lcc/internal/ui"
 )
 
 // Files is the file manager screen: listing left, preview right, and

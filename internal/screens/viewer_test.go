@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"lcc2/internal/ui"
+	"lcc/internal/ui"
 )
 
 // $EDITOR wins, then $VISUAL, then the first installed terminal

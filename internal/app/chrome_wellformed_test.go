@@ -7,7 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"lcc2/internal/screens"
+	"lcc/internal/screens"
 )
 
 // Chrome regression: every section view must be exactly h lines and

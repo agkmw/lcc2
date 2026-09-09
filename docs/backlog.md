@@ -200,9 +200,9 @@ Network graphs auto-scale to the session peak with a 64 KiB/s floor;
 scale label rendered in section title. Ptr: `internal/screens/overview.go`.
 
 ### L6 · partial (v2 migration)
---version/--help shipped (cmd/lcc2 flag package). Mouse support
+--version/--help shipped (cmd/lcc flag package). Mouse support
 shipped (P7 below). Still open: time.Tick leak in procfs.
-Ptrs: `cmd/lcc2/main.go`, `internal/proc/procfs.go:170`.
+Ptrs: `cmd/lcc/main.go`, `internal/proc/procfs.go:170`.
 
 ### V1 · closed — v2 migration (ADR-0012)
 Whole stack moved to charm.land v2 modules; termenv/bubbles-v1 out of
@@ -220,7 +220,7 @@ follows via path keys. Pure helper `sortEntries`.
 Tests: `files_sort_test.go`. Ptr: screens/files_sort.go.
 
 ### P2 · closed — session memory
-`~/.config/lcc2/state.json` (atomic tmp+rename): last screen index +
+`~/.config/lcc/state.json` (atomic tmp+rename): last screen index +
 Files cwd/hidden/sort. Root snapshots on switch/quit/periodic tick;
 `Files.Hydrate` restores, ignoring invalid dirs/corrupt JSON.
 Tests: session round-trip/corruption/clamp; app snapshot test.

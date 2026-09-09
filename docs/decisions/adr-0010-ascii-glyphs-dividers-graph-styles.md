@@ -40,7 +40,7 @@ targets.
   cardless.
 - **Graph styles.** New braille line-chart renderer
   (`ui.GraphBraille`, 2×4 dots per cell, EAW-neutral) is the default
-  for time series; `g` toggles braille⇄block live, `LCC2_GRAPH=block`
+  for time series; `g` toggles braille⇄block live, `LCC_GRAPH=block`
   seeds the startup default. Bars/gauges remain blocks regardless.
 - **Resize repaint.** Any terminal dimension change batches
   `tea.ClearScreen` so tmux split/zoom cannot leave stale cells; a
