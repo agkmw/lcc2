@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"charm.land/bubbles/v2/key"
 
 	"lcc/internal/proc"
 	"lcc/internal/sysinfo"
@@ -29,8 +29,12 @@ type procInspectMsg struct {
 	err error
 }
 
+// killDoneMsg carries the signal it sent so the toast verb and the
+// pid match belong to THIS kill, not to whatever the screen is
+// asking about by the time the async signal lands.
 type killDoneMsg struct {
 	pid int32
+	sig syscall.Signal
 	err error
 }
 
@@ -49,10 +53,9 @@ type Processes struct {
 	scanning *atomic.Int32  // guards against overlapping full scans
 	epoch    *atomic.Uint64 // tick-chain generation; stale chains die
 
-	confirm     *ui.ConfirmDialog
-	pendingSig  syscall.Signal
-	pendingPID  int32
-	pendingName string
+	confirm    *ui.ConfirmDialog
+	pendingSig syscall.Signal
+	pendingPID int32 // target of the newest ask; stale killDoneMsg never matches
 
 	loaded bool
 }
@@ -169,7 +172,11 @@ func (p Processes) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 		return p, p.tick(m.gen)
 
 	case killDoneMsg:
-		p.confirm = nil
+		if m.pid != p.pendingPID {
+			return p, nil // stale completion; a newer ask owns dialog and state
+		}
+		p.pendingPID = 0
+		p.confirm = nil // no-op in the normal flow (cleared at confirm time)
 		if m.err != nil {
 			msg := "cannot signal " + itoa(int(m.pid)) + ": " + m.err.Error()
 			if errors.Is(m.err, os.ErrPermission) {
@@ -178,7 +185,7 @@ func (p Processes) Update(msg tea.Msg) (ui.Screen, tea.Cmd) {
 			return p, ui.ErrToast(msg)
 		}
 		sig := "terminated"
-		if p.pendingSig == syscall.SIGKILL {
+		if m.sig == syscall.SIGKILL {
 			sig = "killed"
 		}
 		// Refresh immediately: a killed row that lingers until the next
@@ -207,6 +214,9 @@ func (p Processes) handleKey(m tea.KeyMsg) (ui.Screen, tea.Cmd) {
 		dlg, yes, done := p.confirm.Update(m)
 		*p.confirm = dlg
 		if done && yes {
+			// Clear here, not in killDoneMsg: a second y while the
+			// signal is in flight must not fire a second signalCmd.
+			p.confirm = nil
 			return p, signalCmd(p.pendingPID, p.pendingSig)
 		}
 		if done {
@@ -277,7 +287,6 @@ func (p Processes) askSignal(sig syscall.Signal) (ui.Screen, tea.Cmd) {
 		return p, ui.ErrToast("refusing to signal init")
 	}
 	p.pendingPID = target.PID
-	p.pendingName = target.Name
 	p.pendingSig = sig
 	action := "Terminate"
 	body := "Send SIGTERM to " + target.Name + " (" + itoa(int(target.PID)) + ")?"
@@ -294,7 +303,7 @@ func (p Processes) askSignal(sig syscall.Signal) (ui.Screen, tea.Cmd) {
 func signalCmd(pid int32, sig syscall.Signal) tea.Cmd {
 	return func() tea.Msg {
 		err := proc.Signal(pid, sig)
-		return killDoneMsg{pid: pid, err: err}
+		return killDoneMsg{pid: pid, sig: sig, err: err}
 	}
 }
 

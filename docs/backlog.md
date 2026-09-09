@@ -946,3 +946,29 @@ nothing".
 Tests: `internal/screens/kill_flow_test.go` (end-to-end: x -> dialog
 -> y -> real child process dies; K stages SIGKILL). Ptr:
 `internal/screens/processes.go` handleKey x/K + killDoneMsg.
+
+### F2 · closed (kill-flow review follow-up)
+Review follow-ups to F1: double-y re-fired the signal (dialog was
+only cleared in killDoneMsg, and ConfirmDialog re-answers y on every
+press) - now cleared at confirmation time; stale killDoneMsg
+dismissed any NEW dialog and took its toast verb from the CURRENT
+p.pendingSig - the msg now carries its own signal and is matched on
+pid, so only the matching completion touches dialog/state/verb.
+Dead `pendingName` field removed; kill-flow test victim killed via
+t.Cleanup; assertion-free debug harness zz_kill_test.go deleted.
+Tests: `kill_flow_test.go::TestSecondConfirmDoesNotRefire`,
+`TestKillDoneMatchedByPID`, `TestKillDoneVerbsMatchSignal`. Ptr:
+`internal/screens/processes.go` handleKey confirm branch +
+killDoneMsg case + signalCmd.
+
+### G1 · open
+The session gate never runs gofmt: `scripts/check.sh` is
+vet+test only, so unformatted files keep landing. `gofmt -l .`
+currently flags 9 files (fixed here: `internal/screens/processes.go`;
+still dirty: `internal/app/routing_test.go`,
+`internal/files/find_test.go`, `internal/screens/overview.go`,
+`internal/screens/services.go`, `internal/screens/users.go`,
+`internal/services/detail.go`, `internal/ui/messages.go`,
+`internal/ui/ui_test.go`). Fix: add `gofmt -l . | grep . && exit 1`
+(or a gofmt -w pass) to `scripts/check.sh`, then normalize the
+remaining 8 in one formatting-only commit.

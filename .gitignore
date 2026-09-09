@@ -13,3 +13,7 @@ __pycache__/
 
 bin/
 coverage.out
+
+# local build artifacts
+/lcc
+/lcc2

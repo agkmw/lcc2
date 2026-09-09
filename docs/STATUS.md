@@ -4,6 +4,14 @@ Volatile — rewrite freely. Exactly three sections, always.
 
 ## Current state
 
+- Kill-flow review follow-up (2026-09-09): double-y no longer fires a
+  second signal (dialog cleared at confirmation time); killDoneMsg
+  carries its own signal and matches on pid, so a stale completion
+  can neither dismiss a fresh confirm dialog nor steal the toast verb
+  ("terminated" vs "killed" pinned by regression tests). Debug
+  harness zz_kill_test.go deleted; lcc/lcc2 binaries untracked +
+  ignored; test victims now killed via t.Cleanup. Recorded the gofmt
+  gate gap (backlog G1: check.sh never runs gofmt, 9 files flagged).
 - Terminate/kill fix (F1, 2026-09-09): x and K were silent no-ops
   (askSignal's dialog screen was discarded at both call sites - broken
   since the first commit). Dialog now opens, failed signals explain
